@@ -1,0 +1,10 @@
+/__pycache__
+/core/__pycache__
+/data/models/deepsea/__pycache__
+/gui/__pycache__
+/gui_batch/__pycache__
+/gui_editor/__pycache__
+/gui_focused/__pycache__
+/gui_tracking/__pycache__
+/gui_training/__pycache__
+.DS_Store
