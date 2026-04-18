@@ -78,6 +78,8 @@ class MaskCanvas(QGraphicsView):
                 self.editor.draw_polygon_preview(self.polygon_points)
             elif tool == "fill":
                 self.editor.flood_fill(x, y)
+            elif tool == "relabel":
+                self.editor.relabel_cell(x, y)
         elif event.button() == Qt.RightButton:
             tool = self.editor.current_tool()
             if tool == "polygon" and len(self.polygon_points) >= 3:
@@ -179,7 +181,7 @@ class MaskEditor(QMainWindow):
         tools = QHBoxLayout()
         tools.addWidget(QLabel("Tool:"))
         self.tool_group = QButtonGroup(self)
-        for name in ["brush", "eraser", "polygon", "fill"]:
+        for name in ["brush", "eraser", "polygon", "fill", "relabel"]:
             rb = QRadioButton(name)
             rb.toggled.connect(lambda checked, n=name: self._on_tool(n, checked))
             tools.addWidget(rb)
@@ -254,6 +256,7 @@ class MaskEditor(QMainWindow):
         QShortcut(QKeySequence("E"), self, activated=lambda: self._select_tool("eraser"))
         QShortcut(QKeySequence("P"), self, activated=lambda: self._select_tool("polygon"))
         QShortcut(QKeySequence("F"), self, activated=lambda: self._select_tool("fill"))
+        QShortcut(QKeySequence("R"), self, activated=lambda: self._select_tool("relabel"))
         for k in range(1, 10):
             QShortcut(QKeySequence(str(k)), self,
                       activated=lambda v=k: self._set_active_cell(v))
@@ -552,6 +555,34 @@ class MaskEditor(QMainWindow):
             labeled, _ = ndimage.label(m == 0)
             comp = labeled == labeled[y, x]
             m[comp] = self.active_cell
+        self._redraw()
+
+    def relabel_cell(self, x, y):
+        """Change the label of the cell under the cursor to active_cell."""
+        if self.masks is None:
+            return
+        idx = self.current_frame
+        m = self.masks[idx]
+        h, w = m.shape
+        if not (0 <= x < w and 0 <= y < h):
+            return
+        old_label = m[y, x]
+        if old_label == 0:
+            self.status.showMessage("No cell under cursor to relabel")
+            return
+        if old_label == self.active_cell:
+            self.status.showMessage(
+                f"Cell already has label {self.active_cell}")
+            return
+        self.undo_stacks.setdefault(idx, []).append(m.copy())
+        if len(self.undo_stacks[idx]) > self.max_undo:
+            self.undo_stacks[idx].pop(0)
+        self.redo_stacks.setdefault(idx, []).clear()
+        m[m == old_label] = self.active_cell
+        n_px = int((m == self.active_cell).sum())
+        self.status.showMessage(
+            f"Relabelled cell {old_label} → {self.active_cell} "
+            f"({n_px} px)")
         self._redraw()
 
     def clear_current(self):

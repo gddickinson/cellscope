@@ -100,6 +100,20 @@ class ParamsPanel(QWidget):
             "cells missed at default orientation.")
         form.addRow("TTA (augment):", self.use_tta)
 
+        self.use_tiling = QCheckBox()
+        self.use_tiling.setChecked(False)
+        self.use_tiling.setToolTip(
+            "Split image into tiles before detection.\n"
+            "Best for large FOV with 5+ cells per frame.\n"
+            "NOT recommended for sparse recordings.")
+        form.addRow("Tiled detection:", self.use_tiling)
+
+        self.tile_grid = QSpinBox()
+        self.tile_grid.setRange(2, 5)
+        self.tile_grid.setValue(2)
+        self.tile_grid.setToolTip("Tile grid size (NxN)")
+        form.addRow("Tile grid (NxN):", self.tile_grid)
+
         self.use_fallback = QCheckBox()
         self.use_fallback.setChecked(True)
         self.use_fallback.setToolTip(
@@ -216,6 +230,8 @@ class ParamsPanel(QWidget):
             "search_radius": self.search_radius.value(),
             "min_track_length": self.min_track_len.value(),
             "use_tta": self.use_tta.isChecked(),
+            "use_tiling": self.use_tiling.isChecked(),
+            "tile_grid": self.tile_grid.value(),
             "use_deepsea": self.use_deepsea.isChecked(),
             "use_fallback": self.use_fallback.isChecked(),
             "use_gap_fill": self.use_gap_fill.isChecked(),

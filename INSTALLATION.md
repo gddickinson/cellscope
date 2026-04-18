@@ -42,16 +42,18 @@ conda create -n cellpose4 python=3.10 -y
 conda activate cellpose4
 
 # Core dependencies
-pip install cellpose==4.1.1
-pip install PyQt5 matplotlib scikit-image scikit-learn scipy
-pip install tifffile opencv-python-headless
+pip install cellpose==4.1.1 torch torchvision numpy scipy
+pip install scikit-image scikit-learn opencv-python-headless
+pip install matplotlib tifffile PyQt5
+
+# Foundation models (MedSAM fallback)
 pip install transformers huggingface_hub peft
 
-# Optional: for advanced tracking
-pip install trackastra
-
-# Optional: for VAMPIRE shape mode analysis
+# Shape analysis (VAMPIRE)
 pip install vampire-analysis
+
+# Optional: advanced tracking
+pip install trackastra
 ```
 
 ### Create the fallback environment (cellpose)
@@ -60,10 +62,10 @@ pip install vampire-analysis
 conda create -n cellpose python=3.10 -y
 conda activate cellpose
 
-# Same dependencies but with cellpose 3.x
-pip install cellpose==3.1.1.1
-pip install PyQt5 matplotlib scikit-image scikit-learn scipy
-pip install tifffile opencv-python-headless
+# Same core dependencies but with cellpose 3.x
+pip install cellpose==3.1.1.1 torch torchvision numpy scipy
+pip install scikit-image scikit-learn opencv-python-headless
+pip install matplotlib tifffile PyQt5
 pip install transformers huggingface_hub peft
 ```
 

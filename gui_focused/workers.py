@@ -34,8 +34,31 @@ class FocusedDetectWorker(QThread):
             use_deepsea = self.params.get("use_deepsea", True)
             use_fallback = self.params.get("use_fallback", True)
             use_gap_fill = self.params.get("use_gap_fill", True)
+            use_tiling = self.params.get("use_tiling", False)
+            tile_grid = self.params.get("tile_grid", 2)
 
-            if self.mode == "hybrid_cpsam":
+            if use_tiling:
+                from core.cpsam_tiled import detect_cpsam_tiled
+                self.log_event.emit("info",
+                                    f"Tiled detection: {tile_grid}x{tile_grid}")
+                labels = detect_cpsam_tiled(
+                    frames, n_tiles=(tile_grid, tile_grid),
+                    overlap=64, min_area=min_area,
+                    progress_fn=cb)
+                if use_deepsea:
+                    from core.deepsea_multicell import (
+                        refine_labels_with_deepsea)
+                    labels = refine_labels_with_deepsea(
+                        frames, labels, expand_px=20)
+                result = {
+                    "masks": labels > 0,
+                    "labels": labels,
+                    "missed_frames": [],
+                    "flow_quality": np.zeros(len(frames)),
+                    "flow_magnitudes": np.zeros_like(
+                        frames, dtype=np.float32),
+                }
+            elif self.mode == "hybrid_cpsam":
                 from core.hybrid_cpsam import detect_hybrid_cpsam
                 masks, missed = detect_hybrid_cpsam(
                     frames, progress_fn=cb,
