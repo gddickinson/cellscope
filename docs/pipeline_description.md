@@ -123,6 +123,33 @@ the centroid. The boundary is divided into angular sectors (default
 - **Protrusion fraction**: fraction of edge extending outward
 - **Kymograph**: (time × angle) heatmap of edge velocity
 
+### VAMPIRE shape mode analysis
+
+CellScope optionally performs VAMPIRE shape mode analysis (Lam et al.,
+Nature Protocols 2021) to quantify morphological heterogeneity:
+
+1. **Contour extraction**: the cell boundary is extracted from each
+   frame's binary mask
+2. **Registration**: each contour is resampled to 50 equidistant
+   points, centroid-normalized, and rotationally aligned
+3. **PCA decomposition**: principal component analysis on all
+   registered contours yields eigenshapes -- the dominant axes of
+   shape variation across the timeseries
+4. **K-means clustering**: contours are assigned to K discrete shape
+   modes (default K=4), each representing a morphological phenotype
+5. **Shannon entropy**: the entropy of the mode frequency
+   distribution quantifies heterogeneity. Higher entropy indicates
+   more variable shape behavior; lower entropy indicates a cell
+   that maintains a consistent morphology
+
+This analysis produces four additional graph types: Shape Modes
+(PCA scatter colored by cluster), Mode Distribution (histogram),
+Mode Over Time (per-frame mode assignment), and Eigenshape
+Variations (mean contour +/- principal components).
+
+The `shape_entropy` metric is included in batch summary CSVs and
+available as a comparison metric in the Tracking GUI.
+
 ## Statistical Comparison
 
 For batch analysis, recordings are grouped by parent folder name
@@ -154,3 +181,7 @@ significance brackets (*, **, ***).
 
 5. Holt CE, et al. Piezo1 regulates mechanotransduction in
    keratinocyte migration. eLife 2021.
+
+6. Lam J, et al. A robust unsupervised machine-learning method to
+   quantify the morphological heterogeneity of cells and nuclei.
+   Nature Protocols 2021;16:754-774.

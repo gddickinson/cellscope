@@ -9,7 +9,8 @@ CellScope detects cell boundaries, tracks cells across frames, and quantifies mi
 - **Cellpose-SAM (cpsam) detection** — ViT-based cell detection with DeepSea refinement and automatic fallback for missed frames
 - **Multi-cell tracking** — Hungarian algorithm with automatic gap filling and cell division detection
 - **Interactive mask editor** — Manual correction with multi-cell label support (1-9 cell IDs)
-- **Rich analysis** — Migration speed, MSD, persistence, morphology (6 metrics), edge dynamics (protrusion/retraction kymographs)
+- **Rich analysis** — Migration speed, MSD, persistence, morphology (6 metrics), edge dynamics (protrusion/retraction kymographs), VAMPIRE shape mode analysis
+- **VAMPIRE shape modes** — PCA-based contour decomposition, K-means morphological clustering, Shannon entropy heterogeneity scoring (Lam et al., Nature Protocols 2021)
 - **Batch processing** — Process multiple recordings grouped by treatment, with automatic group summary CSVs
 - **Statistical comparison** — Inter-group analysis with t-test, Mann-Whitney, ANOVA, Kruskal-Wallis, and significance plots
 - **Cross-platform** — macOS (MPS GPU), Linux/Windows (CUDA GPU), CPU fallback
@@ -49,13 +50,16 @@ Recording (.tif / .mp4)
 │  Edge dynamics: protrusion/retraction velocity,     │
 │                 angular kymograph                   │
 │  Quality: boundary confidence, consecutive IoU      │
+│  VAMPIRE: shape modes, mode distribution,           │
+│           eigenshapes, Shannon entropy               │
 └─────────────┬───────────────────────────────────────┘
               │
               ▼
 ┌─────────────────────────────────────────────────────┐
 │ OUTPUT                                              │
 │  Masks (.npz), metrics (.json), overlay TIFFs       │
-│  14 plot types (trajectory, MSD, kymograph, ...)    │
+│  20 plot types (trajectory, MSD, kymograph,         │
+│    shape modes, eigenshapes, ...)                   │
 │  Batch CSV summaries, group statistical comparison  │
 │  Box/violin plots with significance brackets        │
 └─────────────────────────────────────────────────────┘
@@ -97,7 +101,7 @@ The main workflow: **Load → Detect → Edit Masks → Analyze → Export**
 - **Image viewer** with brightness/contrast, pan/zoom, mask overlay
 - **ROI selector** — rectangle, ellipse, or polygon regions
 - **Frame navigator bar** — color-coded detection quality per frame
-- **14 graph types** including trajectory, MSD, edge kymograph
+- **20 graph types** including trajectory, MSD, edge kymograph, VAMPIRE shape modes
 - **Export dialog** — masks, metrics, plots (PNG/SVG/PDF), overlay TIFFs
 
 ![Analysis with graphs](docs/figures/focused_graph_kymograph.png)
@@ -112,6 +116,24 @@ The main workflow: **Load → Detect → Edit Masks → Analyze → Export**
 | Shape Panel | MSD | Area |
 |:---:|:---:|:---:|
 | ![](docs/figures/result_shape_panel.png) | ![](docs/figures/result_msd.png) | ![](docs/figures/result_area.png) |
+
+## Multi-Cell Tracking
+
+![Multi-cell detection](docs/figures/test_B_multi_detected.png)
+*Multi-cell mode: each tracked cell gets a distinct color (green, red, blue). Per-cell analysis available.*
+
+![Cell summary table](docs/figures/test_B_multi_summary_table.png)
+*Per-cell summary table with migration speed, area, persistence, and division detection.*
+
+## ROI Selection
+
+![ROI overlay](docs/figures/test_C_roi_overlay.png)
+*Rectangle ROI restricts detection to a region of interest. Ellipse and polygon shapes also supported.*
+
+## Tracking & Comparison GUI
+
+![Tracking GUI](docs/figures/test_E_tracking_single.png)
+*Single recording view: per-cell tracking with track table showing frames, area, and speed per cell.*
 
 ## Statistical Comparison
 
@@ -208,3 +230,4 @@ CellScope builds on:
 - [Cellpose-SAM](https://github.com/MouseLand/cellpose) (Pachitariu et al., 2024)
 - [DeepSea](https://github.com/abzargar/DeepSea) (Zargari et al., Cell Reports Methods 2022)
 - [MedSAM](https://github.com/bowang-lab/MedSAM) (Ma et al., Nature Communications 2024)
+- [VAMPIRE](https://github.com/kukionfr/VAMPIRE_analysis) (Lam et al., Nature Protocols 2021)

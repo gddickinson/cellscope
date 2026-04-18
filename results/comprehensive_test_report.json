@@ -1,0 +1,24 @@
+{
+  "passed": 92,
+  "failed": 1,
+  "failed_tests": [
+    {
+      "name": "F6_preview_pairs",
+      "detail": "got 0"
+    }
+  ],
+  "screenshots": [
+    "test_A_single_analyzed.png",
+    "test_A_single_detected.png",
+    "test_B_multi_all_cells_speed.png",
+    "test_B_multi_detected.png",
+    "test_B_multi_summary_table.png",
+    "test_C_roi_overlay.png",
+    "test_D_batch_scanned.png",
+    "test_D_batch_startup.png",
+    "test_E_tracking_batch_tab.png",
+    "test_E_tracking_single.png",
+    "test_F_editor.png",
+    "test_F_training_preview.png"
+  ]
+}

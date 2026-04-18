@@ -28,6 +28,7 @@ class BatchAnalysisWorker(QThread):
         self.recordings = recordings
         self.params = params
         self.output_dir = output_dir
+        self.vampire_params = params.get("vampire", {})
         self._stop = False
 
     def stop(self):
@@ -80,6 +81,20 @@ class BatchAnalysisWorker(QThread):
                         masks = det["masks"]
 
                     result = analyze_recording(rec, masks)
+
+                    if self.vampire_params.get("enabled"):
+                        try:
+                            from core.vampire_analysis import (
+                                run_vampire_analysis)
+                            vamp = run_vampire_analysis(
+                                masks,
+                                n_clusters=self.vampire_params.get(
+                                    "n_clusters", 5))
+                            if vamp:
+                                result["vampire"] = vamp
+                        except Exception:
+                            pass
+
                     rec_dir = os.path.join(self.output_dir, group, name)
                     os.makedirs(rec_dir, exist_ok=True)
                     write_recording_results(result, rec_dir)
@@ -93,6 +108,11 @@ class BatchAnalysisWorker(QThread):
                         "boundary_confidence": result.get(
                             "mean_boundary_confidence", 0),
                     }
+                    vamp = result.get("vampire")
+                    if vamp:
+                        h = vamp["heterogeneity"]
+                        metrics["shape_entropy"] = h["entropy"]
+                        metrics["n_shape_modes"] = vamp["n_clusters"]
                     all_metrics.append(metrics)
                     self.recording_done.emit(group, name, metrics)
                     self.log_event.emit("done", f"{group}/{name} complete")

@@ -41,6 +41,7 @@
 - **auto_params.py** — Automatic parameter selection
 - **flow_quality.py** — Optical flow quality
 - **membrane_quality.py** — Membrane texture metrics
+- **vampire_analysis.py** — VAMPIRE shape mode analysis: contour extraction, PCA eigenshapes, K-means clustering, Shannon entropy heterogeneity (wraps vampire-analysis package)
 
 ## `gui/` — Shared Components
 - **mask_editor.py** — Interactive mask editor (brush/eraser/polygon/fill, multi-cell labels)
@@ -55,7 +56,7 @@
 - **pipeline_panel.py** — 5 stage buttons + mode selector
 - **params_panel.py** — Context-sensitive parameters
 - **analysis_view.py** — Summary/Graphs/Log tabs
-- **analysis_plots.py** — 14 plot functions + GRAPH_REGISTRY
+- **analysis_plots.py** — 20 plot functions + GRAPH_REGISTRY (includes 4 VAMPIRE plots: Shape Modes scatter, Mode Distribution histogram, Mode Over Time, Eigenshape variations)
 - **export_dialog.py** — Export configuration dialog
 - **workers.py** — FocusedDetectWorker, FocusedAnalyzeWorker
 - **roi_selector.py** — Rectangle/ellipse/polygon ROI

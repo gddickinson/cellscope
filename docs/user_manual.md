@@ -39,6 +39,11 @@ The primary workflow for analyzing a single recording.
 ![Detection & Analysis GUI](figures/focused_detected.png)
 *The Detection & Analysis GUI showing a detected cell with mask overlay.*
 
+### Single-Cell Detection
+
+![Single cell detected](../docs/figures/test_A_single_detected.png)
+*Single-cell mode with cpsam detection and green mask overlay.*
+
 ### Pipeline Stages
 
 **1. Load** — Click Load or drag-and-drop a video file onto the
@@ -109,6 +114,10 @@ Trajectory, Speed vs Time, MSD, Direction Autocorrelation,
 Area vs Time, Shape Panel (6 metrics), Edge Kymograph,
 Edge Summary Bar, Boundary Confidence, Consecutive IoU
 
+**VAMPIRE shape modes (4 additional):**
+Shape Modes (PCA scatter), Mode Distribution (histogram),
+Mode Over Time, Eigenshape Variations
+
 **Multi-cell comparison (4 additional):**
 Speed Comparison, Area Comparison, Trajectory Comparison,
 Cell Summary Table
@@ -132,6 +141,9 @@ for all tracked cells.
 - **E** — Eraser: remove cell pixels
 - **P** — Polygon: click vertices, right-click to close and fill
 - **F** — Fill: flood-fill connected background region
+
+![ROI overlay](../docs/figures/test_C_roi_overlay.png)
+*Rectangle ROI restricting analysis to a region of interest.*
 
 ### Multi-Cell Labels
 
@@ -253,6 +265,58 @@ Check Settings → System Info for GPU status. If no GPU detected:
 - Lower "Min area" to catch smaller cells
 - Enable "Fallback detection" and "Gap fill"
 - Try "Multi Cell" mode if debris is being selected as the primary cell
+
+---
+
+## VAMPIRE Shape Mode Analysis
+
+VAMPIRE (Lam et al., Nature Protocols 2021) quantifies morphological
+heterogeneity by decomposing cell contours into principal shape modes.
+
+### Enabling VAMPIRE
+
+- **Detection & Analysis GUI**: check "VAMPIRE shape modes" in the
+  Analysis parameters. Set the cluster count (default 4) to control
+  how many discrete shape modes K-means produces.
+- **Batch GUI**: check "VAMPIRE analysis" in Pipeline Settings.
+  The `shape_entropy` metric is added to batch summary CSVs.
+- **Tracking GUI**: select "Shape Entropy (VAMPIRE)" from the
+  comparison metrics dropdown to compare heterogeneity across groups.
+
+### How it works
+
+1. **Contour extraction** -- the cell boundary is extracted from
+   the binary mask for each frame
+2. **Resampling** -- each contour is resampled to 50 equidistant
+   points and registered (centroid-normalized, rotationally aligned)
+3. **PCA** -- principal component analysis on all registered contours
+   produces eigenshapes (the dominant axes of shape variation)
+4. **K-means clustering** -- contours are clustered into discrete
+   shape modes representing morphological phenotypes
+5. **Shannon entropy** -- the entropy of the mode distribution
+   measures heterogeneity (higher entropy = more variable shape
+   over time)
+
+### Interpreting results
+
+- **Shape Modes scatter**: PCA projection of all contours, colored
+  by cluster. Tight clusters indicate consistent morphology; spread
+  indicates variability.
+- **Mode Distribution**: histogram of how often each shape mode
+  occurs. A uniform distribution (high entropy) means the cell
+  frequently changes shape.
+- **Mode Over Time**: which shape mode the cell occupies at each
+  frame. Persistent blocks indicate stable morphology; rapid
+  switching indicates dynamic shape changes.
+- **Eigenshape Variations**: the mean contour +/- each principal
+  component, showing what each shape axis captures (e.g., elongation,
+  bending, branching).
+
+### Requires
+
+`pip install vampire-analysis` (listed in requirements.txt).
+
+---
 
 ### Mask editor won't load masks
 Ensure masks are uint16 PNG or NPZ format. Mask pixel values should

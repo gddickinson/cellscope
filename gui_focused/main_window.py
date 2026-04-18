@@ -1,5 +1,6 @@
 """Focused pipeline GUI main window."""
 import os
+import time
 import logging
 import numpy as np
 import tempfile
@@ -62,20 +63,23 @@ class FocusedMainWindow(QMainWindow):
         self.viewer = ImageViewer()
         splitter.addWidget(self.viewer)
 
-        right = QWidget()
-        rl = QVBoxLayout(right)
-        rl.setContentsMargins(0, 0, 0, 0)
+        right_splitter = QSplitter(Qt.Vertical)
 
+        top_right = QWidget()
+        trl = QVBoxLayout(top_right)
+        trl.setContentsMargins(0, 0, 0, 0)
         self.pipeline = PipelinePanel()
-        rl.addWidget(self.pipeline)
-
+        trl.addWidget(self.pipeline)
         self.params = ParamsPanel()
-        rl.addWidget(self.params)
+        trl.addWidget(self.params)
+        right_splitter.addWidget(top_right)
 
         self.analysis = AnalysisView(logger=self.logger)
-        rl.addWidget(self.analysis, stretch=1)
+        right_splitter.addWidget(self.analysis)
+        right_splitter.setStretchFactor(0, 0)
+        right_splitter.setStretchFactor(1, 1)
 
-        splitter.addWidget(right)
+        splitter.addWidget(right_splitter)
         splitter.setStretchFactor(0, 2)
         splitter.setStretchFactor(1, 1)
 
@@ -97,8 +101,17 @@ class FocusedMainWindow(QMainWindow):
         act_open.triggered.connect(self._on_load)
         file_menu.addAction(act_open)
         file_menu.addSeparator()
+        act_save_proj = QAction("Save Project...", self)
+        act_save_proj.setShortcut("Ctrl+S")
+        act_save_proj.triggered.connect(self._on_save_project)
+        file_menu.addAction(act_save_proj)
+        act_load_proj = QAction("Open Project...", self)
+        act_load_proj.setShortcut("Ctrl+Shift+O")
+        act_load_proj.triggered.connect(self._on_load_project)
+        file_menu.addAction(act_load_proj)
+        file_menu.addSeparator()
         act_export = QAction("Export Results...", self)
-        act_export.setShortcut("Ctrl+S")
+        act_export.setShortcut("Ctrl+Shift+S")
         act_export.triggered.connect(self._on_export)
         file_menu.addAction(act_export)
         file_menu.addSeparator()
@@ -213,6 +226,7 @@ class FocusedMainWindow(QMainWindow):
         self.pipeline.analyze_clicked.connect(self._on_analyze)
         self.pipeline.export_clicked.connect(self._on_export)
         self.pipeline.mode_changed.connect(self._on_mode_changed)
+        self.pipeline.cancel_clicked.connect(self._on_cancel)
         self.pipeline.undo_clicked.connect(self._on_undo_detect)
         self.pipeline.clear_all_clicked.connect(self._on_clear_all)
         self.params.btn_scan.clicked.connect(self._on_scan_cells)
@@ -290,7 +304,9 @@ class FocusedMainWindow(QMainWindow):
         self._worker.error.connect(self._on_error)
         self.pipeline.set_stage_status("detect", "running")
         self.pipeline.enable_stage("detect", False)
+        self.pipeline.btn_cancel.setEnabled(True)
         self.progress_bar.setVisible(True)
+        self._detect_t0 = time.time()
         self._worker.start()
 
     def _on_detect_done(self, result):
@@ -299,12 +315,20 @@ class FocusedMainWindow(QMainWindow):
         self.viewer.update_masks(masks)
         self.viewer.nav_bar.set_status(
             result["masks"], result.get("missed_frames"))
+        elapsed = time.time() - getattr(self, "_detect_t0", time.time())
         self.pipeline.set_stage_status("detect", "done")
+        self.pipeline.stages["detect"].setText(
+            f"Detect \u2713 ({elapsed:.0f}s)")
+        self.pipeline.btn_cancel.setEnabled(False)
         self.pipeline.enable_stage("edit", True)
         self.pipeline.enable_stage("analyze", True)
         self.progress_bar.setVisible(False)
-        elapsed = result.get("elapsed", 0)
-        self.status.showMessage(f"Detection done in {elapsed:.1f}s")
+        n_det = int(result["masks"].any(axis=(1, 2)).sum())
+        n_total = len(result["masks"])
+        self.status.showMessage(
+            f"Detection: {n_det}/{n_total} frames, {elapsed:.1f}s | "
+            f"{self.recording.get('name', '')} | "
+            f"{self.recording.get('um_per_px', '?')} um/px")
         self._worker = None
 
     def _on_edit(self):
@@ -350,9 +374,13 @@ class FocusedMainWindow(QMainWindow):
             return
         from gui_focused.workers import FocusedAnalyzeWorker
         scale = self.params.get_scale_overrides()
+        vampire_params = {
+            "enabled": self.params.compute_vampire.isChecked(),
+            "n_clusters": self.params.vampire_clusters.value(),
+        }
         self._worker = FocusedAnalyzeWorker(
             self.recording, self.detect_result, self.mode,
-            scale_overrides=scale)
+            scale_overrides=scale, vampire_params=vampire_params)
         self._worker.progress.connect(self._on_progress)
         self._worker.log_event.connect(
             lambda k, m: self.logger.log(k, m))
@@ -395,26 +423,8 @@ class FocusedMainWindow(QMainWindow):
         self.pipeline.set_stage_status("export", "done")
 
     def _on_scan_cells(self):
-        if self.recording is None:
-            QMessageBox.information(self, "Scan", "Load a recording first.")
-            return
-        try:
-            from core.hybrid_cpsam_multi import scan_cell_count
-            from PyQt5.QtWidgets import QApplication
-            QApplication.setOverrideCursor(Qt.WaitCursor)
-            self.status.showMessage("Scanning for cell count...")
-            QApplication.processEvents()
-            count = scan_cell_count(
-                self.recording["frames"], n_sample=5,
-                min_area_px=self.params.min_area.value())
-            self.params.expected_cells.setValue(max(1, count))
-            self.logger.log("info", f"Scan: {count} cells detected")
-            self.status.showMessage(f"Scan complete: {count} cells/frame")
-        except Exception as e:
-            QMessageBox.warning(self, "Scan Error", str(e))
-        finally:
-            from PyQt5.QtWidgets import QApplication
-            QApplication.restoreOverrideCursor()
+        from gui_focused.project_handlers import on_scan_cells
+        on_scan_cells(self)
 
     def _on_roi_drawn(self):
         self.params.use_roi.setChecked(True)
@@ -476,6 +486,26 @@ class FocusedMainWindow(QMainWindow):
             self.pipeline.set_stage_status("load", "done")
             self.pipeline.enable_stage("detect", True)
         self.status.showMessage("All results cleared — ready to re-detect")
+
+    def _on_save_project(self):
+        from gui_focused.project_handlers import on_save_project
+        on_save_project(self)
+
+    def _on_load_project(self):
+        from gui_focused.project_handlers import on_load_project
+        on_load_project(self)
+
+    def _on_cancel(self):
+        if self._worker and self._worker.isRunning():
+            self._worker.terminate()
+            self._worker.wait(2000)
+            self._worker = None
+            self.pipeline.btn_cancel.setEnabled(False)
+            self.pipeline.set_stage_status("detect", "idle")
+            self.pipeline.enable_stage("detect", True)
+            self.progress_bar.setVisible(False)
+            self.status.showMessage("Detection cancelled")
+            self.logger.log("warn", "Detection cancelled by user")
 
     def _on_progress(self, msg, pct):
         self.progress_bar.setValue(pct)

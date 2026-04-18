@@ -92,6 +92,14 @@ class ParamsPanel(QWidget):
             "Adds ~2s/frame. Recommended for best results.")
         form.addRow("DeepSea refinement:", self.use_deepsea)
 
+        self.use_tta = QCheckBox()
+        self.use_tta.setChecked(False)
+        self.use_tta.setToolTip(
+            "Test-time augmentation: run cpsam on 4 rotations\n"
+            "and average results. Slower (~4x) but may recover\n"
+            "cells missed at default orientation.")
+        form.addRow("TTA (augment):", self.use_tta)
+
         self.use_fallback = QCheckBox()
         self.use_fallback.setChecked(True)
         self.use_fallback.setToolTip(
@@ -149,6 +157,22 @@ class ParamsPanel(QWidget):
         self.compute_area = QCheckBox()
         self.compute_area.setChecked(True)
         form.addRow("Area stability:", self.compute_area)
+
+        form.addRow(QLabel("<b>Shape analysis:</b>"))
+        self.compute_vampire = QCheckBox()
+        self.compute_vampire.setChecked(False)
+        self.compute_vampire.setToolTip(
+            "VAMPIRE shape mode analysis: PCA + K-means clustering\n"
+            "of cell contours. Identifies morphological phenotypes\n"
+            "and computes heterogeneity (Shannon entropy).\n"
+            "Adds ~1s to analysis. Requires vampire-analysis package.")
+        form.addRow("VAMPIRE shape modes:", self.compute_vampire)
+
+        self.vampire_clusters = QSpinBox()
+        self.vampire_clusters.setRange(2, 15)
+        self.vampire_clusters.setValue(5)
+        self.vampire_clusters.setToolTip("Number of shape mode clusters")
+        form.addRow("Shape mode clusters:", self.vampire_clusters)
         return page
 
     def _build_info_page(self, title, text):
@@ -191,6 +215,7 @@ class ParamsPanel(QWidget):
             "expected_cells": self.expected_cells.value(),
             "search_radius": self.search_radius.value(),
             "min_track_length": self.min_track_len.value(),
+            "use_tta": self.use_tta.isChecked(),
             "use_deepsea": self.use_deepsea.isChecked(),
             "use_fallback": self.use_fallback.isChecked(),
             "use_gap_fill": self.use_gap_fill.isChecked(),

@@ -22,5 +22,8 @@ transformers
 huggingface_hub
 peft
 
+# Shape analysis
+vampire-analysis
+
 # Optional: advanced tracking
 # trackastra

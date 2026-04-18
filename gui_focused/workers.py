@@ -126,12 +126,13 @@ class FocusedAnalyzeWorker(QThread):
     error = pyqtSignal(str)
 
     def __init__(self, recording, detect_result, mode,
-                 scale_overrides=None):
+                 scale_overrides=None, vampire_params=None):
         super().__init__()
         self.recording = recording
         self.detect_result = detect_result
         self.mode = mode
         self.scale_overrides = scale_overrides or {}
+        self.vampire_params = vampire_params or {}
 
     def run(self):
         try:
@@ -151,6 +152,8 @@ class FocusedAnalyzeWorker(QThread):
             if self.mode == "single":
                 masks = self.detect_result["masks"]
                 result = analyze_recording(rec, masks)
+                if self.vampire_params.get("enabled"):
+                    self._run_vampire(result, masks)
                 self.log_event.emit("done",
                                     f"Analysis done in {time.time()-t0:.1f}s")
                 self.finished.emit(result)
@@ -179,3 +182,21 @@ class FocusedAnalyzeWorker(QThread):
         except Exception as e:
             log.exception("Analysis failed")
             self.error.emit(str(e))
+
+    def _run_vampire(self, result, masks):
+        """Run VAMPIRE shape mode analysis and attach to result."""
+        try:
+            from core.vampire_analysis import run_vampire_analysis
+            n_cl = self.vampire_params.get("n_clusters", 5)
+            self.log_event.emit("info", f"VAMPIRE: {n_cl} clusters")
+            vamp = run_vampire_analysis(masks, n_clusters=n_cl)
+            if vamp:
+                result["vampire"] = vamp
+                h = vamp["heterogeneity"]
+                self.log_event.emit(
+                    "info",
+                    f"VAMPIRE: {vamp['n_contours']} contours, "
+                    f"H={h['entropy']:.2f}/{h['max_entropy']:.2f}")
+        except Exception as e:
+            log.warning("VAMPIRE failed: %s", e)
+            self.log_event.emit("warn", f"VAMPIRE failed: {e}")

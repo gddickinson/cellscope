@@ -49,6 +49,9 @@ pip install transformers huggingface_hub peft
 
 # Optional: for advanced tracking
 pip install trackastra
+
+# Optional: for VAMPIRE shape mode analysis
+pip install vampire-analysis
 ```
 
 ### Create the fallback environment (cellpose)

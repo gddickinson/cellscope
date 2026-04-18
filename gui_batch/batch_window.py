@@ -95,6 +95,14 @@ class BatchWindow(QMainWindow):
         self.use_gap_fill = QCheckBox()
         self.use_gap_fill.setChecked(True)
         form.addRow("Gap fill:", self.use_gap_fill)
+        self.use_vampire = QCheckBox()
+        self.use_vampire.setChecked(False)
+        self.use_vampire.setToolTip("VAMPIRE shape mode analysis")
+        form.addRow("VAMPIRE analysis:", self.use_vampire)
+        self.vampire_clusters = QSpinBox()
+        self.vampire_clusters.setRange(2, 15)
+        self.vampire_clusters.setValue(5)
+        form.addRow("Shape clusters:", self.vampire_clusters)
         sf.addWidget(sg)
 
         # Scale overrides
@@ -172,6 +180,10 @@ class BatchWindow(QMainWindow):
             "use_deepsea": self.use_deepsea.isChecked(),
             "use_fallback": self.use_fallback.isChecked(),
             "use_gap_fill": self.use_gap_fill.isChecked(),
+            "vampire": {
+                "enabled": self.use_vampire.isChecked(),
+                "n_clusters": self.vampire_clusters.value(),
+            },
         }
         recs = [(g, p) for g, p, _ in self._recordings]
         self._worker = BatchAnalysisWorker(recs, params, out)

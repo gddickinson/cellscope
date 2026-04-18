@@ -55,6 +55,7 @@ class PipelinePanel(QWidget):
     edit_clicked = pyqtSignal()
     analyze_clicked = pyqtSignal()
     export_clicked = pyqtSignal()
+    cancel_clicked = pyqtSignal()
     undo_clicked = pyqtSignal()
     clear_all_clicked = pyqtSignal()
     mode_changed = pyqtSignal(str)
@@ -95,6 +96,14 @@ class PipelinePanel(QWidget):
             self.stages[key] = btn
             btn_row.addWidget(btn)
         btn_row.addStretch()
+
+        self.btn_cancel = QPushButton("Cancel")
+        self.btn_cancel.setToolTip("Cancel running detection")
+        self.btn_cancel.clicked.connect(self.cancel_clicked.emit)
+        self.btn_cancel.setEnabled(False)
+        self.btn_cancel.setStyleSheet(
+            "QPushButton:enabled { color: #c22; font-weight: bold; }")
+        btn_row.addWidget(self.btn_cancel)
 
         btn_undo = QPushButton("Undo Detect")
         btn_undo.setToolTip("Revert to previous detection result")

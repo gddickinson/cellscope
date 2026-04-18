@@ -81,6 +81,19 @@ class TrackingBatchWorker(QThread):
                         masks, _ = detect_hybrid_cpsam(
                             rec["frames"], area_threshold=min_area)
                         result = analyze_recording(rec, masks)
+                        # VAMPIRE on single-cell
+                        vp = self.params.get("vampire", {})
+                        if vp.get("enabled"):
+                            try:
+                                from core.vampire_analysis import (
+                                    run_vampire_analysis)
+                                v = run_vampire_analysis(
+                                    masks,
+                                    n_clusters=vp.get("n_clusters", 5))
+                                if v:
+                                    result["vampire"] = v
+                            except Exception:
+                                pass
                         metrics = {
                             "mean_speed": result.get("mean_speed", 0),
                             "persistence": result.get("persistence", 0),
@@ -89,6 +102,10 @@ class TrackingBatchWorker(QThread):
                             "boundary_confidence": result.get(
                                 "mean_boundary_confidence", 0),
                         }
+                        vamp = result.get("vampire")
+                        if vamp:
+                            metrics["shape_entropy"] = \
+                                vamp["heterogeneity"]["entropy"]
 
                     metrics["group"] = group
                     metrics["name"] = name

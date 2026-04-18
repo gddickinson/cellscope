@@ -85,6 +85,12 @@ class ExportDialog(QDialog):
         self.chk_overlay_tif = QCheckBox("Overlay TIFF stack (contours on frames)")
         self.chk_overlay_tif.setChecked(False)
         ol.addWidget(self.chk_overlay_tif)
+        self.chk_overlay_mp4 = QCheckBox("Overlay video (MP4, contours on frames)")
+        self.chk_overlay_mp4.setChecked(False)
+        ol.addWidget(self.chk_overlay_mp4)
+        self.chk_per_cell_csv = QCheckBox("Per-cell CSV (frame, x, y, area, speed...)")
+        self.chk_per_cell_csv.setChecked(False)
+        ol.addWidget(self.chk_per_cell_csv)
         layout.addWidget(ovr_grp)
 
         # Format options
@@ -199,6 +205,14 @@ class ExportDialog(QDialog):
                 self._save_overlay_tif(out_dir)
                 steps += 1; self.progress.setValue(steps)
 
+            if self.chk_overlay_mp4.isChecked():
+                self._save_overlay_mp4(out_dir)
+                steps += 1; self.progress.setValue(steps)
+
+            if self.chk_per_cell_csv.isChecked():
+                self._save_per_cell_csv(out_dir)
+                steps += 1; self.progress.setValue(steps)
+
             self.export_count = steps
             self.export_dir = out_dir
             if os.environ.get("QT_QPA_PLATFORM") != "offscreen":
@@ -248,3 +262,71 @@ class ExportDialog(QDialog):
             overlay[i] = rgb
         tifffile.imwrite(os.path.join(out_dir, "overlay.tif"),
                          overlay, photometric="rgb", compression="zlib")
+
+    def _save_overlay_mp4(self, out_dir):
+        """Export contour overlay as MP4 video."""
+        import cv2
+        frames = self.recording["frames"]
+        masks = self.detect_result.get("masks")
+        labels = self.detect_result.get("labels")
+        n, H, W = frames.shape
+        path = os.path.join(out_dir, "overlay.mp4")
+        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+        fps = max(1, int(1.0 / max(
+            self.recording.get("time_interval_min", 1) * 60, 0.1)))
+        fps = min(fps, 30)
+        writer = cv2.VideoWriter(path, fourcc, fps, (W, H))
+        for i in range(n):
+            rgb = cv2.cvtColor(frames[i], cv2.COLOR_GRAY2RGB)
+            if labels is not None and labels[i].max() > 1:
+                from gui.mask_editor_multicell import render_label_overlay
+                rgb = render_label_overlay(frames[i], labels[i], opacity=0.3)
+            elif masks is not None and masks[i].any():
+                m = masks[i] > 0
+                contours, _ = cv2.findContours(
+                    m.astype(np.uint8), cv2.RETR_EXTERNAL,
+                    cv2.CHAIN_APPROX_NONE)
+                cv2.drawContours(rgb, contours, -1, (0, 255, 0), 1)
+            writer.write(cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR))
+        writer.release()
+
+    def _save_per_cell_csv(self, out_dir):
+        """Export per-cell per-frame CSV with all metrics."""
+        import csv
+        r = self.result
+        if r is None:
+            return
+        path = os.path.join(out_dir, "per_cell_timeseries.csv")
+        masks = self.detect_result.get("masks", np.array([]))
+        n = len(masks)
+        ts = r.get("shape_timeseries", {})
+        speed = r.get("speed")
+        cents = r.get("centroids_px")
+
+        with open(path, "w", newline="") as f:
+            w = csv.writer(f)
+            w.writerow(["frame", "centroid_y", "centroid_x",
+                        "area_um2", "perimeter_um", "circularity",
+                        "solidity", "aspect_ratio", "eccentricity",
+                        "speed_um_min"])
+            for i in range(n):
+                cy = float(cents[i, 0]) if cents is not None and \
+                    not np.isnan(cents[i, 0]) else ""
+                cx = float(cents[i, 1]) if cents is not None and \
+                    not np.isnan(cents[i, 1]) else ""
+                area = float(ts["area_um2"][i]) if "area_um2" in ts \
+                    else ""
+                perim = float(ts["perimeter_um"][i]) if \
+                    "perimeter_um" in ts else ""
+                circ = float(ts["circularity"][i]) if \
+                    "circularity" in ts else ""
+                sol = float(ts["solidity"][i]) if "solidity" in ts \
+                    else ""
+                ar = float(ts["aspect_ratio"][i]) if \
+                    "aspect_ratio" in ts else ""
+                ecc = float(ts["eccentricity"][i]) if \
+                    "eccentricity" in ts else ""
+                spd = float(speed[i]) if speed is not None and \
+                    i < len(speed) else ""
+                w.writerow([i, cy, cx, area, perim, circ,
+                            sol, ar, ecc, spd])

@@ -20,6 +20,7 @@ COMPARISON_METRICS = [
     ("mean_area", "Mean Area (um^2)"),
     ("boundary_confidence", "Boundary Confidence"),
     ("n_cells", "Cells per Recording"),
+    ("shape_entropy", "Shape Entropy (VAMPIRE)"),
 ]
 
 
