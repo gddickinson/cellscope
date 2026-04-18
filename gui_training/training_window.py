@@ -39,6 +39,15 @@ class TrainingWindow(QMainWindow):
         self._worker = None
         self._losses = []
         self._build_ui()
+        from gui.drag_drop import setup_drag_drop
+        setup_drag_drop(self, self._on_drop_folder,
+                        (".png", ".tif", ".tiff", ".npz"))
+
+    def _on_drop_folder(self, path):
+        import os
+        d = os.path.dirname(path) if os.path.isfile(path) else path
+        self.data_edit.setText(d)
+        self._on_scan()
 
     def _build_ui(self):
         central = QWidget()

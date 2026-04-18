@@ -22,6 +22,9 @@ class BatchWindow(QMainWindow):
         self._worker = None
         self._recordings = []
         self._build_ui()
+        from gui.drag_drop import setup_drag_drop
+        setup_drag_drop(self, self._on_drop_folder,
+                        (".tif", ".tiff", ".mp4", ".avi", ".mov"))
 
     def _build_ui(self):
         central = QWidget()
@@ -136,6 +139,12 @@ class BatchWindow(QMainWindow):
         self.status = QStatusBar()
         self.setStatusBar(self.status)
         self.status.showMessage("Select input directory and click Scan")
+
+    def _on_drop_folder(self, path):
+        import os
+        d = os.path.dirname(path) if os.path.isfile(path) else path
+        self.input_edit.setText(d)
+        self._on_scan()
 
     def _pick_input(self):
         path = QFileDialog.getExistingDirectory(self, "Input directory")

@@ -86,6 +86,22 @@ class SingleTrackingView(QWidget):
         splitter.setStretchFactor(1, 1)
         layout.addWidget(splitter)
 
+    def _on_drop_load(self, path):
+        from core.io import load_recording
+        try:
+            self.recording = load_recording(path)
+        except Exception as e:
+            return
+        self.viewer.set_data(self.recording["frames"])
+        self.masks = None
+        self.tracks = None
+        self.per_cell_results = None
+        self.track_table.setRowCount(0)
+        self.btn_track.setEnabled(False)
+        self.btn_analyze.setEnabled(False)
+        self.status_label.setText(
+            f"Loaded {len(self.recording['frames'])} frames")
+
     def _on_load(self):
         path, _ = QFileDialog.getOpenFileName(
             self, "Open Recording", "",

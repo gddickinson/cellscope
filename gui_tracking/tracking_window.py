@@ -20,6 +20,11 @@ class TrackingWindow(QMainWindow):
         self.logger = RunLogger()
         self._build_ui()
         self._build_menu()
+        from gui.drag_drop import setup_drag_drop, VIDEO_EXTS
+        setup_drag_drop(self, self._on_drop_file, VIDEO_EXTS)
+
+    def _on_drop_file(self, path):
+        self.single_view._on_drop_load(path)
 
     def _build_ui(self):
         central = QWidget()

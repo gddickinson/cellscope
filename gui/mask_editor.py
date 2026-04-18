@@ -136,6 +136,8 @@ class MaskEditor(QMainWindow):
         self._stroke_snapshot = None
 
         self._build_ui()
+        from gui.drag_drop import setup_drag_drop, VIDEO_EXTS
+        setup_drag_drop(self, self._on_drop_file, VIDEO_EXTS)
 
         if video_path:
             self.load_video(video_path, mask_path)
@@ -188,12 +190,21 @@ class MaskEditor(QMainWindow):
             self.tool_group.addButton(rb)
             if name == "brush":
                 rb.setChecked(True)
-        tools.addWidget(QLabel("  Brush size:"))
+        tools.addWidget(QLabel("  Brush:"))
         self.brush_spin = QSpinBox()
         self.brush_spin.setRange(1, 100)
         self.brush_spin.setValue(self.brush_size)
+        self.brush_spin.setToolTip("Brush size (pixels)")
         self.brush_spin.valueChanged.connect(self._on_brush_size)
         tools.addWidget(self.brush_spin)
+        tools.addWidget(QLabel("Eraser:"))
+        self.eraser_spin = QSpinBox()
+        self.eraser_spin.setRange(1, 100)
+        self.eraser_spin.setValue(20)
+        self.eraser_spin.setToolTip("Eraser size (pixels)")
+        self.eraser_spin.valueChanged.connect(self._on_eraser_size)
+        tools.addWidget(self.eraser_spin)
+        self.eraser_size = 20
         tools.addWidget(QLabel("  Overlay α:"))
         self.op_slider = QSlider(Qt.Horizontal)
         self.op_slider.setRange(0, 100)
@@ -210,6 +221,10 @@ class MaskEditor(QMainWindow):
         btn_clear = QPushButton("Clear Frame")
         btn_clear.clicked.connect(self.clear_current)
         tools.addWidget(btn_clear)
+        btn_fit = QPushButton("Fit View")
+        btn_fit.setToolTip("Reset zoom and center the image")
+        btn_fit.clicked.connect(self._fit_view)
+        tools.addWidget(btn_fit)
         tools.addWidget(QLabel("  Cell:"))
         self.cell_spin = QSpinBox()
         self.cell_spin.setRange(1, 9)
@@ -262,6 +277,9 @@ class MaskEditor(QMainWindow):
                       activated=lambda v=k: self._set_active_cell(v))
 
     # ------------------------------------------------------------------
+    def _on_drop_file(self, path):
+        self.load_video(path)
+
     def load_video(self, video_path, mask_path=None):
         try:
             self.frames = load_video(video_path)
@@ -454,6 +472,16 @@ class MaskEditor(QMainWindow):
     def _on_brush_size(self, val):
         self.brush_size = val
 
+    def _on_eraser_size(self, val):
+        self.eraser_size = val
+
+    def _fit_view(self):
+        self.canvas.resetTransform()
+        self.canvas.setSceneRect(self.canvas.pixmap_item.boundingRect())
+        self.canvas.fitInView(
+            self.canvas.pixmap_item.boundingRect(),
+            Qt.KeepAspectRatio)
+
     def _on_opacity(self, val):
         self.mask_opacity = val / 100.0
         self._redraw()
@@ -504,7 +532,8 @@ class MaskEditor(QMainWindow):
         h, w = m.shape
         if not (0 <= x < w and 0 <= y < h):
             return
-        r = max(1, self.brush_size // 2)
+        size = self.eraser_size if tool == "eraser" else self.brush_size
+        r = max(1, size // 2)
         yy, xx = np.ogrid[-r:r + 1, -r:r + 1]
         disk = (xx * xx + yy * yy) <= r * r
         y0, y1 = max(0, y - r), min(h, y + r + 1)
@@ -558,7 +587,7 @@ class MaskEditor(QMainWindow):
         self._redraw()
 
     def relabel_cell(self, x, y):
-        """Change the label of the cell under the cursor to active_cell."""
+        """Change the label of the connected component under the cursor."""
         if self.masks is None:
             return
         idx = self.current_frame
@@ -574,15 +603,23 @@ class MaskEditor(QMainWindow):
             self.status.showMessage(
                 f"Cell already has label {self.active_cell}")
             return
+        from scipy import ndimage
+        binary = m == old_label
+        labeled, n_components = ndimage.label(binary)
+        component_id = labeled[y, x]
+        if component_id == 0:
+            return
+        component = labeled == component_id
         self.undo_stacks.setdefault(idx, []).append(m.copy())
         if len(self.undo_stacks[idx]) > self.max_undo:
             self.undo_stacks[idx].pop(0)
         self.redo_stacks.setdefault(idx, []).clear()
-        m[m == old_label] = self.active_cell
-        n_px = int((m == self.active_cell).sum())
+        m[component] = self.active_cell
+        n_px = int(component.sum())
         self.status.showMessage(
             f"Relabelled cell {old_label} → {self.active_cell} "
-            f"({n_px} px)")
+            f"({n_px} px, 1 of {n_components} component"
+            f"{'s' if n_components > 1 else ''})")
         self._redraw()
 
     def clear_current(self):
