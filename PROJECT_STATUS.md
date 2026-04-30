@@ -1,6 +1,6 @@
 # CellScope — Project Status
 
-*Last updated: 2026-04-20*
+*Last updated: 2026-04-30*
 
 ## What is CellScope?
 
@@ -54,13 +54,15 @@ cpsam (ViT) → DeepSea union → fallback (CP3) → gap fill
 - 100% detection across 5 recordings (485 frames)
 - Auto-fallback rescues 1-4 frames per recording
 
-### DIC (Jesse's VAMPIRE recordings)
+### DIC (Jesse's VAMPIRE / our keratinocytes)
 ```
-cellpose_dic → preprocessing (temporal bg + HP) → retry → DeepSea
+cpsam_dic (CP4 ViT, via cellpose4 subprocess) → DeepSea union → fallback
 ```
-- **0.512 IoU** with cellpose_dic_v2 + preprocessing (best DIC result)
-- +180% over cpsam on DIC (0.512 vs 0.183)
-- Modality auto-detection routes to correct pipeline
+- **0.795 IoU** on our 526² in-domain GT (cpsam_dic, current best)
+- **0.697 IoU** on VAMPIRE held-out OOD crops (cpsam_dic, +0.42 over cellpose_dic_v3)
+- +280% over default cpsam on DIC (0.697 vs 0.183)
+- Modality auto-detection routes to correct pipeline. CP3 fine-tunes
+  (cellpose_dic_v3, etc.) remain available as faster fallbacks.
 
 ### Multi-Cell
 ```
@@ -77,14 +79,14 @@ cpsam/cellpose → debris filter → DeepSea per-cell → Hungarian tracker
 
 | Model | Type | Trained On | Best For |
 |-------|------|-----------|----------|
+| **cpsam_dic** ★ | ViT (CP4) | 1,000 DIC pairs (Colab fine-tune of base cpsam) | **DIC, current best** (0.795 in-domain, 0.697 OOD) |
 | cpsam (default) | ViT (CP4) | General microscopy | Phase-contrast |
-| cellpose_dic | CNN (CP3) | Our DIC keratinocytes | Our full-frame DIC |
-| cellpose_dic_v2 | CNN (CP3) | 2,812 DIC pairs (VAMPIRE+GT+CTC) | DIC with preprocessing |
-| cellpose_dic_v3 | CNN (CP3) | 2,644 standardized 448px crops | Tiled DIC inference (training) |
-| cellpose_robust_v2 | CNN (CP3) | 5,826 augmented pairs | Noisy/perturbed data |
+| cellpose_dic_v3 | CNN (CP3) | 2,644 standardized 448px crops | Faster DIC alternative |
+| cellpose_dic_v2 | CNN (CP3) | 2,812 DIC pairs (VAMPIRE+GT+CTC) | Legacy DIC |
+| cellpose_dic | CNN (CP3) | Our DIC keratinocytes | Original DIC fine-tune |
+| cellpose_combined_robust | CNN (CP3) | 5,826 augmented pairs | Noisy / perturbed recordings |
 | DeepSea | U-Net | Brightfield/phase-contrast | Boundary refinement |
 | MedSAM | SAM-ViT | Biomedical images | Foundation model refinement |
-| cpsam_dic | ViT (CP4) | — | DIC (planned, needs GPU training) |
 
 ---
 
@@ -97,20 +99,28 @@ cpsam/cellpose → debris filter → DeepSea per-cell → Hungarian tracker
 | cellpose + MedSAM + DeepSea | 0.907 | 55/65 | 0.629 |
 | cpsam alone | 0.915 | 56/65 | — |
 
-### DIC Detection (VAMPIRE, full-recording pipeline)
+### DIC Detection — head-to-head (90 stratified frames per test)
+| Test set | cellpose_dic_v3 | **cpsam_dic** | Δ |
+|---|---:|---:|---:|
+| our-GT 526² in-domain | 0.740 | **0.795** | **+0.055** |
+| VAMPIRE held-out OOD crops | 0.279 | **0.697** | **+0.418** |
+| Detection rate (our-GT) | 95% | **100%** | **+5pp** |
+
+### VAMPIRE held-out per-genotype (cpsam_dic)
+| Genotype | IoU | std |
+|---|---:|---:|
+| control | 0.897 | 0.083 |
+| cKO | 0.490 | 0.390 |
+| GoF | 0.703 | 0.150 |
+| **mean** | **0.697** | 0.297 |
+
+### Older DIC benchmarks (legacy CP3 models, kept for reference)
 | Method | control | cKO | GoF | Mean |
 |--------|---------|-----|-----|------|
-| **cellpose_dic_v2 + preproc** | **0.874** | **0.503** | 0.159 | **0.512** |
-| cellpose_robust | 0.652 | 0.352 | **0.434** | 0.479 |
+| cellpose_dic_v2 + preproc | 0.874 | 0.503 | 0.159 | 0.512 |
+| cellpose_combined_robust | 0.652 | 0.352 | 0.434 | 0.479 |
 | cellpose_dic + preproc | 0.493 | 0.456 | 0.191 | 0.380 |
-| cpsam + DeepSea | — | — | — | 0.183 |
-
-### Our Full-Frame GT (244 frames, regression check)
-| Method | control | cKO | Mean |
-|--------|---------|-----|------|
-| **cellpose_robust** | **0.747** | **0.648** | **0.697** |
-| cellpose_dic | 0.642 | 0.396 | 0.519 |
-| cellpose_dic_v2 | 0.388 | 0.435 | 0.411 |
+| cpsam (no fine-tune) + DeepSea | — | — | — | 0.183 |
 
 ### Multi-Cell Tracking (CTC DIC-C2DH-HeLa)
 | Tracker | DET | TRA | SEG |
@@ -205,34 +215,37 @@ from 4 experiments (85, 100, 126, 135, 240).
 
 ## Current Limitations
 
-- **DIC detection**: 0.512 IoU best (vs 0.932 on phase-contrast) — DIC
-  background texture still causes false positives
-- **GoF genotype**: Hardest to detect (0.159-0.434 IoU depending on model)
-- **cpsam fine-tuning**: ViT too slow on Apple Silicon MPS — needs CUDA GPU
-  (Colab notebook ready at `notebooks/train_cpsam_dic_colab.ipynb`)
+- **GoF cKO heterogeneity**: cpsam_dic cKO std is 0.39 (vs 0.08 for
+  control) — most cKO frames hit IoU 0.85+, but a tail of frames with
+  thin filopodia or unusual morphology score below 0.4. Manual editing
+  recovers these.
 - **Multi-cell GT**: Limited ground truth for multi-cell evaluation
-- **ID switching**: Touching cells still cause occasional identity swaps
+  beyond CTC DIC-C2DH-HeLa.
+- **ID switching**: Touching cells still cause occasional identity
+  swaps in the Hungarian tracker.
+- **Brightness shifts**: All detectors lose ~30% IoU on `bright_dark` /
+  `bright_bright` perturbations (would need brightness-augmented
+  retraining to fix).
 
 ---
 
 ## In Progress
 
-1. **cellpose_dic_v3 training** — CP3 model on standardized 448px crops
-   to match tiled inference (training now, ~2h)
-2. **cpsam DIC fine-tuning** — Colab notebook ready, waiting for Drive
-   sync to upload training data
-3. **Tiled DIC inference** — `core/dic_tiled.py` tiles 1024² frames into
-   448px patches matching the VAMPIRE training scale (+5-7% IoU on some
-   recordings)
+1. **Resume cpsam_dic fine-tune** — current model is from a partial
+   ~6-epoch run that timed out on Colab. Resuming notebook is at
+   `notebooks/resume_cpsam_dic_colab.ipynb`; expect another +0.02 IoU
+   when the full 20-epoch run completes.
+2. **Distribution polish** — install scripts, model bundles, and Drive
+   downloader are wired (`install.{bat,sh}`, `download_models.py`,
+   `make_models_bundle.py`, `make_dist.py`). Doc updates in flight.
 
 ## Planned Next Steps
 
-- Fine-tune cpsam on DIC via Colab (expected: 0.6-0.7 IoU on DIC)
-- Evaluate dic_v3 with tiled inference on all VAMPIRE recordings
-- Multi-cell ground truth expansion
-- Boundary separation for touching cells
-- False positive rejection improvements
-- GitHub release preparation
+- Multi-cell ground truth expansion (broader CTC test or new annotated
+  Jesse recordings).
+- Boundary separation for touching cells in dense recordings.
+- Optional brightness-shift augmentation in next cpsam_dic retrain.
+- GitHub release once distribution dry-run is complete.
 
 ---
 
@@ -240,37 +253,51 @@ from 4 experiments (85, 100, 126, 135, 240).
 
 ```
 cellscope/
-├── core/              34 analysis modules
-├── gui/               Shared GUI components
-├── gui_focused/       Detection & Analysis GUI (12 files)
-├── gui_batch/         Batch Processing GUI (3 files)
-├── gui_tracking/      Tracking & Comparison GUI (6 files)
-├── gui_editor/        Mask Editor GUI (3 files)
-├── gui_training/      Model Training GUI (4 files)
-├── output/            Result writers (2 files)
-├── scripts/           Training, evaluation, testing (12 files)
-├── notebooks/         Colab training notebook
-├── docs/              Plans, manual, pipeline description
+├── install.bat / install.sh         Cross-platform installer
+├── environment.yml                  cellpose env spec
+├── environment-cellpose4.yml        cellpose4 env spec
+├── download_models.py               Drive fetcher (cpsam_dic + bundle)
+├── make_models_bundle.py            Maintainer: build models bundle
+├── make_dist.py                     Maintainer: build dist zip
+│
+├── main_suite.py                    Unified launcher
+├── main_focused.py                  Detection & Analysis
+├── main_batch.py                    Batch Processing
+├── main_tracking.py                 Tracking & Comparison
+├── main_editor.py                   Mask Editor
+├── main_training.py                 Model Training
+│
+├── core/                            34 analysis modules
+├── gui/                             Shared GUI components
+├── gui_focused/                     Detection & Analysis (12 files)
+├── gui_batch/                       Batch Processing (3 files)
+├── gui_tracking/                    Tracking & Comparison (6 files)
+├── gui_editor/                      Mask Editor (3 files)
+├── gui_training/                    Model Training (4 files)
+├── output/                          Result writers
+├── scripts/                         Training + evaluation + bench
+│   └── _paths.py                    Project-root + benchmark-data helpers
+├── notebooks/                       Colab training + resume notebooks
+├── docs/                            Manual + recommendations + plans
 ├── data/
-│   ├── models/        cellpose_dic, dic_v2, robust, DeepSea
-│   └── training/      dic_splits_v3 (448px standardized)
-├── results/           Benchmark outputs
-├── main_suite.py      Unified launcher
-├── main_focused.py    Detection & Analysis GUI entry
-├── main_batch.py      Batch Processing entry
-├── main_tracking.py   Tracking & Comparison entry
-├── main_editor.py     Mask Editor entry
-├── main_training.py   Model Training entry
-├── setup_wizard.py    Environment installer
-├── config.py          Shared configuration
-├── INTERFACE.md       Module map
-├── INSTALLATION.md    Setup guide
-└── README.md          User-facing documentation
+│   ├── models/                      cpsam_dic + CP3 fine-tunes + DeepSea
+│   └── training/                    dic_splits_v3 (448px standardized)
+├── results/                         Benchmark outputs
+├── INTERFACE.md                     Module map
+├── INSTALLATION.md                  Setup guide
+├── PROJECT_STATUS.md                This file
+└── README.md                        User-facing documentation
 ```
 
 ## Environments
 
+Created automatically by `install.{bat,sh}` from `environment.yml` and
+`environment-cellpose4.yml`:
+
 ```bash
-conda activate cellpose    # cellpose 3.1.1.1, torch 2.7 MPS, CP3 models
-conda activate cellpose4   # cellpose 4.1.1, cpsam ViT backbone
+conda activate cellpose    # cellpose 3.1.1.1, GUI + analysis pipeline + CP3 models
+                            # ALWAYS launch the suite from this env.
+conda activate cellpose4   # cellpose 4.1.1, cpsam ViT.
+                            # Invoked automatically via subprocess
+                            # whenever the pipeline needs cpsam_dic.
 ```

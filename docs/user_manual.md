@@ -5,9 +5,14 @@
 ### Launching CellScope
 
 ```bash
-conda activate cellpose4
+conda activate cellpose
 python main_suite.py
 ```
+
+> **Always launch from the `cellpose` env.** The suite GUI lives there.
+> The pipeline transparently delegates to the sibling `cellpose4` env
+> whenever it needs cpsam (the ViT-based detector). You should never
+> have to switch envs by hand.
 
 This opens the suite launcher with buttons for each application.
 Click any button to open that tool. You can run multiple tools
@@ -36,13 +41,13 @@ If no JSON file exists, CellScope uses defaults (1.0 μm/px,
 
 The primary workflow for analyzing a single recording.
 
-![Detection & Analysis GUI](figures/focused_detected.png)
-*The Detection & Analysis GUI showing a detected cell with mask overlay.*
+![Detection & Analysis GUI](figures/gui_focused.png)
+*The Detection & Analysis GUI offscreen capture showing the standard layout.*
 
 ### Single-Cell Detection
 
-![Single cell detected](../docs/figures/test_A_single_detected.png)
-*Single-cell mode with cpsam detection and green mask overlay.*
+![Single-cell DIC detection](figures/focused_detected.png)
+*DIC single-cell detection (red contour) on a VAMPIRE keratinocyte recording.*
 
 ### Pipeline Stages
 
@@ -80,22 +85,64 @@ overlay TIFFs. Choose output format (PNG/SVG/PDF) and DPI.
 
 ### Pipeline Mode
 
-- **Single Cell**: detects one cell per frame (hybrid_cpsam).
-  Best for cropped single-cell recordings.
-- **Multi Cell**: detects and tracks multiple cells
-  (hybrid_cpsam_multi). Automatically handles division events.
+- **Single Cell**: detects one cell per frame.
+  - DIC modality → `hybrid_dic` (cpsam_dic + DeepSea, fallback to
+    CP3 cellpose_dic).
+  - Phase-contrast → `hybrid_cpsam` (default cpsam + DeepSea, fallback
+    to cellpose+MedSAM+DeepSea).
+- **Multi Cell**: detects and tracks multiple cells across frames.
+  Automatically uses the corresponding `_multi` pipeline. Handles
+  division events. **Always preferred when the recording has more
+  than one cell** — gap fill helps recover frames where individual
+  cells are momentarily missed.
+
+### Modality (Auto / DIC / Phase-contrast)
+
+Top of the params panel. The default **Auto** classifies each frame
+by texture statistics — DIC has high local-variance backgrounds, while
+phase-contrast is smoother. If auto-detection ever picks the wrong
+modality (e.g. on unusual recordings), pin it by hand.
+
+### DIC model selector
+
+Below the modality picker. Lists all DIC fine-tunes found under
+`data/models/`:
+
+- **Auto (best available)** — picks `cpsam_dic` if present, else
+  `cellpose_dic_v3`, else `_v2`, else `_v1`. Recommended.
+- **cpsam_dic** — ViT-based DIC fine-tune. **Best on every benchmark
+  we've measured** (0.795 IoU on our-GT, 0.697 on VAMPIRE OOD).
+  Loads via the cellpose4 subprocess automatically.
+- **cellpose_dic_v3 / v2 / cellpose_dic** — older CP3 fine-tunes,
+  faster but lower IoU. Useful as fallbacks or for low-RAM machines.
 
 ### Parameters
 
 - **Min area (px)**: minimum mask area to accept as a real cell
-  (smaller = debris). Default 500.
+  (smaller = debris). Default 500. Drop to ~200 for small/mitotic
+  cells, raise to 1000+ for large cells with lots of background
+  noise.
 - **Expected cells**: number of cells to keep per frame.
-  "Auto" = no filtering. Set to 2 or 3 for multi-cell recordings.
-- **DeepSea refinement**: toggle DeepSea union step (default: on)
-- **Fallback detection**: toggle cellpose fallback for missed frames
-  (default: on)
-- **Gap fill**: toggle post-tracking gap fill (default: on,
-  multi-cell only)
+  "Auto" = no filtering. Set to N if you know exactly how many cells
+  are in the recording — anything beyond the N largest is treated
+  as debris.
+- **DeepSea refinement**: toggle the DeepSea union step (default:
+  on). Tightens cpsam's already-good boundaries on filopodia and
+  drops spurious dots via fill_holes + largest_CC.
+- **Fallback detection**: when cpsam returns nothing in a frame,
+  fall back to cellpose+MedSAM+DeepSea via subprocess (default: on).
+  Worth keeping on — cheap and only fires on empty frames.
+- **TTA (augment)**: run cpsam on 4 rotations and merge (default:
+  off). ~4× slower per frame but recovers cells cpsam misses at the
+  default orientation. Worth turning on for recordings with cells
+  in unusual orientations.
+- **Gap fill**: re-detect with `cpsam(augment=True)` for tracked
+  cells that disappear for a frame or two (default: on, multi-cell
+  only). 100% gap fill on the recordings we've tested.
+- **Tiling**: split each frame into N×N tiles, run cpsam per tile,
+  union (default: off). Mainly for >1024² recordings where cells
+  span a smaller fraction of the frame than cpsam expects. 3×3 with
+  64 px overlap is a good starting point.
 
 ### ROI Selection
 
@@ -125,14 +172,14 @@ Cell Summary Table
 Select "All Cells" in the Cell dropdown to see overlaid traces
 for all tracked cells.
 
-![Analysis graphs](figures/focused_graph_trajectory.png)
-*Trajectory plot colored by frame number, showing cell migration path.*
+![Trajectory graph](figures/graph_trajectory.png)
+*Trajectory plot colored by frame number, showing cell migration path. Green circle = start, red square = end.*
 
 ---
 
 ## Mask Editor (main_editor.py)
 
-![Mask Editor](figures/editor_window.png)
+![Mask Editor](figures/gui_editor.png)
 *Mask editor with results panel dock.*
 
 ### Tools
@@ -142,8 +189,6 @@ for all tracked cells.
 - **P** — Polygon: click vertices, right-click to close and fill
 - **F** — Fill: flood-fill connected background region
 
-![ROI overlay](../docs/figures/test_C_roi_overlay.png)
-*Rectangle ROI restricting analysis to a region of interest.*
 
 ### Multi-Cell Labels
 
@@ -171,7 +216,7 @@ window (if it launched the editor).
 
 ## Batch Processing (main_batch.py)
 
-![Batch Processing](figures/batch_window.png)
+![Batch Processing](figures/gui_batch.png)
 *Batch processing window with directory scanner and pipeline settings.*
 
 ### Directory Structure
@@ -198,8 +243,8 @@ experiment/
 
 ## Tracking & Comparison (main_tracking.py)
 
-![Tracking GUI](figures/tracking_batch.png)
-*Batch comparison tab with group statistical analysis.*
+![Tracking GUI](figures/gui_tracking.png)
+*Tracking & Comparison main window with single-recording and batch-comparison tabs.*
 
 ### Single Recording Tab
 
@@ -221,7 +266,7 @@ Load a recording + masks (.npz), then:
 
 ## Model Training (main_training.py)
 
-![Training GUI](figures/training_window.png)
+![Training GUI](figures/gui_training.png)
 *Model training GUI with data preview and live loss curve.*
 
 ### Preparing Training Data
@@ -248,23 +293,63 @@ The new model appears automatically in detection mode dropdowns.
 
 ---
 
+## Choosing settings for your recording
+
+A short decision tree. For a deeper dive, see
+**[docs/recording_recommendations.md](recording_recommendations.md)**.
+
+| If… | Do this |
+|---|---|
+| **DIC** (textured background) | Modality = DIC, model = Auto (picks `cpsam_dic`). |
+| **Phase-contrast** (smooth background) | Modality = Phase-contrast. Uses default cpsam + DeepSea. |
+| **Multiple cells per frame** | Switch to Multi-Cell mode. Always. Gap fill catches momentary misses. |
+| **Single cell, cropped recording** | Single-Cell mode is fine and faster. |
+| **Cell counts vary, want to filter debris** | Set Expected cells to the typical count. |
+| **Cells appear in odd orientations** | Enable TTA (augment). 4× slower but more robust. |
+| **Frame ≥ 1024×1024 with small-ish cells** | Enable tiling, 3×3 with overlap=64. |
+| **You see one cell tracked but a second cell visibly missing** | Enable TTA *and* use Multi-Cell mode (gap fill). |
+| **You see debris being tracked as cells** | Raise Min area, or set Expected cells = N to keep only the N largest. |
+
+---
+
 ## Troubleshooting
 
 ### "Not a CP4 model" error
-The primary detector needs cellpose 4.x. The fallback automatically
-uses cellpose 3.x via subprocess. Ensure both `cellpose4` and
-`cellpose` conda environments exist (run `python setup_wizard.py`).
+You're trying to load a CP3 fine-tune in cellpose4 (or vice versa).
+The pipeline handles this automatically via subprocess delegation —
+you should never see this error from the GUI. If you do, both conda
+envs probably aren't installed. Run `bash install.sh` (or `install.bat`
+on Windows).
 
 ### Slow detection
 Check Settings → System Info for GPU status. If no GPU detected:
-- macOS: requires macOS 12.3+ and PyTorch 1.12+
-- Linux/Windows: install CUDA PyTorch
-  (`pip install torch --index-url https://download.pytorch.org/whl/cu118`)
+- macOS: requires macOS 12.3+ and a recent PyTorch (auto-installed
+  by `install.sh`).
+- Linux/Windows: install CUDA PyTorch in *both* envs:
+  ```bash
+  conda run -n cellpose  pip install torch==2.7.0 torchvision==0.22.0 \
+      --index-url https://download.pytorch.org/whl/cu121
+  conda run -n cellpose4 pip install torch==2.7.0 torchvision==0.22.0 \
+      --index-url https://download.pytorch.org/whl/cu121
+  ```
 
 ### Empty detection on some frames
-- Lower "Min area" to catch smaller cells
-- Enable "Fallback detection" and "Gap fill"
-- Try "Multi Cell" mode if debris is being selected as the primary cell
+- Enable "Fallback detection" and (multi-cell only) "Gap fill".
+- Enable TTA — recovers cells missed at default orientation.
+- Lower "Min area" if you suspect cells smaller than 500 px.
+- For DIC, confirm the modality is set to DIC (Auto sometimes
+  classifies very-low-contrast DIC as phase-contrast).
+
+### Debris being kept as cells
+- Raise "Min area" (default 500; try 1000–2000 for noisy data).
+- Set "Expected cells" to the actual cell count — extras are dropped.
+- Make sure DeepSea refinement is on; it filters small spurious blobs
+  via `fill_holes + largest_CC`.
+
+### Mask editor won't load masks
+Masks must be uint16 PNG (pixel = cell ID, 0 = background) or NPZ
+with key `"masks"` and an `(N, H, W)` array. Boolean masks are
+auto-converted.
 
 ---
 
@@ -314,11 +399,4 @@ heterogeneity by decomposing cell contours into principal shape modes.
 
 ### Requires
 
-`pip install vampire-analysis` (listed in requirements.txt).
-
----
-
-### Mask editor won't load masks
-Ensure masks are uint16 PNG or NPZ format. Mask pixel values should
-be 0 (background), 1, 2, 3... (cell IDs). Boolean masks (0/1) are
-auto-converted.
+`pip install vampire-analysis` (already in `environment.yml`).

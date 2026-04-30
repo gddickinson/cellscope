@@ -4,6 +4,9 @@
 
 CellScope detects cell boundaries, tracks cells across frames, and quantifies migration, morphology, and edge dynamics — with support for both single-cell and multi-cell recordings. It provides a complete GUI-based workflow from raw recordings to publication-ready figures and statistical comparisons.
 
+![CellScope: detect → track → analyse](docs/figures/hero.png)
+*End-to-end workflow on Jesse keratinocyte recordings: cpsam_dic detection → Hungarian tracking → per-cell migration metrics.*
+
 ## Key Features
 
 - **Cellpose-SAM (cpsam) detection** — ViT-based cell detection with DeepSea refinement and automatic fallback for missed frames
@@ -151,8 +154,8 @@ To send the project to someone else:
 
 The main workflow: **Load → Detect → Edit Masks → Analyze → Export**
 
-![Detection with mask overlay](docs/figures/focused_detected.png)
-*Cell detection with cpsam + DeepSea union. Green overlay shows detected cell boundary.*
+![Single-cell DIC detection](docs/figures/focused_detected.png)
+*DIC single-cell detection on a VAMPIRE keratinocyte. Red contour = cpsam_dic + DeepSea prediction.*
 
 - **Image viewer** with brightness/contrast, pan/zoom, mask overlay
 - **ROI selector** — rectangle, ellipse, or polygon regions
@@ -160,41 +163,43 @@ The main workflow: **Load → Detect → Edit Masks → Analyze → Export**
 - **20 graph types** including trajectory, MSD, edge kymograph, VAMPIRE shape modes
 - **Export dialog** — masks, metrics, plots (PNG/SVG/PDF), overlay TIFFs
 
-![Analysis with graphs](docs/figures/focused_graph_kymograph.png)
-*Edge velocity kymograph showing protrusion (red) and retraction (blue) over time.*
+![Edge velocity kymograph](docs/figures/graph_kymograph.png)
+*Edge velocity kymograph: angular sector × time, red = protrusion, blue = retraction.*
 
 ## Example Results
 
+All graphs come from a real Jesse `pos17_wt` keratinocyte recording (DIC, 30-frame slice). Replace these in your own analyses with results from your data.
+
 | Trajectory | Speed | Edge Kymograph |
 |:---:|:---:|:---:|
-| ![](docs/figures/result_trajectory.png) | ![](docs/figures/result_speed.png) | ![](docs/figures/result_kymograph.png) |
+| ![](docs/figures/graph_trajectory.png) | ![](docs/figures/graph_speed.png) | ![](docs/figures/graph_kymograph.png) |
 
 | Shape Panel | MSD | Area |
 |:---:|:---:|:---:|
-| ![](docs/figures/result_shape_panel.png) | ![](docs/figures/result_msd.png) | ![](docs/figures/result_area.png) |
+| ![](docs/figures/graph_shape_panel.png) | ![](docs/figures/graph_msd.png) | ![](docs/figures/graph_area.png) |
 
 ## Multi-Cell Tracking
 
-![Multi-cell detection](docs/figures/test_B_multi_detected.png)
-*Multi-cell mode: each tracked cell gets a distinct color (green, red, blue). Per-cell analysis available.*
+![Multi-cell detection](docs/figures/focused_multi_detected.png)
+*Multi-cell DIC: each tracked cell gets a distinct color. Hungarian tracker preserves identity across frames.*
 
-![Cell summary table](docs/figures/test_B_multi_summary_table.png)
-*Per-cell summary table with migration speed, area, persistence, and division detection.*
+![Tracked trajectories](docs/figures/multi_trajectories.png)
+*Per-cell trajectories overlaid on the recording. Green circle = start, red square = end.*
 
-## ROI Selection
+## Phase-Contrast (Ignasi-style) recordings
 
-![ROI overlay](docs/figures/test_C_roi_overlay.png)
-*Rectangle ROI restricts detection to a region of interest. Ellipse and polygon shapes also supported.*
+![Phase-contrast multi-cell](docs/figures/focused_phase_detected.png)
+*Default cpsam (no DIC fine-tune) handles phase-contrast cleanly — DeepSea filters debris automatically.*
 
 ## Tracking & Comparison GUI
 
-![Tracking GUI](docs/figures/test_E_tracking_single.png)
-*Single recording view: per-cell tracking with track table showing frames, area, and speed per cell.*
+![Tracking GUI](docs/figures/gui_tracking.png)
+*Tracking GUI: load masks, run Hungarian tracking, view per-cell metrics across the time-lapse.*
 
 ## Statistical Comparison
 
-![Group comparison](docs/figures/result_stats_comparison.png)
-*Box plot with individual data points and significance brackets (*** p < 0.001).*
+![Group comparison](docs/figures/stats_comparison.png)
+*Box plot with individual data points and significance brackets. Generated automatically from batch comparisons.*
 
 ## Batch Comparison
 
@@ -232,27 +237,51 @@ Supported video formats: `.tif`, `.tiff`, `.mp4`, `.avi`, `.mov`
 
 ```
 cellscope/
-├── main_suite.py          ← Unified launcher
-├── main_focused.py        ← Detection & Analysis
-├── main_batch.py          ← Batch Processing
-├── main_tracking.py       ← Tracking & Comparison
-├── main_editor.py         ← Mask Editor
-├── main_training.py       ← Model Training
-├── setup_wizard.py        ← Environment setup
-├── core/                  ← Analysis pipeline (32 modules)
-├── gui/                   ← Shared GUI components
-├── gui_focused/           ← Detection GUI
-├── gui_batch/             ← Batch GUI
-├── gui_tracking/          ← Tracking GUI
-├── gui_editor/            ← Editor GUI
-├── gui_training/          ← Training GUI
-├── output/                ← Result writers
+├── install.bat / install.sh           ← Cross-platform installer
+├── environment.yml                    ← cellpose env spec
+├── environment-cellpose4.yml          ← cellpose4 env spec
+├── download_models.py                 ← Drive fetcher (cpsam_dic + bundle)
+├── make_models_bundle.py              ← Maintainer: build models bundle
+├── make_dist.py                       ← Maintainer: build dist zip
+│
+├── main_suite.py                      ← Unified launcher (start here)
+├── main_focused.py                    ← Detection & Analysis
+├── main_batch.py                      ← Batch Processing
+├── main_tracking.py                   ← Tracking & Comparison
+├── main_editor.py                     ← Mask Editor
+├── main_training.py                   ← Model Training
+│
+├── core/                              ← Analysis pipeline (34 modules)
+├── gui/                               ← Shared GUI components
+├── gui_focused/                       ← Detection GUI
+├── gui_batch/                         ← Batch GUI
+├── gui_tracking/                      ← Tracking GUI
+├── gui_editor/                        ← Editor GUI
+├── gui_training/                      ← Training GUI
+├── output/                            ← Result writers
+│
+├── scripts/                           ← Bench / training / eval scripts
+│   └── _paths.py                      ← Project-root + benchmark-data helpers
+├── notebooks/                         ← Colab training notebooks
+│
 ├── data/
-│   ├── models/            ← Trained models
-│   ├── manual_gt/         ← Ground truth masks
-│   └── examples/          ← Example recordings
-└── docs/                  ← User manual, pipeline description
+│   ├── models/                        ← cpsam_dic + CP3 fine-tunes + DeepSea
+│   ├── manual_gt/                     ← Ground truth masks (optional)
+│   └── examples/                      ← Example recordings (optional)
+│
+├── docs/
+│   ├── user_manual.md                 ← How to use the GUIs
+│   ├── recording_recommendations.md   ← Best settings per recording type
+│   └── pipeline_description.md
+│
+├── INSTALLATION.md                    ← Setup guide (full)
+├── INTERFACE.md                       ← Module map
+├── PROJECT_STATUS.md                  ← Current results + benchmarks
+└── README.md                          ← This file
 ```
+
+For best-results recommendations per recording type, see
+**[docs/recording_recommendations.md](docs/recording_recommendations.md)**.
 
 ## Requirements
 

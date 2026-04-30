@@ -2,175 +2,176 @@
 
 ## Overview
 
-This software analyzes DIC and phase-contrast time-lapse microscopy of
-migrating keratinocytes. It detects cell boundaries using Cellpose-SAM
-(cpsam), tracks cells across frames, and quantifies migration, morphology,
-and edge dynamics.
+CellScope analyses DIC and phase-contrast time-lapse microscopy of
+migrating cells. It detects cell boundaries (Cellpose-SAM ViT for
+phase-contrast, a DIC-fine-tuned ViT for DIC), tracks cells across
+frames, and quantifies migration, morphology, and edge dynamics.
 
-The suite runs on **macOS**, **Linux**, and **Windows** with optional
-GPU acceleration (NVIDIA CUDA or Apple MPS).
+Runs on **macOS**, **Linux**, and **Windows** with optional GPU
+acceleration (NVIDIA CUDA or Apple MPS).
+
+## What you'll install
+
+CellScope uses **two conda environments**:
+
+| Env | Cellpose | Purpose |
+|---|---|---|
+| `cellpose`  | 3.1.1.1 | GUI + analysis pipeline + CP3 fine-tunes (cellpose_dic, cellpose_combined_robust, …) |
+| `cellpose4` | 4.1.1   | cpsam ViT (default cpsam + the **cpsam_dic** fine-tune — current best on DIC) |
+
+The main GUI runs from the `cellpose` env. Whenever the pipeline needs
+cpsam, it subprocess-delegates to `cellpose4` automatically — you never
+have to switch envs by hand.
 
 ## Requirements
 
-- **Python 3.10** (tested; 3.9-3.11 should also work)
-- **Conda** (Anaconda or Miniconda) for environment management
-- **~4 GB disk** for environments + models
-- **GPU** (optional): NVIDIA with CUDA 11.8+ or Apple Silicon (MPS)
+- **Miniconda** or Anaconda — https://docs.conda.io/en/latest/miniconda.html
+- **~6 GB disk** for envs + models (4 GB envs + ~1.3 GB models)
+- **GPU** (optional but recommended): NVIDIA with CUDA 11.8+ or Apple Silicon (MPS)
 
-## Step 1: Clone or download the project
+## Step 1: Get the project
 
 ```bash
 git clone <repository-url> cellscope
 cd cellscope
 ```
 
-Or download and unzip the project folder.
+Or unzip the project folder if you received a `cellscope-dist.zip`.
 
 ## Step 2: Create the conda environments
 
-The project uses **two conda environments**:
+Run the install script for your platform.
 
-| Environment | Cellpose version | Purpose |
-|---|---|---|
-| `cellpose` | 3.1.1.1 | Legacy CP3 models (fallback detection) |
-| `cellpose4` | 4.1.1 | Cellpose-SAM (cpsam, primary detector) |
-
-### Create the primary environment (cellpose4)
+### macOS / Linux
 
 ```bash
-conda create -n cellpose4 python=3.10 -y
-conda activate cellpose4
-
-# Core dependencies
-pip install cellpose==4.1.1 torch torchvision numpy scipy
-pip install scikit-image scikit-learn opencv-python-headless
-pip install matplotlib tifffile PyQt5
-
-# Foundation models (MedSAM fallback)
-pip install transformers huggingface_hub peft
-
-# Shape analysis (VAMPIRE)
-pip install vampire-analysis
-
-# Optional: advanced tracking
-pip install trackastra
+bash install.sh
 ```
 
-### Create the fallback environment (cellpose)
+### Windows
+
+Open an **Anaconda Prompt** (Start → Anaconda → Anaconda Prompt), then:
+
+```bat
+install.bat
+```
+
+Either way, the script:
+
+1. Creates `cellpose` env from `environment.yml` (~5 min)
+2. Creates `cellpose4` env from `environment-cellpose4.yml` (~5 min)
+3. Verifies both can import `cellpose` at the right version
+
+If something goes wrong (network blip, package solver error), re-running
+the script picks up where it left off. To force a clean rebuild of one
+env:
 
 ```bash
-conda create -n cellpose python=3.10 -y
+conda env remove -n cellpose && bash install.sh
+```
+
+## Step 3: Download the models
+
+Two separate downloads, both handled by one command:
+
+| Bundle | Size | Contents | Always needed? |
+|---|---:|---|---|
+| **Small models** | ~120 MB | `cellpose_dic`, `cellpose_dic_v2/v3`, `cellpose_combined_robust`, `deepsea/` | Only if cloned from GitHub. The prebuilt `cellscope-dist.zip` already includes them. |
+| **cpsam_dic** | 1.1 GB | `data/models/cpsam_dic` (CP4 ViT fine-tune — current best on DIC) | Always. Too large to ship in either zip. |
+
+Run:
+
+```bash
+conda run -n cellpose python download_models.py
+```
+
+The script:
+
+- Reports which models are present and which are missing.
+- Pulls the small-models bundle from Drive *only if any are missing*
+  (so a re-run after a dist-zip install does nothing extra).
+- Pulls `cpsam_dic` from Drive.
+- Both Drive URLs are hard-coded in `download_models.py` — recipients
+  don't need to know them.
+
+Useful flags:
+
+```bash
+python download_models.py --check-only     # report only, no download
+python download_models.py --cpsam-only     # skip the small-models bundle
+python download_models.py --bundle-only    # skip cpsam_dic
+python download_models.py --force          # re-download even if present
+```
+
+## Step 4: GPU setup (optional)
+
+### Apple Silicon (M1/M2/M3/M4)
+
+GPU via MPS works out of the box — no extra steps. Verify:
+
+```bash
+conda run -n cellpose python -c "import torch; print('MPS:', torch.backends.mps.is_available())"
+```
+
+### NVIDIA (Linux / Windows)
+
+The default install pulls a CPU-only PyTorch. To enable CUDA, replace
+torch in **both** envs:
+
+```bash
+conda run -n cellpose  pip install torch==2.7.0 torchvision==0.22.0 \
+    --index-url https://download.pytorch.org/whl/cu121
+conda run -n cellpose4 pip install torch==2.7.0 torchvision==0.22.0 \
+    --index-url https://download.pytorch.org/whl/cu121
+```
+
+Replace `cu121` with `cu118` to match your CUDA version. Verify:
+
+```bash
+conda run -n cellpose python -c "import torch; print('CUDA:', torch.cuda.is_available())"
+```
+
+### CPU only
+
+Works but slow on cpsam ViT (~30 s/frame vs ~2 s on GPU). The pipeline
+detects missing GPU and falls back automatically.
+
+## Step 5: Verify and launch
+
+```bash
 conda activate cellpose
-
-# Same core dependencies but with cellpose 3.x
-pip install cellpose==3.1.1.1 torch torchvision numpy scipy
-pip install scikit-image scikit-learn opencv-python-headless
-pip install matplotlib tifffile PyQt5
-pip install transformers huggingface_hub peft
-```
-
-### GPU-specific installation
-
-**Apple Silicon (M1/M2/M3/M4):**
-GPU acceleration via MPS is automatic — no extra steps. PyTorch detects
-MPS when `torch.backends.mps.is_available()` returns True.
-
-**NVIDIA CUDA (Linux/Windows):**
-Replace the default PyTorch with the CUDA build:
-```bash
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
-```
-Check with: `python -c "import torch; print(torch.cuda.is_available())"`
-
-**CPU only:**
-No extra steps. The software detects missing GPU and falls back to CPU
-automatically. Detection will be slower (~10x) but functional. Uncheck
-"Use GPU acceleration" in Settings menu if you get GPU errors.
-
-## Step 3: Download required models
-
-### DeepSea (required for refinement)
-
-```bash
-git clone --depth 1 https://github.com/abzargar/DeepSea.git /tmp/DeepSea_tmp
-mkdir -p data/models/deepsea
-cp /tmp/DeepSea_tmp/deepsea/trained_models/* data/models/deepsea/
-cp /tmp/DeepSea_tmp/deepsea/model.py data/models/deepsea/
-rm -rf /tmp/DeepSea_tmp
-```
-
-The DeepSea segmentation model (`data/models/deepsea/segmentation.pth`,
-~8 MB) is loaded automatically during detection. Alternatively, use
-the Setup Wizard (`python setup_wizard.py`) to install it with one click.
-
-### MedSAM (required for fallback refinement)
-
-Downloaded automatically on first use from HuggingFace
-(`flaviagiammarino/medsam-vit-base`, ~375 MB). No manual step needed.
-
-### Cellpose models
-
-The default cpsam model downloads automatically on first use (~2.4 GB
-for the ViT-H weights). Trained custom models are stored in
-`data/models/` and detected by the GUI automatically.
-
-## Step 4: Verify installation
-
-```bash
-conda activate cellpose4
-python -c "
-import cellpose; print(f'Cellpose: {cellpose.version}')
-import torch; print(f'PyTorch: {torch.__version__}')
-print(f'CUDA: {torch.cuda.is_available()}')
-print(f'MPS: {torch.backends.mps.is_available()}')
-from PyQt5.QtWidgets import QApplication; print('PyQt5: OK')
-from core.io import load_recording; print('Core modules: OK')
-print('Installation OK!')
-"
-```
-
-Expected output:
-```
-Cellpose: 4.1.1
-PyTorch: 2.x.x
-CUDA: True/False (depending on your GPU)
-MPS: True/False (True on Apple Silicon)
-PyQt5: OK
-Core modules: OK
-Installation OK!
-```
-
-## Step 5: Launch the application
-
-```bash
-conda activate cellpose4
 python main_suite.py
 ```
 
-This opens the suite launcher with buttons for each application:
+This opens the suite launcher. From here you can launch any of the
+specialised tools:
 
-| Application | Direct launch | Description |
+| Tool | Direct launch | Purpose |
 |---|---|---|
-| Detection & Analysis | `python main_focused.py` | Single-recording cpsam pipeline |
-| Batch Processing | `python main_batch.py` | Process multiple recordings |
-| Tracking & Comparison | `python main_tracking.py` | Per-cell tracking + group statistics |
+| Detection & Analysis | `python main_focused.py` | Single-recording pipeline (load → detect → edit → analyse → export) |
+| Batch Processing | `python main_batch.py` | Multiple recordings + group summaries |
+| Tracking & Comparison | `python main_tracking.py` | Per-cell tracking + group statistics (t-test, ANOVA) |
 | Mask Editor | `python main_editor.py` | View/edit/create cell masks |
-| Model Training | `python main_training.py` | Fine-tune cellpose on your data |
+| Model Training | `python main_training.py` | Fine-tune cellpose on your own GT |
+
+You **always run from the `cellpose` env**, never `cellpose4`. The
+pipeline handles cpsam invocation via subprocess.
 
 ## Data format
 
 ### Recordings
 
-Supported formats: `.mp4`, `.avi`, `.mov`, `.tif`, `.tiff`
+Supported: `.tif` / `.tiff` / `.ome.tif` / `.mp4` / `.avi` / `.mov`.
 
-Each video needs a JSON sidecar with pixel scale and time interval:
+Each recording needs a JSON sidecar with pixel scale and time interval
+(same base name, next to the file):
+
 ```
 data/my_cells/
   recording.tif
-  recording.json     ← same base name
+  recording.json
 ```
 
-**recording.json:**
 ```json
 {
   "name": "My Recording",
@@ -179,120 +180,192 @@ data/my_cells/
 }
 ```
 
-For `.ome.tif` files, the sidecar is `recording.ome.json`.
+For `.ome.tif`, the sidecar is `<base>.ome.json`. If absent, defaults
+are 1.0 µm/px and 1.0 min/frame — fine for development, but pixel
+sizes/intervals **must** be set for analysis to be quantitative.
 
-If no JSON sidecar exists, the software uses defaults: `um_per_px=1.0`,
-`time_interval_min=1.0`, `name=<filename>`.
+### Batch directory layout
 
-### Batch processing directory structure
-
-Organize recordings by treatment group (folder name = group name):
+Group recordings by treatment (folder name = group name):
 
 ```
 experiment/
-  control/
-    cell1.tif + cell1.json
-    cell2.tif + cell2.json
-  treated/
-    cell3.tif + cell3.json
-    cell4.tif + cell4.json
+  control/   recA.tif + recA.json   recB.tif + recB.json
+  treated/   recC.tif + recC.json   recD.tif + recD.json
 ```
 
-The batch GUI discovers recordings via `File > Scan` and groups them
-by parent folder. Statistical comparisons use folder names as group
-labels.
+The Batch GUI's `File > Scan` finds recordings and groups by parent
+folder. Statistical comparisons use folder names as labels.
 
-### Ground truth masks
+### Ground truth masks (for training or evaluation)
 
-For training or evaluation, save masks as cellpose-format PNGs:
+cellpose-format PNGs (uint16, pixel value = cell ID):
+
 ```
-data/manual_gt/my_recording/
-  frame_0000_masks.png    ← uint16, pixel value = cell ID (0=background)
+data/manual_gt/my_rec/
+  frame_0000_masks.png
   frame_0001_masks.png
-  ...
 ```
 
-Or as a single NPZ file: `masks.npz` with key `"masks"` containing an
-`(N, H, W)` array (bool for single-cell, int32 for multi-cell labels).
+Or a single NPZ: `masks.npz` with key `"masks"` and an `(N, H, W)` array
+(bool for single-cell, int32 labels for multi-cell).
 
 ## Troubleshooting
 
-### "not a CP4 model" error
-You're running a cellpose 3.x model in the cellpose4 environment.
-The hybrid pipeline handles this automatically via subprocess fallback.
-If you see this error in the GUI, ensure the `cellpose` (3.x) environment
-exists alongside `cellpose4`.
+### `conda: command not found`
 
-### Slow detection (no GPU)
-Check Settings > System Info to verify GPU is detected. If not:
-- **Mac**: ensure you have macOS 12.3+ and PyTorch 1.12+
-- **Linux/Windows**: install the CUDA version of PyTorch (see Step 2)
-- Uncheck Settings > "Use GPU acceleration" to acknowledge CPU mode
+Miniconda isn't on PATH. On Windows, use the **Anaconda Prompt** rather
+than the regular `cmd`. On macOS / Linux, run `source ~/miniconda3/etc/profile.d/conda.sh`
+or restart the terminal.
 
-### DeepSea not found
-Install DeepSea model into `data/models/deepsea/`:
-```bash
-python setup_wizard.py   # click "Install" next to DeepSea
-```
-Or manually:
-```bash
-git clone --depth 1 https://github.com/abzargar/DeepSea.git /tmp/DeepSea_tmp
-cp /tmp/DeepSea_tmp/deepsea/trained_models/* data/models/deepsea/
-cp /tmp/DeepSea_tmp/deepsea/model.py data/models/deepsea/
-rm -rf /tmp/DeepSea_tmp
+### `not a CP4 model` when using cpsam
+
+You're trying to load a CP3 fine-tune (`cellpose_dic*`, `cellpose_combined_robust`)
+in `cellpose4`, or vice versa. The pipeline handles this automatically
+via subprocess delegation, but if you're calling cellpose directly in
+your own scripts, match env to model:
+
+| Model | Env |
+|---|---|
+| `cellpose_dic`, `cellpose_dic_v2`, `cellpose_dic_v3`, `cellpose_combined_robust` | `cellpose` |
+| `cpsam_dic`, default cpsam | `cellpose4` |
+
+### `ModuleNotFoundError: No module named 'core'` in a script
+
+You're running from outside the project root. Either `cd cellscope/`
+first, or use the helper:
+
+```python
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _paths import setup_imports; setup_imports()
 ```
 
-### Import errors
-Ensure you're in the project root directory:
+(Most scripts in `scripts/` already do this.)
+
+### Slow detection (CPU)
+
+Verify GPU detection: `Settings > System Info` in the GUI, or
 ```bash
-cd /path/to/cellscope
-conda activate cellpose4
-python main_suite.py
+conda run -n cellpose python -c "import torch; print('CUDA:', torch.cuda.is_available()); print('MPS:', torch.backends.mps.is_available())"
 ```
+
+### DeepSea / MedSAM not found
+
+DeepSea ships with the source under `data/models/deepsea/`. MedSAM
+auto-downloads from HuggingFace (`flaviagiammarino/medsam-vit-base`,
+~375 MB) on first use. Check with:
+
+```bash
+conda run -n cellpose python download_models.py --check-only
+```
+
+### `gdown` errors during model download
+
+Re-run the download — Drive sometimes throttles. As a fallback, open
+the URL printed by `download_models.py` in a browser, save the file
+manually, and place it at `data/models/cpsam_dic`.
 
 ### Memory errors on large recordings
-For recordings with >200 frames or >2000x2000 pixels, consider:
-- Processing a subset of frames first
-- Using ROI to restrict analysis to a region of interest
-- Closing other GPU-heavy applications
+
+For recordings >200 frames or >2000² pixels:
+
+- Use **ROI selection** in the Detection GUI (Edit → Select ROI) to
+  restrict to a region.
+- For multi-position OME stacks, work on one position at a time.
+- Close other GPU-heavy apps.
+
+### `pydensecrf2` install fails on Windows
+
+This is a known issue — pydensecrf2 has no Windows wheels. It's marked
+optional in `environment.yml` and only used by the legacy `mode="full_stack"`
+refinement path; the recommended pipelines (`hybrid_dic`, `hybrid_cpsam`,
+`hybrid_dic_multi`) don't need it.
+
+## Updating
+
+To update a single env:
+
+```bash
+conda env update -f environment.yml --prune
+conda env update -f environment-cellpose4.yml --prune
+```
+
+Or rebuild from scratch:
+
+```bash
+conda env remove -n cellpose && bash install.sh
+```
+
+## Sharing CellScope with collaborators
+
+```bash
+python make_dist.py
+# → ../cellscope-dist.zip   (~118 MB, source + small models)
+```
+
+Send the zip; recipient runs `install.bat` (or `install.sh`), then
+`download_models.py`. The cpsam_dic Drive URL is already baked in.
+
+For an offline-friendly bundle (no Drive access needed):
+
+```bash
+python make_dist.py --include-cpsam
+# → ~1.3 GB, fully self-contained
+```
 
 ## Project structure
 
 ```
 cellscope/
-├── main_suite.py          ← Unified launcher (start here)
-├── main_focused.py        ← Detection & Analysis
-├── main_batch.py          ← Batch Processing
-├── main_tracking.py       ← Tracking & Comparison
-├── main_editor.py         ← Mask Editor
-├── main_training.py       ← Model Training
-├── core/                  ← Analysis pipeline modules
-├── gui/                   ← Shared GUI components
-├── gui_focused/           ← Detection GUI
-├── gui_batch/             ← Batch GUI
-├── gui_tracking/          ← Tracking GUI
-├── gui_editor/            ← Editor GUI
-├── gui_training/          ← Training GUI
-├── output/                ← Result writers
+├── install.bat                ← Windows installer
+├── install.sh                 ← macOS/Linux installer
+├── environment.yml            ← cellpose env spec
+├── environment-cellpose4.yml  ← cellpose4 env spec
+├── download_models.py         ← Drive fetcher for cpsam_dic
+├── make_dist.py               ← Build distribution zip
+│
+├── main_suite.py              ← Unified launcher (start here)
+├── main_focused.py            ← Detection & Analysis GUI
+├── main_batch.py              ← Batch Processing GUI
+├── main_tracking.py           ← Tracking & Comparison GUI
+├── main_editor.py             ← Mask Editor GUI
+├── main_training.py           ← Model Training GUI
+│
+├── core/                      ← Analysis pipeline modules
+│   ├── modality.py            ← Auto-detect DIC vs phase-contrast
+│   ├── hybrid_cpsam.py        ← Phase-contrast pipeline
+│   ├── hybrid_cpsam_multi.py  ← Multi-cell phase-contrast
+│   ├── hybrid_dic.py          ← DIC pipeline (single + multi)
+│   └── …
+├── gui/                       ← Shared GUI components
+├── gui_focused/               ← Detection GUI implementation
+├── gui_batch/, gui_tracking/  ← Other GUI implementations
+├── gui_editor/, gui_training/
+├── output/                    ← Result writers
+├── scripts/
+│   ├── _paths.py              ← Path helpers (project root + benchmark data)
+│   └── …
+│
 ├── data/
-│   ├── models/            ← Trained models (auto-populated)
-│   ├── manual_gt/         ← Ground truth masks
-│   └── examples/          ← Example recordings
-├── results/               ← Analysis output
-├── INSTALLATION.md        ← This file
-├── README.md              ← Feature overview
-├── INTERFACE.md           ← Module map
-└── ROADMAP.md             ← Development history
+│   ├── models/
+│   │   ├── cpsam_dic            ← (1.1 GB, downloaded by download_models.py)
+│   │   ├── cellpose_dic_v3      ← (CP3, ships with source)
+│   │   ├── cellpose_dic_v2, _v1 ← (CP3, legacy fine-tunes)
+│   │   ├── cellpose_combined_robust  ← (CP3, robust to noise)
+│   │   └── deepsea/             ← (DeepSea refiner, ~16 MB)
+│   ├── manual_gt/              ← Ground truth (optional, for training)
+│   └── examples/               ← Example recordings (optional)
+├── results/                    ← Analysis output
+│
+├── docs/
+│   ├── user_manual.md          ← How to use the GUIs
+│   ├── recording_recommendations.md ← Best settings per recording type
+│   ├── pipeline_description.md ← Pipeline internals
+│   └── IMPROVEMENTS.md         ← Research roadmap
+│
+├── INSTALLATION.md             ← This file
+├── README.md                   ← Feature overview
+├── INTERFACE.md                ← Module map
+└── PROJECT_STATUS.md           ← Current results + benchmarks
 ```
-
-## Updating
-
-To update cellpose or other dependencies:
-```bash
-conda activate cellpose4
-pip install --upgrade cellpose
-```
-
-Note: upgrading cellpose may change the default model. The hybrid
-pipeline is designed to handle version differences via the dual-env
-architecture.

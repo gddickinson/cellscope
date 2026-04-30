@@ -1,14 +1,21 @@
 # CellScope — Interface Map
 
 ## Entry Points
-- **main_suite.py** — Unified launcher (tkinter, works from any env)
+- **main_suite.py** — Unified launcher (tkinter, runs from `cellpose` env)
 - **main_focused.py** — Detection & Analysis GUI
 - **main_batch.py** — Batch Processing GUI
 - **main_tracking.py** — Tracking & Comparison GUI
 - **main_editor.py** — Mask Editor GUI
 - **main_training.py** — Model Training GUI
-- **setup_wizard.py** — Environment + model installer
-- **make_dist.py** — Create distribution zip
+
+## Install + distribution
+- **install.bat / install.sh** — create both conda envs (cellpose, cellpose4)
+- **environment.yml** — `cellpose` env spec (CP3 + GUI + analysis pipeline)
+- **environment-cellpose4.yml** — `cellpose4` env spec (cpsam ViT)
+- **download_models.py** — fetch cpsam_dic + small-models bundle from Drive
+- **make_models_bundle.py** — maintainer tool: zip the small models for upload
+- **make_dist.py** — maintainer tool: zip the project for sharing
+- **setup_wizard.py** — legacy tkinter installer (kept as alternative; `install.{bat,sh}` is now canonical)
 
 ## `core/` — Analysis Pipeline (34 modules)
 
@@ -17,7 +24,7 @@
 - **detection.py** — `detect_cellpose`, `detect_cellpose_labels`, `detect_cellpose_tiled`
 - **hybrid_cpsam.py** — `detect_hybrid_cpsam()` — single-cell cpsam + DeepSea + fallback
 - **hybrid_cpsam_multi.py** — `detect_hybrid_cpsam_multi()` — multi-cell with tracking
-- **hybrid_dic.py** — `detect_hybrid_dic()`, `detect_hybrid_dic_multi()` — DIC-optimized pipelines using cellpose_dic + preprocessing + DeepSea + threshold retry
+- **hybrid_dic.py** — `detect_hybrid_dic()`, `detect_hybrid_dic_multi()` — DIC pipelines. When the selected DIC model is `cpsam_dic`, runs the cellpose step in the `cellpose4` env via subprocess (`_run_cpsam_dic_subprocess`); otherwise uses CP3 cellpose_dic + preprocessing + DeepSea + threshold retry directly.
 - **modality.py** — `detect_modality()` — auto-detect DIC vs phase-contrast from image statistics; `get_pipeline_config()` returns per-modality settings
 - **deepsea_multicell.py** — Per-cell DeepSea refinement preserving labels
 - **medsam_deepsea_union.py** — MedSAM + DeepSea union (single-cell)
@@ -87,3 +94,34 @@
 ## `output/` — Result Writers
 - **results.py** — `write_recording_results()` (masks, metrics, plots)
 - **summary.py** — Batch CSV summaries
+
+## `scripts/`
+- **_paths.py** — Project-root resolver + `benchmark_data_root()` helper
+  (env var `BENCHMARK_DATA_ROOT` overrides the default sibling lookup).
+  Imported by every benchmark / training script via the standard preamble:
+  ```python
+  import sys, os
+  sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+  from _paths import setup_imports, benchmark_data_root
+  setup_imports()
+  ```
+- **bench_cpsam_dic.py** — IoU benchmark for any cellpose model on a
+  test directory (TIF or PNG with masks).
+- **compare_cpsam_dic.py** — diff two bench JSONs side by side.
+- **make_overlay_figures.py** — generate inspection overlays across
+  recording types.
+- **test_missed_cell_recovery.py** — compare default cpsam vs TTA vs
+  multi-cell pipeline on missed-cell frames.
+- **train_*.py / prepare_*.py** — model training + data prep scripts
+  (dev only; require `BENCHMARK_DATA_ROOT` to point at the sibling
+  `piezo1_analysis` project).
+
+## `docs/`
+- **user_manual.md** — How to use the GUIs (load → detect → edit → analyse → export).
+- **recording_recommendations.md** — Per-modality / per-recording-type best practices.
+- **pipeline_description.md** — Pipeline internals.
+- **IMPROVEMENTS.md** — Research roadmap.
+
+## `notebooks/` (maintainer only)
+- **train_cpsam_dic_colab.ipynb** — Colab notebook for fine-tuning cpsam on DIC.
+- **resume_cpsam_dic_colab.ipynb** — Resume training from a partial checkpoint.
