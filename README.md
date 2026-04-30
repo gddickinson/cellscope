@@ -168,7 +168,7 @@ The main workflow: **Load → Detect → Edit Masks → Analyze → Export**
 
 ## Example Results
 
-All graphs come from a real keratinocyte recording (phase-contrast, multi-cell, 30-frame slice). Your own analyses produce equivalent plots from your data.
+All graphs come from one tracked cell in a real 97-frame phase-contrast keratinocyte recording. Your own analyses produce equivalent plots from your data.
 
 | Trajectory | Speed | Edge Kymograph |
 |:---:|:---:|:---:|
@@ -181,10 +181,10 @@ All graphs come from a real keratinocyte recording (phase-contrast, multi-cell, 
 ## Multi-Cell Tracking
 
 ![Multi-cell detection](docs/figures/focused_multi_detected.png)
-*Multi-cell phase-contrast: each tracked cell gets a distinct color. The Hungarian tracker preserves cell identity across frames, with optional gap fill for cells that briefly disappear.*
+*Multi-cell phase-contrast: each tracked cell gets a distinct colour. The Hungarian tracker preserves cell identity across all frames, with gap fill recovering cells that briefly disappear.*
 
 ![Tracked trajectories](docs/figures/multi_trajectories.png)
-*Per-cell trajectories overlaid on the recording. Coloured line per cell, circle = start frame, square = end frame.*
+*Per-cell migration paths over a 60-frame window. Colour = cell, circle = start, square = end. Track-length filter drops phantom short tracks; rolling-window centroid smoothing avoids speed jitter.*
 
 ## DIC recordings
 

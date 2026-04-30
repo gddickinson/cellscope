@@ -39,6 +39,7 @@ class FocusedDetectWorker(QThread):
 
             dic_model_path = self.params.get("dic_model_path", None)
 
+            use_tta = self.params.get("use_tta", False)
             if self.mode == "hybrid_dic":
                 from core.hybrid_dic import detect_hybrid_dic
                 masks, missed = detect_hybrid_dic(
@@ -47,7 +48,8 @@ class FocusedDetectWorker(QThread):
                     use_preprocess=True,
                     use_deepsea=use_deepsea,
                     use_retry=True,
-                    model_path=dic_model_path)
+                    model_path=dic_model_path,
+                    use_tta=use_tta)
                 result = {
                     "masks": masks,
                     "missed_frames": missed,
@@ -64,7 +66,8 @@ class FocusedDetectWorker(QThread):
                     use_deepsea=use_deepsea,
                     use_retry=True,
                     use_gap_fill=use_gap_fill,
-                    model_path=dic_model_path)
+                    model_path=dic_model_path,
+                    use_tta=use_tta)
                 result["flow_quality"] = np.zeros(len(frames))
                 result["flow_magnitudes"] = np.zeros_like(
                     frames, dtype=np.float32)

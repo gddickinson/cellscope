@@ -85,7 +85,8 @@ def detect_cellpose(frames, gpu=True, progress_fn=None, model_path=None,
 
 def detect_cellpose_labels(frames, gpu=True, progress_fn=None,
                             model_path=None, flow_threshold=None,
-                            cellprob_threshold=None, min_area_px=100):
+                            cellprob_threshold=None, min_area_px=100,
+                            augment=False):
     """Run Cellpose and return the FULL label stack (all cells kept).
 
     Unlike `detect_cellpose` which reduces to the single largest
@@ -112,6 +113,7 @@ def detect_cellpose_labels(frames, gpu=True, progress_fn=None,
         m, _, _ = model.eval(
             frames[i], diameter=None,
             flow_threshold=ft, cellprob_threshold=ct,
+            augment=augment,
         )
         # Drop tiny components, compact the label IDs
         if m.max() > 0:

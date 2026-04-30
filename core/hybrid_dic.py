@@ -42,9 +42,10 @@ data = np.load("{input_path}", allow_pickle=True)
 frames = data["frames"]
 n = len(frames)
 m = models.CellposeModel(gpu=True, pretrained_model="{model_path}")
+augment = {augment}
 result = np.zeros(frames.shape, dtype=bool)
 for i in range(n):
-    masks_i = m.eval(frames[i])[0]
+    masks_i = m.eval(frames[i], augment=augment)[0]
     result[i] = masks_i > 0
 np.savez_compressed("{output_path}", masks=result)
 print("CPSAM_DIC_OK")
@@ -68,20 +69,23 @@ data = np.load("{input_path}", allow_pickle=True)
 frames = data["frames"]
 n = len(frames)
 m = models.CellposeModel(gpu=True, pretrained_model="{model_path}")
+augment = {augment}
 out = np.zeros(frames.shape, dtype=np.int32)
 for i in range(n):
-    out[i] = m.eval(frames[i])[0].astype(np.int32)
+    out[i] = m.eval(frames[i], augment=augment)[0].astype(np.int32)
 np.savez_compressed("{output_path}", labels=out)
 print("CPSAM_DIC_LABELS_OK")
 '''
 
 
 def _run_cpsam_dic_labels_subprocess(frames, model_path, project_root,
-                                     progress_fn=None):
+                                     progress_fn=None, augment=False):
     """Run cpsam_dic in cellpose4; return int32 (N,H,W) label stack."""
     if progress_fn:
-        progress_fn(f"cpsam_dic detection ({CELLPOSE4_ENV} env, multi-cell)",
-                    10)
+        suffix = " +TTA" if augment else ""
+        progress_fn(
+            f"cpsam_dic detection ({CELLPOSE4_ENV} env, multi-cell{suffix})",
+            10)
     with tempfile.TemporaryDirectory() as tmp:
         inp = os.path.join(tmp, "input.npz")
         outp = os.path.join(tmp, "output.npz")
@@ -91,6 +95,7 @@ def _run_cpsam_dic_labels_subprocess(frames, model_path, project_root,
             input_path=inp,
             output_path=outp,
             model_path=model_path,
+            augment=str(augment),
         )
         proc = subprocess.run(
             ["conda", "run", "-n", CELLPOSE4_ENV, "python", "-c", script],
@@ -109,10 +114,11 @@ def _run_cpsam_dic_labels_subprocess(frames, model_path, project_root,
 
 
 def _run_cpsam_dic_subprocess(frames, model_path, project_root,
-                              progress_fn=None):
+                              progress_fn=None, augment=False):
     """Run cpsam_dic detection in cellpose4 env; return bool mask array."""
     if progress_fn:
-        progress_fn(f"cpsam_dic detection ({CELLPOSE4_ENV} env)", 10)
+        suffix = " +TTA" if augment else ""
+        progress_fn(f"cpsam_dic detection ({CELLPOSE4_ENV} env{suffix})", 10)
     with tempfile.TemporaryDirectory() as tmp:
         inp = os.path.join(tmp, "input.npz")
         outp = os.path.join(tmp, "output.npz")
@@ -122,6 +128,7 @@ def _run_cpsam_dic_subprocess(frames, model_path, project_root,
             input_path=inp,
             output_path=outp,
             model_path=model_path,
+            augment=str(augment),
         )
         proc = subprocess.run(
             ["conda", "run", "-n", CELLPOSE4_ENV, "python", "-c", script],
@@ -140,7 +147,7 @@ def _run_cpsam_dic_subprocess(frames, model_path, project_root,
 
 def detect_hybrid_dic(frames, progress_fn=None, area_threshold=None,
                       use_preprocess=True, use_deepsea=True,
-                      use_retry=True, model_path=None):
+                      use_retry=True, model_path=None, use_tta=False):
     """DIC-optimized single-cell detection.
 
     Args:
@@ -200,19 +207,22 @@ def detect_hybrid_dic(frames, progress_fn=None, area_threshold=None,
         project_root = os.path.dirname(
             os.path.dirname(os.path.abspath(__file__)))
         masks = _run_cpsam_dic_subprocess(
-            processed, model_path, project_root, progress_fn=progress_fn)
+            processed, model_path, project_root,
+            progress_fn=progress_fn, augment=use_tta)
         # cpsam_dic gets ~100% det rate on benchmarks; skip retry
         missed = list(np.where(
             np.array([m.sum() for m in masks]) < area_threshold)[0])
     else:
         # CP3 cellpose_dic path
         if progress_fn:
-            progress_fn("cellpose_dic detection", 10)
+            suffix = " +TTA" if use_tta else ""
+            progress_fn(f"cellpose_dic detection{suffix}", 10)
         masks = detect_cellpose(
             processed, gpu=True,
             model_path=model_path,
             flow_threshold=0.0,
             cellprob_threshold=0.0,
+            augment=use_tta,
             progress_fn=lambda i: progress_fn(
                 f"cellpose_dic {i+1}/{n}",
                 int(10 + 40 * i / max(n-1, 1))) if progress_fn else None,
@@ -231,6 +241,7 @@ def detect_hybrid_dic(frames, progress_fn=None, area_threshold=None,
                 model_path=model_path,
                 flow_threshold=0.0,
                 cellprob_threshold=-2.0,
+                augment=use_tta,
             )
             for j, fi in enumerate(missed):
                 if retry_masks[j].sum() >= area_threshold:
@@ -262,7 +273,8 @@ def detect_hybrid_dic_multi(frames, progress_fn=None,
                             use_retry=True,
                             use_gap_fill=True,
                             expected_cells=0,
-                            model_path=None):
+                            model_path=None,
+                            use_tta=False):
     """DIC-optimized multi-cell detection + tracking.
 
     Same structure as hybrid_cpsam_multi but uses cellpose_dic
@@ -316,7 +328,8 @@ def detect_hybrid_dic_multi(frames, progress_fn=None,
         project_root = os.path.dirname(
             os.path.dirname(os.path.abspath(__file__)))
         raw_labels = _run_cpsam_dic_labels_subprocess(
-            processed, model_path, project_root, progress_fn=progress_fn)
+            processed, model_path, project_root,
+            progress_fn=progress_fn, augment=use_tta)
         # Filter by min area
         if min_area_px > 0:
             for i in range(n):
@@ -332,13 +345,15 @@ def detect_hybrid_dic_multi(frames, progress_fn=None,
         # Skip retry — cpsam_dic ~100% det rate
     else:
         if progress_fn:
-            progress_fn("cellpose_dic detection", 10)
+            suffix = " +TTA" if use_tta else ""
+            progress_fn(f"cellpose_dic detection{suffix}", 10)
         raw_labels = detect_cellpose_labels(
             processed, gpu=True,
             model_path=model_path,
             flow_threshold=0.0,
             cellprob_threshold=0.0,
             min_area_px=min_area_px,
+            augment=use_tta,
         )
 
         # Step 3: retry empty frames (CP3 only)
@@ -354,6 +369,7 @@ def detect_hybrid_dic_multi(frames, progress_fn=None,
                 flow_threshold=0.0,
                 cellprob_threshold=-2.0,
                 min_area_px=min_area_px,
+                augment=use_tta,
             )
             for j, fi in enumerate(missed):
                 raw_labels[fi] = retry_labels[j]
