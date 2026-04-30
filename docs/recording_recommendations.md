@@ -15,11 +15,10 @@ contrast — the modality selector picks the right config automatically.*
 
 | Recording type | Modality | Mode | Model | Other |
 |---|---|---|---|---|
-| **Our 526² DIC** (Holt-style) | DIC | Single-Cell | cpsam_dic | DeepSea on, fallback on |
-| **Jesse 1024² DIC** (multi-position) | DIC | Multi-Cell | cpsam_dic | min_area=500, expected_cells=Auto, tiling=3×3 if cells small |
-| **VAMPIRE-style cropped DIC** | DIC | Single-Cell | cpsam_dic | DeepSea on |
-| **Ignasi-style cropped phase-contrast** | Phase-contrast | Multi-Cell | default cpsam | DeepSea on, gap fill on, TTA optional |
-| **Crowded multi-cell DIC** (≥3 cells/frame) | DIC | Multi-Cell | cpsam_dic | DeepSea on, gap fill on, expected_cells = typical N |
+| **Cropped DIC, single cell** (~500 px) | DIC | Single-Cell | cpsam_dic | DeepSea on, fallback on |
+| **Full-frame DIC** (~1024 px, 1+ cells) | DIC | Multi-Cell | cpsam_dic | min_area=500, expected_cells=Auto, tiling=3×3 if cells small |
+| **Cropped phase-contrast** | Phase-contrast | Single- or Multi-Cell | default cpsam | DeepSea on, gap fill on (multi-cell), TTA optional |
+| **Crowded multi-cell** (≥3 cells/frame) | DIC or phase | Multi-Cell | match modality | DeepSea on, gap fill on, expected_cells = typical N |
 | **Noisy / low-light DIC** | DIC | Single- or Multi-Cell | cellpose_combined_robust | TTA on, lower min_area |
 
 ---
@@ -48,19 +47,20 @@ Benchmarks for cpsam_dic (vs older cellpose_dic_v3):
 
 | Test set | cellpose_dic_v3 | **cpsam_dic** |
 |---|---:|---:|
-| our-GT 526² in-domain | 0.740 | **0.795** |
-| VAMPIRE held-out OOD crops | 0.279 | **0.697** |
-| Detection rate (our-GT) | 95% | **100%** |
+| In-domain 526² DIC GT | 0.740 | **0.795** |
+| Out-of-domain DIC crops | 0.279 | **0.697** |
+| Detection rate (in-domain) | 95% | **100%** |
 
 ### When to use the older CP3 fine-tunes
 
 - **cellpose_combined_robust** (CP3) — trained with heavy noise and
-  brightness augmentation. Wins by 0.05+ IoU on perturbations
+  brightness augmentation. Wins by 0.05+ IoU on perturbed test sets
   (added noise, gamma shifts) where in-domain models drop. Use it
-  when your imaging conditions are unstable across the time-lapse.
-- **cellpose_dic_v3** (CP3) — fastest of the DIC fine-tunes. Use as
-  a fallback if cpsam_dic OOMs (1.1 GB ViT) or if you can't download
-  the cpsam_dic model.
+  when imaging conditions are unstable across the time-lapse.
+- **cellpose_dic_v3** (CP3) — fastest of the DIC fine-tunes (smaller
+  CNN, ~25 MB vs 1.1 GB for cpsam_dic). Use as a fallback if cpsam_dic
+  is unavailable or if you need faster batch processing on a CPU-only
+  machine.
 
 ### Common DIC failure modes
 
@@ -79,7 +79,7 @@ Benchmarks for cpsam_dic (vs older cellpose_dic_v3):
 Phase-contrast has smooth backgrounds and bright edge halos. Default
 cpsam works well out of the box. **Don't stack MedSAM** — it tightens
 cpsam's already-good boundaries and rounds off filopodia (-0.148 IoU
-on the Ignasi benchmark).
+on the phase-contrast benchmark).
 
 ### Recommended pipeline (any phase-contrast recording)
 
@@ -93,7 +93,8 @@ gap fill      = on   (multi-cell only)
 min area      = 500
 ```
 
-Benchmark: cpsam + DeepSea = 0.932 IoU on Ignasi 65 GT (65/65 frames > 0.85).
+Benchmark: cpsam + DeepSea = 0.932 IoU on a 65-frame phase-contrast
+manual GT set (65/65 frames > 0.85).
 
 ### Multi-cell phase-contrast
 
@@ -105,8 +106,8 @@ The hybrid_cpsam_multi pipeline does:
 4. Hungarian tracking + division detection
 5. Gap fill via `cpsam(augment=True)` for tracks that disappear
 
-100% gap fill rate on tested recordings (32/32 gaps on Pos3-WT,
-9/9 on Pos2-WT).
+Gap fill performs 100% on tested recordings (e.g. 32/32 gaps recovered
+on a 5-track 97-frame phase-contrast recording).
 
 ---
 
@@ -123,14 +124,14 @@ If your recording is already cropped to a single cell of interest:
 
 ## Large multi-cell recordings (≥1024² with several cells)
 
-For Jesse-style 1024² OME-TIFF recordings with 3-10 cells per frame:
+For full-frame OME-TIFF recordings (~1024² with 3-10 cells per frame):
 
 - **Multi-Cell** mode. Always.
 - **Tiling = 3×3 with overlap=64** if cpsam's default receptive field
   misses cells. The default `tile=True` in cellpose uses 224 px tiles
   with 0.1 overlap, which is fine for 526² but under-resolves on 1024²
   with small cells. Explicit 3×3 tiling roughly doubles detection rate
-  (verified on Jesse pos0_wt 5/10 → 10/10, pos59_ko 8/10 → 10/10).
+  on tested 1024² recordings (5/10 → 10/10, 8/10 → 10/10).
 - **TTA** for stubbornly-missed cells.
 - **Gap fill** is essential — large frames have more chances for any
   individual cell to dim out for a frame.
@@ -156,18 +157,18 @@ isn't guaranteed.
 
 ---
 
-## Recording-by-recording recommendations (project examples)
+## Recording type → preset map
 
-| Example file | Recommended preset |
+| Recording shape | Recommended preset |
 |---|---|
-| `data/examples/control/*.mp4` (our 526² DIC, single cell) | DIC, Single-Cell, cpsam_dic, defaults |
-| `data/examples/cko/*.mp4` (our 526² DIC, single cell, filopodia-rich) | Same as above. Watch for filopodia under-segmentation. |
-| `data/examples/jesse_wt/pos0_wt.ome.tif` (1024², 1 large cell) | DIC, Single-Cell, cpsam_dic, defaults |
-| `data/examples/jesse_wt/pos17_wt.ome.tif` (1024², ~4 cells) | DIC, Multi-Cell, cpsam_dic, gap fill, expected_cells=Auto |
-| `data/examples/jesse_ko/pos59_ko.ome.tif` (1024², 5+ cells) | DIC, Multi-Cell, cpsam_dic, tiling 3×3, gap fill |
-| `data/examples/jesse_ko/pos65_ko.ome.tif` (1024², dim) | DIC, Multi-Cell, cellpose_combined_robust, TTA on |
-| `data/ignasi/...Pos2-WT...` (cropped phase, 2 cells) | Phase-contrast, Multi-Cell, defaults, gap fill, TTA on |
-| `data/ignasi/...Pos3-WT...` (cropped phase, 3 cells, division) | Phase-contrast, Multi-Cell, defaults, gap fill |
+| Cropped DIC, single cell, ~500 px | DIC, Single-Cell, cpsam_dic, defaults |
+| Cropped DIC, single cell, filopodia-rich | DIC, Single-Cell, cpsam_dic. Watch for filopodia under-segmentation. |
+| Full-frame DIC, ~1024 px, 1 large cell | DIC, Single-Cell, cpsam_dic, defaults |
+| Full-frame DIC, ~1024 px, 3-5 cells | DIC, Multi-Cell, cpsam_dic, gap fill, expected_cells=Auto |
+| Full-frame DIC, ~1024 px, 5+ cells | DIC, Multi-Cell, cpsam_dic, tiling 3×3, gap fill |
+| Dim / low-contrast DIC | DIC, cellpose_combined_robust, TTA on |
+| Cropped phase-contrast, 2-3 cells | Phase-contrast, Multi-Cell, defaults, gap fill, TTA on |
+| Cropped phase-contrast with division event | Phase-contrast, Multi-Cell, defaults, gap fill |
 
 ---
 

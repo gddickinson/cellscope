@@ -2,6 +2,8 @@
 
 *Last updated: 2026-04-30*
 
+![CellScope pipeline](docs/figures/hero.png)
+
 ## What is CellScope?
 
 CellScope is an automated cell detection, tracking, and analysis
@@ -100,19 +102,24 @@ cpsam/cellpose → debris filter → DeepSea per-cell → Hungarian tracker
 | cpsam alone | 0.915 | 56/65 | — |
 
 ### DIC Detection — head-to-head (90 stratified frames per test)
-| Test set | cellpose_dic_v3 | **cpsam_dic** | Δ |
-|---|---:|---:|---:|
-| our-GT 526² in-domain | 0.740 | **0.795** | **+0.055** |
-| VAMPIRE held-out OOD crops | 0.279 | **0.697** | **+0.418** |
-| Detection rate (our-GT) | 95% | **100%** | **+5pp** |
+| Test set | cellpose_dic_v3 | cpsam_dic v1 | **cpsam_dic v2** | v2 vs v3 |
+|---|---:|---:|---:|---:|
+| In-domain 526² DIC GT | 0.740 | 0.795 | **0.826** | **+0.086** |
+| Out-of-domain DIC crops | 0.279 | 0.697 | **0.754** | **+0.475** |
+| Detection rate (in-domain) | 95% | 100% | **100%** | +5pp |
+| Detection rate (OOD) | 42% | 88% | **96%** | +54pp |
 
-### VAMPIRE held-out per-genotype (cpsam_dic)
+### Out-of-domain per-genotype (cpsam_dic v2)
 | Genotype | IoU | std |
 |---|---:|---:|
-| control | 0.897 | 0.083 |
-| cKO | 0.490 | 0.390 |
-| GoF | 0.703 | 0.150 |
-| **mean** | **0.697** | 0.297 |
+| control | 0.871 | 0.105 |
+| cKO | 0.678 | 0.291 |
+| GoF | 0.713 | 0.159 |
+| **mean** | **0.754** | 0.218 |
+
+cpsam_dic (current) is the result of resuming Colab fine-tuning to
+~20 epochs from a partial 6-epoch checkpoint. The Drive download URL
+in `download_models.py` serves this same v2 file.
 
 ### Older DIC benchmarks (legacy CP3 models, kept for reference)
 | Method | control | cKO | GoF | Mean |

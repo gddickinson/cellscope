@@ -36,8 +36,8 @@ import zipfile
 # "Anyone with the link" share links.
 # ─────────────────────────────────────────────────────────────────
 CPSAM_DIC_URL = (
-    "https://drive.google.com/open?id=15M1BqDc1dt_Jj8L-BJ2RBpfPGmihaIOW"
-    "&usp=drive_fs"
+    "https://drive.google.com/file/d/15M1BqDc1dt_Jj8L-BJ2RBpfPGmihaIOW"
+    "/view?usp=sharing"
 )
 
 # Set after uploading cellscope-models-bundle.zip from make_models_bundle.py.
@@ -89,12 +89,37 @@ def gdown_or_die():
         sys.exit(2)
 
 
+def _drive_file_id(url):
+    """Extract the file ID from a Drive share URL.
+
+    Handles all common share-link forms:
+      https://drive.google.com/file/d/<ID>/view?usp=sharing
+      https://drive.google.com/open?id=<ID>
+      https://drive.google.com/uc?id=<ID>
+    """
+    import re
+    import urllib.parse
+    m = re.search(r"/file/d/([A-Za-z0-9_-]+)", url)
+    if m:
+        return m.group(1)
+    qs = urllib.parse.urlparse(url).query
+    fid = urllib.parse.parse_qs(qs).get("id", [None])[0]
+    if fid:
+        return fid
+    raise ValueError(f"Could not extract Drive file ID from URL: {url}")
+
+
 def download_via_gdown(url, dest, label):
+    """Download from a Drive share URL via gdown 6.x.
+
+    gdown 6.x dropped `fuzzy=` and requires the bare file ID via `id=`.
+    """
     gdown = gdown_or_die()
     os.makedirs(os.path.dirname(dest), exist_ok=True)
     print(f"\nDownloading {label} from Drive…")
     print(f"Destination: {dest}")
-    gdown.download(url, dest, quiet=False, fuzzy=True)
+    file_id = _drive_file_id(url)
+    gdown.download(id=file_id, output=dest, quiet=False)
 
 
 def fetch_small_bundle(url, force=False):

@@ -5,7 +5,7 @@
 CellScope detects cell boundaries, tracks cells across frames, and quantifies migration, morphology, and edge dynamics — with support for both single-cell and multi-cell recordings. It provides a complete GUI-based workflow from raw recordings to publication-ready figures and statistical comparisons.
 
 ![CellScope: detect → track → analyse](docs/figures/hero.png)
-*End-to-end workflow on Jesse keratinocyte recordings: cpsam_dic detection → Hungarian tracking → per-cell migration metrics.*
+*End-to-end workflow on a phase-contrast keratinocyte recording: cpsam detection → Hungarian tracking → per-cell migration metrics → group statistics.*
 
 ## Key Features
 
@@ -154,8 +154,8 @@ To send the project to someone else:
 
 The main workflow: **Load → Detect → Edit Masks → Analyze → Export**
 
-![Single-cell DIC detection](docs/figures/focused_detected.png)
-*DIC single-cell detection on a VAMPIRE keratinocyte. Red contour = cpsam_dic + DeepSea prediction.*
+![Single-cell detection](docs/figures/focused_detected.png)
+*Single-cell phase-contrast detection on a cropped keratinocyte recording. Red contour = cpsam + DeepSea prediction.*
 
 - **Image viewer** with brightness/contrast, pan/zoom, mask overlay
 - **ROI selector** — rectangle, ellipse, or polygon regions
@@ -168,7 +168,7 @@ The main workflow: **Load → Detect → Edit Masks → Analyze → Export**
 
 ## Example Results
 
-All graphs come from a real Jesse `pos17_wt` keratinocyte recording (DIC, 30-frame slice). Replace these in your own analyses with results from your data.
+All graphs come from a real keratinocyte recording (phase-contrast, multi-cell, 30-frame slice). Your own analyses produce equivalent plots from your data.
 
 | Trajectory | Speed | Edge Kymograph |
 |:---:|:---:|:---:|
@@ -181,15 +181,15 @@ All graphs come from a real Jesse `pos17_wt` keratinocyte recording (DIC, 30-fra
 ## Multi-Cell Tracking
 
 ![Multi-cell detection](docs/figures/focused_multi_detected.png)
-*Multi-cell DIC: each tracked cell gets a distinct color. Hungarian tracker preserves identity across frames.*
+*Multi-cell phase-contrast: each tracked cell gets a distinct color. The Hungarian tracker preserves cell identity across frames, with optional gap fill for cells that briefly disappear.*
 
 ![Tracked trajectories](docs/figures/multi_trajectories.png)
-*Per-cell trajectories overlaid on the recording. Green circle = start, red square = end.*
+*Per-cell trajectories overlaid on the recording. Coloured line per cell, circle = start frame, square = end frame.*
 
-## Phase-Contrast (Ignasi-style) recordings
+## DIC recordings
 
-![Phase-contrast multi-cell](docs/figures/focused_phase_detected.png)
-*Default cpsam (no DIC fine-tune) handles phase-contrast cleanly — DeepSea filters debris automatically.*
+![DIC multi-cell with debris filter](docs/figures/focused_phase_detected.png)
+*The DIC pipeline (cpsam_dic + min_area filter + per-cell DeepSea refinement) handles cropped DIC keratinocyte recordings. The debris filter automatically drops small false-positive blobs.*
 
 ## Tracking & Comparison GUI
 

@@ -1,5 +1,8 @@
 # CellScope — User Manual
 
+![CellScope pipeline](figures/hero.png)
+*The standard CellScope workflow: detect → track → analyse → compare.*
+
 ## Getting Started
 
 ### Launching CellScope
@@ -46,8 +49,8 @@ The primary workflow for analyzing a single recording.
 
 ### Single-Cell Detection
 
-![Single-cell DIC detection](figures/focused_detected.png)
-*DIC single-cell detection (red contour) on a VAMPIRE keratinocyte recording.*
+![Single-cell detection](figures/focused_detected.png)
+*Single-cell phase-contrast detection (red contour) on a cropped keratinocyte recording.*
 
 ### Pipeline Stages
 
@@ -111,7 +114,7 @@ Below the modality picker. Lists all DIC fine-tunes found under
 - **Auto (best available)** — picks `cpsam_dic` if present, else
   `cellpose_dic_v3`, else `_v2`, else `_v1`. Recommended.
 - **cpsam_dic** — ViT-based DIC fine-tune. **Best on every benchmark
-  we've measured** (0.795 IoU on our-GT, 0.697 on VAMPIRE OOD).
+  we've measured** (0.795 IoU in-domain, 0.697 IoU out-of-domain).
   Loads via the cellpose4 subprocess automatically.
 - **cellpose_dic_v3 / v2 / cellpose_dic** — older CP3 fine-tunes,
   faster but lower IoU. Useful as fallbacks or for low-RAM machines.
