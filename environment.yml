@@ -1,0 +1,39 @@
+# Primary cellscope environment.
+# Hosts the GUI, the core analysis pipeline, and CP3 cellpose models
+# (cellpose_dic, cellpose_dic_v2/v3, cellpose_combined_robust).
+# Subprocess-delegates cpsam_dic to the `cellpose4` env.
+#
+# Install:
+#   conda env create -f environment.yml
+#   conda activate cellpose
+name: cellpose
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - pip:
+    - cellpose==3.1.1.1
+    - torch==2.7.0
+    - torchvision==0.22.0
+    - numpy==2.0.2
+    - scipy>=1.15
+    - scikit-image>=0.25
+    - scikit-learn>=1.7
+    - opencv-python==4.13.0.86
+    - tifffile>=2023.2.28
+    - ome-types>=0.6
+    - matplotlib>=3.8
+    - PyQt5==5.15.11
+    - psutil
+    # Optional: SAM refinement + Trackastra tracker. Comment out if
+    # you don't need them; they pull large model weights at first use.
+    - segment-anything==1.0
+    - trackastra==0.5.3
+    # Optional: gdown for the model downloader script.
+    - gdown
+    # NOTE: pydensecrf2 (CRF refinement) is omitted — it has no Windows
+    # wheels and rarely builds from source on Windows. The pipeline runs
+    # without it; only `mode="full_stack"` with CRF=True is affected.
+    # Linux/macOS users who want CRF can:  pip install pydensecrf2==1.1

@@ -1,0 +1,434 @@
+[
+  {
+    "name": "Pos10-WT",
+    "genotype": "control",
+    "shape": [
+      458,
+      504
+    ],
+    "A_cpsam_deepsea": {
+      "iou": 0.03377826633165829,
+      "det": 0.06666666666666667,
+      "elapsed": 44.04296016693115
+    },
+    "B_cpsam_raw": {
+      "iou": 0.028551901795336856,
+      "det": 0.06666666666666667,
+      "elapsed": 38.81027889251709
+    },
+    "C_cp_dic_raw": {
+      "iou": 0,
+      "det": 0,
+      "error": "Cellpose model not found: data/models/cellpose_dic"
+    },
+    "D_cp_dic_preproc": {
+      "iou": 0,
+      "det": 0,
+      "error": "Cellpose model not found: data/models/cellpose_dic"
+    },
+    "E_cp_dic_deepsea": {
+      "iou": 0,
+      "det": 0,
+      "error": "Cellpose model not found: data/models/cellpose_dic"
+    },
+    "F_cp_dic_preproc_deepsea": {
+      "iou": 0,
+      "det": 0,
+      "error": "Cellpose model not found: data/models/cellpose_dic"
+    },
+    "G_cp_dic_retry_deepsea": {
+      "iou": 0,
+      "det": 0,
+      "error": "Cellpose model not found: data/models/cellpose_dic"
+    },
+    "H_cp_dic_preproc_retry_deepsea": {
+      "iou": 0,
+      "det": 0,
+      "error": "Cellpose model not found: data/models/cellpose_dic"
+    }
+  },
+  {
+    "name": "019_04_30_Pos1-WT_shadecorrect",
+    "genotype": "control",
+    "shape": [
+      348,
+      494
+    ],
+    "A_cpsam_deepsea": {
+      "iou": 0.25077092884977065,
+      "det": 0.8666666666666667,
+      "elapsed": 28.80324387550354
+    },
+    "B_cpsam_raw": {
+      "iou": 0.32341303600095256,
+      "det": 0.8666666666666667,
+      "elapsed": 27.002818822860718
+    },
+    "C_cp_dic_raw": {
+      "iou": 0,
+      "det": 0,
+      "error": "Cellpose model not found: data/models/cellpose_dic"
+    },
+    "D_cp_dic_preproc": {
+      "iou": 0,
+      "det": 0,
+      "error": "Cellpose model not found: data/models/cellpose_dic"
+    },
+    "E_cp_dic_deepsea": {
+      "iou": 0,
+      "det": 0,
+      "error": "Cellpose model not found: data/models/cellpose_dic"
+    },
+    "F_cp_dic_preproc_deepsea": {
+      "iou": 0,
+      "det": 0,
+      "error": "Cellpose model not found: data/models/cellpose_dic"
+    },
+    "G_cp_dic_retry_deepsea": {
+      "iou": 0,
+      "det": 0,
+      "error": "Cellpose model not found: data/models/cellpose_dic"
+    },
+    "H_cp_dic_preproc_retry_deepsea": {
+      "iou": 0,
+      "det": 0,
+      "error": "Cellpose model not found: data/models/cellpose_dic"
+    }
+  },
+  {
+    "name": "Pos70-WT-5",
+    "genotype": "control",
+    "shape": [
+      495,
+      487
+    ],
+    "A_cpsam_deepsea": {
+      "iou": 0.5068222693478307,
+      "det": 1.0,
+      "elapsed": 42.2728271484375
+    },
+    "B_cpsam_raw": {
+      "iou": 0.49026835387060425,
+      "det": 1.0,
+      "elapsed": 40.707825899124146
+    },
+    "C_cp_dic_raw": {
+      "iou": 0,
+      "det": 0,
+      "error": "Cellpose model not found: data/models/cellpose_dic"
+    },
+    "D_cp_dic_preproc": {
+      "iou": 0,
+      "det": 0,
+      "error": "Cellpose model not found: data/models/cellpose_dic"
+    },
+    "E_cp_dic_deepsea": {
+      "iou": 0,
+      "det": 0,
+      "error": "Cellpose model not found: data/models/cellpose_dic"
+    },
+    "F_cp_dic_preproc_deepsea": {
+      "iou": 0,
+      "det": 0,
+      "error": "Cellpose model not found: data/models/cellpose_dic"
+    },
+    "G_cp_dic_retry_deepsea": {
+      "iou": 0,
+      "det": 0,
+      "error": "Cellpose model not found: data/models/cellpose_dic"
+    },
+    "H_cp_dic_preproc_retry_deepsea": {
+      "iou": 0,
+      "det": 0,
+      "error": "Cellpose model not found: data/models/cellpose_dic"
+    }
+  },
+  {
+    "name": "Pos63-KO_Cell1",
+    "genotype": "cKO",
+    "shape": [
+      405,
+      429
+    ],
+    "A_cpsam_deepsea": {
+      "iou": 0.0,
+      "det": 0.0,
+      "elapsed": 38.10188293457031
+    },
+    "B_cpsam_raw": {
+      "iou": 0.0,
+      "det": 0.0,
+      "elapsed": 37.39287805557251
+    },
+    "C_cp_dic_raw": {
+      "iou": 0,
+      "det": 0,
+      "error": "Cellpose model not found: data/models/cellpose_dic"
+    },
+    "D_cp_dic_preproc": {
+      "iou": 0,
+      "det": 0,
+      "error": "Cellpose model not found: data/models/cellpose_dic"
+    },
+    "E_cp_dic_deepsea": {
+      "iou": 0,
+      "det": 0,
+      "error": "Cellpose model not found: data/models/cellpose_dic"
+    },
+    "F_cp_dic_preproc_deepsea": {
+      "iou": 0,
+      "det": 0,
+      "error": "Cellpose model not found: data/models/cellpose_dic"
+    },
+    "G_cp_dic_retry_deepsea": {
+      "iou": 0,
+      "det": 0,
+      "error": "Cellpose model not found: data/models/cellpose_dic"
+    },
+    "H_cp_dic_preproc_retry_deepsea": {
+      "iou": 0,
+      "det": 0,
+      "error": "Cellpose model not found: data/models/cellpose_dic"
+    }
+  },
+  {
+    "name": "Pos64-KOCell3",
+    "genotype": "cKO",
+    "shape": [
+      388,
+      365
+    ],
+    "A_cpsam_deepsea": {
+      "iou": 0.3558094812521761,
+      "det": 0.4,
+      "elapsed": 22.536417961120605
+    },
+    "B_cpsam_raw": {
+      "iou": 0.35249872495172435,
+      "det": 0.4,
+      "elapsed": 20.268729209899902
+    },
+    "C_cp_dic_raw": {
+      "iou": 0,
+      "det": 0,
+      "error": "Cellpose model not found: data/models/cellpose_dic"
+    },
+    "D_cp_dic_preproc": {
+      "iou": 0,
+      "det": 0,
+      "error": "Cellpose model not found: data/models/cellpose_dic"
+    },
+    "E_cp_dic_deepsea": {
+      "iou": 0,
+      "det": 0,
+      "error": "Cellpose model not found: data/models/cellpose_dic"
+    },
+    "F_cp_dic_preproc_deepsea": {
+      "iou": 0,
+      "det": 0,
+      "error": "Cellpose model not found: data/models/cellpose_dic"
+    },
+    "G_cp_dic_retry_deepsea": {
+      "iou": 0,
+      "det": 0,
+      "error": "Cellpose model not found: data/models/cellpose_dic"
+    },
+    "H_cp_dic_preproc_retry_deepsea": {
+      "iou": 0,
+      "det": 0,
+      "error": "Cellpose model not found: data/models/cellpose_dic"
+    }
+  },
+  {
+    "name": "Pos51-KO-4",
+    "genotype": "cKO",
+    "shape": [
+      1024,
+      1024
+    ],
+    "A_cpsam_deepsea": {
+      "iou": 0.19381645695331062,
+      "det": 1.0,
+      "elapsed": 111.11469006538391
+    },
+    "B_cpsam_raw": {
+      "iou": 0.48904501015488067,
+      "det": 1.0,
+      "elapsed": 105.87026190757751
+    },
+    "C_cp_dic_raw": {
+      "iou": 0,
+      "det": 0,
+      "error": "Cellpose model not found: data/models/cellpose_dic"
+    },
+    "D_cp_dic_preproc": {
+      "iou": 0,
+      "det": 0,
+      "error": "Cellpose model not found: data/models/cellpose_dic"
+    },
+    "E_cp_dic_deepsea": {
+      "iou": 0,
+      "det": 0,
+      "error": "Cellpose model not found: data/models/cellpose_dic"
+    },
+    "F_cp_dic_preproc_deepsea": {
+      "iou": 0,
+      "det": 0,
+      "error": "Cellpose model not found: data/models/cellpose_dic"
+    },
+    "G_cp_dic_retry_deepsea": {
+      "iou": 0,
+      "det": 0,
+      "error": "Cellpose model not found: data/models/cellpose_dic"
+    },
+    "H_cp_dic_preproc_retry_deepsea": {
+      "iou": 0,
+      "det": 0,
+      "error": "Cellpose model not found: data/models/cellpose_dic"
+    }
+  },
+  {
+    "name": "9_04_30_Pos54-GoF_shadecorrect",
+    "genotype": "gof",
+    "shape": [
+      576,
+      512
+    ],
+    "A_cpsam_deepsea": {
+      "iou": 0.17619320795743357,
+      "det": 1.0,
+      "elapsed": 43.54708218574524
+    },
+    "B_cpsam_raw": {
+      "iou": 0.03708710422387419,
+      "det": 1.0,
+      "elapsed": 40.514545917510986
+    },
+    "C_cp_dic_raw": {
+      "iou": 0,
+      "det": 0,
+      "error": "Cellpose model not found: data/models/cellpose_dic"
+    },
+    "D_cp_dic_preproc": {
+      "iou": 0,
+      "det": 0,
+      "error": "Cellpose model not found: data/models/cellpose_dic"
+    },
+    "E_cp_dic_deepsea": {
+      "iou": 0,
+      "det": 0,
+      "error": "Cellpose model not found: data/models/cellpose_dic"
+    },
+    "F_cp_dic_preproc_deepsea": {
+      "iou": 0,
+      "det": 0,
+      "error": "Cellpose model not found: data/models/cellpose_dic"
+    },
+    "G_cp_dic_retry_deepsea": {
+      "iou": 0,
+      "det": 0,
+      "error": "Cellpose model not found: data/models/cellpose_dic"
+    },
+    "H_cp_dic_preproc_retry_deepsea": {
+      "iou": 0,
+      "det": 0,
+      "error": "Cellpose model not found: data/models/cellpose_dic"
+    }
+  },
+  {
+    "name": "19_06_25_Pos0-gof_shadecorrect",
+    "genotype": "gof",
+    "shape": [
+      274,
+      348
+    ],
+    "A_cpsam_deepsea": {
+      "iou": 0.12550681388244078,
+      "det": 0.2,
+      "elapsed": 19.053135871887207
+    },
+    "B_cpsam_raw": {
+      "iou": 0.1052852987109174,
+      "det": 0.2,
+      "elapsed": 18.4600510597229
+    },
+    "C_cp_dic_raw": {
+      "iou": 0,
+      "det": 0,
+      "error": "Cellpose model not found: data/models/cellpose_dic"
+    },
+    "D_cp_dic_preproc": {
+      "iou": 0,
+      "det": 0,
+      "error": "Cellpose model not found: data/models/cellpose_dic"
+    },
+    "E_cp_dic_deepsea": {
+      "iou": 0,
+      "det": 0,
+      "error": "Cellpose model not found: data/models/cellpose_dic"
+    },
+    "F_cp_dic_preproc_deepsea": {
+      "iou": 0,
+      "det": 0,
+      "error": "Cellpose model not found: data/models/cellpose_dic"
+    },
+    "G_cp_dic_retry_deepsea": {
+      "iou": 0,
+      "det": 0,
+      "error": "Cellpose model not found: data/models/cellpose_dic"
+    },
+    "H_cp_dic_preproc_retry_deepsea": {
+      "iou": 0,
+      "det": 0,
+      "error": "Cellpose model not found: data/models/cellpose_dic"
+    }
+  },
+  {
+    "name": "0_06_21_Pos34-gof_shadecorrect",
+    "genotype": "gof",
+    "shape": [
+      380,
+      666
+    ],
+    "A_cpsam_deepsea": {
+      "iou": 0.0,
+      "det": 0.0,
+      "elapsed": 34.1605658531189
+    },
+    "B_cpsam_raw": {
+      "iou": 0.0,
+      "det": 0.0,
+      "elapsed": 33.887845277786255
+    },
+    "C_cp_dic_raw": {
+      "iou": 0,
+      "det": 0,
+      "error": "Cellpose model not found: data/models/cellpose_dic"
+    },
+    "D_cp_dic_preproc": {
+      "iou": 0,
+      "det": 0,
+      "error": "Cellpose model not found: data/models/cellpose_dic"
+    },
+    "E_cp_dic_deepsea": {
+      "iou": 0,
+      "det": 0,
+      "error": "Cellpose model not found: data/models/cellpose_dic"
+    },
+    "F_cp_dic_preproc_deepsea": {
+      "iou": 0,
+      "det": 0,
+      "error": "Cellpose model not found: data/models/cellpose_dic"
+    },
+    "G_cp_dic_retry_deepsea": {
+      "iou": 0,
+      "det": 0,
+      "error": "Cellpose model not found: data/models/cellpose_dic"
+    },
+    "H_cp_dic_preproc_retry_deepsea": {
+      "iou": 0,
+      "det": 0,
+      "error": "Cellpose model not found: data/models/cellpose_dic"
+    }
+  }
+]

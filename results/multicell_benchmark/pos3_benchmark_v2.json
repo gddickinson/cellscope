@@ -1,0 +1,8 @@
+{
+  "mean_iou": 0.8765741728567094,
+  "total_missed": 12,
+  "total_true_fps": 1,
+  "total_splits": 10,
+  "n_id_switches": 24,
+  "n_tracks": 4
+}

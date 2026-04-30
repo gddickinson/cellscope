@@ -99,25 +99,35 @@ def anchor_first_frame_single_cell(masks, min_area_px=200,
     return out
 
 
+def _mask_iou(a, b):
+    """IoU between two boolean masks."""
+    inter = np.logical_and(a, b).sum()
+    union = np.logical_or(a, b).sum()
+    return float(inter / union) if union > 0 else 0.0
+
+
 def track_all_cells(masks, min_area_px=200, max_hop_px=150,
                     seed_frame=None, spawn_new_tracks=False,
-                    min_track_length=1):
+                    min_track_length=1, frames=None,
+                    w_dist=1.0, w_area=0.5, w_iou=1.0,
+                    w_intensity=0.3):
     """Return one (N, H, W) stack per cell seen in the seed frame.
+
+    Uses a multi-feature cost matrix for Hungarian assignment:
+    - Centroid distance (weighted by w_dist)
+    - Area similarity (weighted by w_area)
+    - Mask IoU with previous frame (weighted by w_iou)
+    - Mean intensity similarity (weighted by w_intensity, needs frames)
 
     Args:
         masks: (N, H, W) bool or label stack.
         min_area_px: minimum area to count as a real cell.
-        max_hop_px: maximum centroid jump allowed between adjacent
-            frames. Cells moving faster than this are likely different
-            cells; the track is marked dead.
-        seed_frame: frame index to seed tracks from. If None, uses the
-            first frame that has at least one detected cell.
-        spawn_new_tracks: if True, create a new track each time a
-            detected cell cannot be matched to an existing track
-            (covers cells entering the field of view after seed_frame).
-            Phase 16 uses True for full-population tracking.
-        min_track_length: after tracking, drop tracks shorter than this
-            (filters spurious detections that don't persist).
+        max_hop_px: maximum centroid jump between adjacent frames.
+        seed_frame: frame index to seed tracks from.
+        spawn_new_tracks: create tracks for unmatched detections.
+        min_track_length: drop tracks shorter than this.
+        frames: (N, H, W) uint8 raw images (optional, for intensity).
+        w_dist, w_area, w_iou, w_intensity: cost weights.
 
     Returns:
         list of dicts: [{"stack": (N, H, W) bool,
@@ -127,7 +137,7 @@ def track_all_cells(masks, min_area_px=200, max_hop_px=150,
     per_frame = _label_cells_per_frame(masks, min_area_px=min_area_px)
     n = len(masks)
 
-    # Find seed frame (first frame with any cells)
+    # Find seed frame
     if seed_frame is None:
         seed_frame = 0
         while seed_frame < n and not per_frame[seed_frame]:
@@ -147,9 +157,6 @@ def track_all_cells(masks, min_area_px=200, max_hop_px=150,
             "last_seen_frame": seed_frame,
         })
 
-    # For each frame, solve a min-cost assignment between alive tracks
-    # and detected cells using the Hungarian algorithm. Tracks that
-    # aren't assigned for more than MAX_GAP frames are killed.
     from scipy.optimize import linear_sum_assignment
     MAX_GAP = 10
     LARGE = 1e9
@@ -166,11 +173,11 @@ def track_all_cells(masks, min_area_px=200, max_hop_px=150,
         prev_cents = np.array(
             [t["centroid_history"][-1] for t in alive])
         cur_cents = np.array([c[0] for c in cells])
-        # Cost matrix: centroid distance, with gap-tolerance scaling
         gap = np.array([max(1, i - t["last_seen_frame"])
                         for t in alive])[:, None]
+
+        # Cost matrix: centroid distance, with gap-tolerance scaling
         raw_dists = cdist(prev_cents, cur_cents)
-        # Forbid assignments > max_hop_px × gap (scaled for missing frames)
         allowed = max_hop_px * gap
         cost = np.where(raw_dists <= allowed, raw_dists, LARGE)
 

@@ -8,7 +8,7 @@ log = logging.getLogger(__name__)
 
 
 class FocusedDetectWorker(QThread):
-    """Run hybrid_cpsam or hybrid_cpsam_multi detection."""
+    """Run detection: hybrid_cpsam, hybrid_dic, or their multi variants."""
 
     progress = pyqtSignal(str, int)
     log_event = pyqtSignal(str, str)
@@ -37,7 +37,38 @@ class FocusedDetectWorker(QThread):
             use_tiling = self.params.get("use_tiling", False)
             tile_grid = self.params.get("tile_grid", 2)
 
-            if use_tiling:
+            dic_model_path = self.params.get("dic_model_path", None)
+
+            if self.mode == "hybrid_dic":
+                from core.hybrid_dic import detect_hybrid_dic
+                masks, missed = detect_hybrid_dic(
+                    frames, progress_fn=cb,
+                    area_threshold=min_area,
+                    use_preprocess=True,
+                    use_deepsea=use_deepsea,
+                    use_retry=True,
+                    model_path=dic_model_path)
+                result = {
+                    "masks": masks,
+                    "missed_frames": missed,
+                    "flow_quality": np.zeros(len(frames)),
+                    "flow_magnitudes": np.zeros_like(
+                        frames, dtype=np.float32),
+                }
+            elif self.mode == "hybrid_dic_multi":
+                from core.hybrid_dic import detect_hybrid_dic_multi
+                result = detect_hybrid_dic_multi(
+                    frames, progress_fn=cb,
+                    min_area_px=min_area,
+                    use_preprocess=True,
+                    use_deepsea=use_deepsea,
+                    use_retry=True,
+                    use_gap_fill=use_gap_fill,
+                    model_path=dic_model_path)
+                result["flow_quality"] = np.zeros(len(frames))
+                result["flow_magnitudes"] = np.zeros_like(
+                    frames, dtype=np.float32)
+            elif use_tiling:
                 from core.cpsam_tiled import detect_cpsam_tiled
                 self.log_event.emit("info",
                                     f"Tiled detection: {tile_grid}x{tile_grid}")

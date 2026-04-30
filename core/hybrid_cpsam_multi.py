@@ -98,7 +98,8 @@ def detect_hybrid_cpsam_multi(frames, progress_fn=None,
                                min_area_px=500,
                                use_fallback=True,
                                use_deepsea=True,
-                               use_gap_fill=True):
+                               use_gap_fill=True,
+                               expected_cells=0):
     """Multi-cell hybrid cpsam detection + tracking.
 
     Args:
@@ -170,6 +171,14 @@ def detect_hybrid_cpsam_multi(frames, progress_fn=None,
     else:
         refined = raw_labels
 
+    # Step 4b: detection post-processing (close splits, merge
+    # fragments, enforce expected cell count)
+    from core.detection_postprocess import preprocess_detection
+    if progress_fn:
+        progress_fn("Detection post-processing", 72)
+    refined = preprocess_detection(
+        refined, expected_cells=expected_cells, min_area=min_area_px)
+
     # Step 5: track across frames
     if progress_fn:
         progress_fn("Tracking cells across frames", 75)
@@ -179,6 +188,7 @@ def detect_hybrid_cpsam_multi(frames, progress_fn=None,
         max_hop_px=150,
         spawn_new_tracks=True,
         min_track_length=3,
+        frames=frames,
     )
     log.info("Found %d tracks (max %d cells/frame)", len(tracks), max_cells)
 
@@ -196,6 +206,17 @@ def detect_hybrid_cpsam_multi(frames, progress_fn=None,
         if n_filled:
             log.info("Filled %d track gaps via cpsam(augment=True)",
                      n_filled)
+
+    # Step 5c: post-process tracks (merge splits, fix ID switches)
+    from core.track_postprocess import postprocess_tracks
+    if progress_fn:
+        progress_fn("Post-processing tracks", 95)
+    pp = postprocess_tracks(tracks, frames=frames)
+    if pp.get("fps_rejected") or pp.get("tracks_removed"):
+        log.info("Post-process: %d FPs rejected, %d tracks removed, "
+                 "%d tracks remaining",
+                 pp.get("fps_rejected", 0), pp.get("tracks_removed", 0),
+                 pp.get("tracks_remaining", len(tracks)))
 
     # Step 6: build tracked label stack
     tracked = _build_tracked_labels(tracks, frames.shape)

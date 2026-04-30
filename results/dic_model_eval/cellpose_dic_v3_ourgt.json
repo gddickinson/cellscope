@@ -1,0 +1,503 @@
+{
+  "model": "data/models/cellpose_dic_v3",
+  "test_dir": "/Users/george/claude_test/piezo1_analysis/data/training",
+  "n": 60,
+  "mean_iou": 0.740079111345904,
+  "std_iou": 0.19905018203986002,
+  "det_rate": 0.95,
+  "elapsed_s": 21.865600109100342,
+  "per_genotype": {
+    "cko": {
+      "n": 30,
+      "mean_iou": 0.7400385293436661,
+      "std_iou": 0.21352216205961927
+    },
+    "control": {
+      "n": 30,
+      "mean_iou": 0.7401196933481416,
+      "std_iou": 0.18343999824408727
+    }
+  },
+  "rows": [
+    {
+      "name": "our_cko_gt_0000",
+      "genotype": "cko",
+      "iou": 0.8630357718337093,
+      "pred_px": 5417,
+      "gt_px": 6145,
+      "detected": true
+    },
+    {
+      "name": "our_cko_gt_0001",
+      "genotype": "cko",
+      "iou": 0.9401028704164592,
+      "pred_px": 5823,
+      "gt_px": 5870,
+      "detected": true
+    },
+    {
+      "name": "our_cko_gt_0004",
+      "genotype": "cko",
+      "iou": 0.9180639585133967,
+      "pred_px": 5532,
+      "gt_px": 5564,
+      "detected": true
+    },
+    {
+      "name": "our_cko_gt_0007",
+      "genotype": "cko",
+      "iou": 0.8150841471015998,
+      "pred_px": 4548,
+      "gt_px": 4188,
+      "detected": true
+    },
+    {
+      "name": "our_cko_gt_0017",
+      "genotype": "cko",
+      "iou": 0.0,
+      "pred_px": 0,
+      "gt_px": 3798,
+      "detected": false
+    },
+    {
+      "name": "our_cko_gt_0025",
+      "genotype": "cko",
+      "iou": 0.7031973539140022,
+      "pred_px": 4238,
+      "gt_px": 3486,
+      "detected": true
+    },
+    {
+      "name": "our_cko_gt_0029",
+      "genotype": "cko",
+      "iou": 0.8834019204389575,
+      "pred_px": 3387,
+      "gt_px": 3478,
+      "detected": true
+    },
+    {
+      "name": "our_cko_gt_0031",
+      "genotype": "cko",
+      "iou": 0.8471769134253451,
+      "pred_px": 3782,
+      "gt_px": 3579,
+      "detected": true
+    },
+    {
+      "name": "our_cko_gt_0046",
+      "genotype": "cko",
+      "iou": 0.652732368052312,
+      "pred_px": 4089,
+      "gt_px": 2988,
+      "detected": true
+    },
+    {
+      "name": "our_cko_gt_0048",
+      "genotype": "cko",
+      "iou": 0.6967963386727689,
+      "pred_px": 3211,
+      "gt_px": 2721,
+      "detected": true
+    },
+    {
+      "name": "our_cko_gt_0052",
+      "genotype": "cko",
+      "iou": 0.6143285072391413,
+      "pred_px": 3822,
+      "gt_px": 2645,
+      "detected": true
+    },
+    {
+      "name": "our_cko_gt_0059",
+      "genotype": "cko",
+      "iou": 0.6877551020408164,
+      "pred_px": 2628,
+      "gt_px": 2334,
+      "detected": true
+    },
+    {
+      "name": "our_cko_gt_0062",
+      "genotype": "cko",
+      "iou": 0.7443464929091606,
+      "pred_px": 2393,
+      "gt_px": 2158,
+      "detected": true
+    },
+    {
+      "name": "our_cko_gt_0064",
+      "genotype": "cko",
+      "iou": 0.7159329140461216,
+      "pred_px": 2696,
+      "gt_px": 2215,
+      "detected": true
+    },
+    {
+      "name": "our_cko_gt_0065",
+      "genotype": "cko",
+      "iou": 0.708981612446959,
+      "pred_px": 2533,
+      "gt_px": 2300,
+      "detected": true
+    },
+    {
+      "name": "our_cko_gt_0066",
+      "genotype": "cko",
+      "iou": 0.8683197947840958,
+      "pred_px": 2045,
+      "gt_px": 2325,
+      "detected": true
+    },
+    {
+      "name": "our_cko_gt_0068",
+      "genotype": "cko",
+      "iou": 0.6752712308267864,
+      "pred_px": 2378,
+      "gt_px": 2100,
+      "detected": true
+    },
+    {
+      "name": "our_cko_gt_0077",
+      "genotype": "cko",
+      "iou": 0.863220494053065,
+      "pred_px": 1918,
+      "gt_px": 2155,
+      "detected": true
+    },
+    {
+      "name": "our_cko_gt_0078",
+      "genotype": "cko",
+      "iou": 0.8241228070175438,
+      "pred_px": 1960,
+      "gt_px": 2199,
+      "detected": true
+    },
+    {
+      "name": "our_cko_gt_0079",
+      "genotype": "cko",
+      "iou": 0.8888443017656501,
+      "pred_px": 2427,
+      "gt_px": 2280,
+      "detected": true
+    },
+    {
+      "name": "our_cko_gt_0082",
+      "genotype": "cko",
+      "iou": 0.8518870916587377,
+      "pred_px": 3110,
+      "gt_px": 2729,
+      "detected": true
+    },
+    {
+      "name": "our_cko_gt_0089",
+      "genotype": "cko",
+      "iou": 0.8340043357076494,
+      "pred_px": 3056,
+      "gt_px": 2866,
+      "detected": true
+    },
+    {
+      "name": "our_cko_gt_0092",
+      "genotype": "cko",
+      "iou": 0.7471184072651065,
+      "pred_px": 2364,
+      "gt_px": 2638,
+      "detected": true
+    },
+    {
+      "name": "our_cko_gt_0093",
+      "genotype": "cko",
+      "iou": 0.8247950819672131,
+      "pred_px": 2743,
+      "gt_px": 2600,
+      "detected": true
+    },
+    {
+      "name": "our_cko_gt_0094",
+      "genotype": "cko",
+      "iou": 0.7756432246998285,
+      "pred_px": 2609,
+      "gt_px": 2567,
+      "detected": true
+    },
+    {
+      "name": "our_cko_gt_0101",
+      "genotype": "cko",
+      "iou": 0.0,
+      "pred_px": 0,
+      "gt_px": 2389,
+      "detected": false
+    },
+    {
+      "name": "our_cko_gt_0103",
+      "genotype": "cko",
+      "iou": 0.8079301564205166,
+      "pred_px": 2549,
+      "gt_px": 2421,
+      "detected": true
+    },
+    {
+      "name": "our_cko_gt_0104",
+      "genotype": "cko",
+      "iou": 0.8162035487110814,
+      "pred_px": 2863,
+      "gt_px": 2562,
+      "detected": true
+    },
+    {
+      "name": "our_cko_gt_0109",
+      "genotype": "cko",
+      "iou": 0.8192318798729425,
+      "pred_px": 3266,
+      "gt_px": 3034,
+      "detected": true
+    },
+    {
+      "name": "our_cko_gt_0119",
+      "genotype": "cko",
+      "iou": 0.8136272545090181,
+      "pred_px": 2827,
+      "gt_px": 2603,
+      "detected": true
+    },
+    {
+      "name": "our_ctrl_gt_0008",
+      "genotype": "control",
+      "iou": 0.6439145394894775,
+      "pred_px": 8166,
+      "gt_px": 12378,
+      "detected": true
+    },
+    {
+      "name": "our_ctrl_gt_0013",
+      "genotype": "control",
+      "iou": 0.7055453712190651,
+      "pred_px": 9298,
+      "gt_px": 13031,
+      "detected": true
+    },
+    {
+      "name": "our_ctrl_gt_0029",
+      "genotype": "control",
+      "iou": 0.9410946576126974,
+      "pred_px": 11832,
+      "gt_px": 11894,
+      "detected": true
+    },
+    {
+      "name": "our_ctrl_gt_0032",
+      "genotype": "control",
+      "iou": 0.9580134584399583,
+      "pred_px": 10241,
+      "gt_px": 10418,
+      "detected": true
+    },
+    {
+      "name": "our_ctrl_gt_0037",
+      "genotype": "control",
+      "iou": 0.8480544747081712,
+      "pred_px": 8828,
+      "gt_px": 10170,
+      "detected": true
+    },
+    {
+      "name": "our_ctrl_gt_0039",
+      "genotype": "control",
+      "iou": 0.9456255879586077,
+      "pred_px": 10236,
+      "gt_px": 10446,
+      "detected": true
+    },
+    {
+      "name": "our_ctrl_gt_0040",
+      "genotype": "control",
+      "iou": 0.9470593717960667,
+      "pred_px": 10307,
+      "gt_px": 10583,
+      "detected": true
+    },
+    {
+      "name": "our_ctrl_gt_0044",
+      "genotype": "control",
+      "iou": 0.48834893447520417,
+      "pred_px": 4940,
+      "gt_px": 10006,
+      "detected": true
+    },
+    {
+      "name": "our_ctrl_gt_0051",
+      "genotype": "control",
+      "iou": 0.3808499193114578,
+      "pred_px": 3540,
+      "gt_px": 9295,
+      "detected": true
+    },
+    {
+      "name": "our_ctrl_gt_0054",
+      "genotype": "control",
+      "iou": 0.0,
+      "pred_px": 0,
+      "gt_px": 9287,
+      "detected": false
+    },
+    {
+      "name": "our_ctrl_gt_0057",
+      "genotype": "control",
+      "iou": 0.6880624525642416,
+      "pred_px": 6378,
+      "gt_px": 9191,
+      "detected": true
+    },
+    {
+      "name": "our_ctrl_gt_0059",
+      "genotype": "control",
+      "iou": 0.8392085512849671,
+      "pred_px": 7418,
+      "gt_px": 8756,
+      "detected": true
+    },
+    {
+      "name": "our_ctrl_gt_0060",
+      "genotype": "control",
+      "iou": 0.7336351400954362,
+      "pred_px": 6004,
+      "gt_px": 8165,
+      "detected": true
+    },
+    {
+      "name": "our_ctrl_gt_0065",
+      "genotype": "control",
+      "iou": 0.7251135626216743,
+      "pred_px": 5691,
+      "gt_px": 7601,
+      "detected": true
+    },
+    {
+      "name": "our_ctrl_gt_0067",
+      "genotype": "control",
+      "iou": 0.7262110152621102,
+      "pred_px": 5625,
+      "gt_px": 7382,
+      "detected": true
+    },
+    {
+      "name": "our_ctrl_gt_0070",
+      "genotype": "control",
+      "iou": 0.672265904217298,
+      "pred_px": 5917,
+      "gt_px": 8120,
+      "detected": true
+    },
+    {
+      "name": "our_ctrl_gt_0072",
+      "genotype": "control",
+      "iou": 0.6920108066383636,
+      "pred_px": 5510,
+      "gt_px": 7642,
+      "detected": true
+    },
+    {
+      "name": "our_ctrl_gt_0076",
+      "genotype": "control",
+      "iou": 0.7553002325263302,
+      "pred_px": 5702,
+      "gt_px": 7131,
+      "detected": true
+    },
+    {
+      "name": "our_ctrl_gt_0077",
+      "genotype": "control",
+      "iou": 0.7377856849596277,
+      "pred_px": 5550,
+      "gt_px": 7148,
+      "detected": true
+    },
+    {
+      "name": "our_ctrl_gt_0078",
+      "genotype": "control",
+      "iou": 0.7470246332687517,
+      "pred_px": 5635,
+      "gt_px": 6989,
+      "detected": true
+    },
+    {
+      "name": "our_ctrl_gt_0084",
+      "genotype": "control",
+      "iou": 0.7968726046297716,
+      "pred_px": 5628,
+      "gt_px": 6093,
+      "detected": true
+    },
+    {
+      "name": "our_ctrl_gt_0085",
+      "genotype": "control",
+      "iou": 0.8001205908953875,
+      "pred_px": 5600,
+      "gt_px": 6342,
+      "detected": true
+    },
+    {
+      "name": "our_ctrl_gt_0086",
+      "genotype": "control",
+      "iou": 0.816995544239338,
+      "pred_px": 5565,
+      "gt_px": 5853,
+      "detected": true
+    },
+    {
+      "name": "our_ctrl_gt_0092",
+      "genotype": "control",
+      "iou": 0.8189537528430629,
+      "pred_px": 5522,
+      "gt_px": 6474,
+      "detected": true
+    },
+    {
+      "name": "our_ctrl_gt_0096",
+      "genotype": "control",
+      "iou": 0.8817043288864689,
+      "pred_px": 6754,
+      "gt_px": 7069,
+      "detected": true
+    },
+    {
+      "name": "our_ctrl_gt_0103",
+      "genotype": "control",
+      "iou": 0.8095133472481599,
+      "pred_px": 7460,
+      "gt_px": 9012,
+      "detected": true
+    },
+    {
+      "name": "our_ctrl_gt_0114",
+      "genotype": "control",
+      "iou": 0.7795925535651563,
+      "pred_px": 9217,
+      "gt_px": 11049,
+      "detected": true
+    },
+    {
+      "name": "our_ctrl_gt_0116",
+      "genotype": "control",
+      "iou": 0.7193542331518679,
+      "pred_px": 7911,
+      "gt_px": 10407,
+      "detected": true
+    },
+    {
+      "name": "our_ctrl_gt_0119",
+      "genotype": "control",
+      "iou": 0.8172541743970315,
+      "pred_px": 7551,
+      "gt_px": 8121,
+      "detected": true
+    },
+    {
+      "name": "our_ctrl_gt_0120",
+      "genotype": "control",
+      "iou": 0.7881053721385023,
+      "pred_px": 7134,
+      "gt_px": 8410,
+      "detected": true
+    }
+  ]
+}

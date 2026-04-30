@@ -285,8 +285,6 @@ class FocusedMainWindow(QMainWindow):
         if self.recording is None:
             return
         from gui_focused.workers import FocusedDetectWorker
-        detect_mode = ("hybrid_cpsam" if self.mode == "single"
-                        else "hybrid_cpsam_multi")
         params = self.params.get_detect_params()
         # Apply ROI if active
         det_rec = dict(self.recording)
@@ -294,6 +292,23 @@ class FocusedMainWindow(QMainWindow):
             det_rec["frames"] = self.roi.apply_to_frames(
                 self.recording["frames"])
             self.logger.log("info", "ROI applied to detection")
+        # Resolve modality
+        modality = params.get("modality", "auto")
+        if modality == "auto":
+            from core.modality import detect_modality
+            modality = detect_modality(det_rec["frames"])
+            self.logger.log("info", f"Auto-detected modality: {modality}")
+            self.statusBar().showMessage(
+                f"Modality: {modality}", 5000)
+        # Choose detect mode based on modality and single/multi
+        if modality == "dic":
+            detect_mode = ("hybrid_dic" if self.mode == "single"
+                            else "hybrid_dic_multi")
+        else:
+            detect_mode = ("hybrid_cpsam" if self.mode == "single"
+                            else "hybrid_cpsam_multi")
+        self.logger.log("info",
+                        f"Pipeline: {detect_mode} ({modality})")
         self._prev_detect_result = self.detect_result
         self._worker = FocusedDetectWorker(
             det_rec, detect_mode, params)

@@ -8,3 +8,5 @@
 /gui_tracking/__pycache__
 /gui_training/__pycache__
 .DS_Store
+/data
+/scripts/__pycache__

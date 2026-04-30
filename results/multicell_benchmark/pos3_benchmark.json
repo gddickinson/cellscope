@@ -1,0 +1,10 @@
+{
+  "mean_iou": 0.8951841923784685,
+  "median_iou": 0.9757231129382977,
+  "total_matches": 270,
+  "total_misses": 21,
+  "total_fps": 14,
+  "total_merges": 0,
+  "n_tracks": 5,
+  "elapsed": 1427.8747289180756
+}

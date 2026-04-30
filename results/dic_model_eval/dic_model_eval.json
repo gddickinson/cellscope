@@ -1,0 +1,127 @@
+{
+  "vampire_cellpose_dic": {
+    "name": "cellpose_dic",
+    "mean_iou": 0.28374643345100026,
+    "std_iou": 0.2680754349262718,
+    "det_rate": 0.8555555555555555,
+    "n_pairs": 90,
+    "elapsed": 28.526145935058594,
+    "per_genotype": {
+      "cKO": 0.3060013100061213,
+      "gof": 0.0,
+      "control": 0.4920355340748169
+    }
+  },
+  "vampire_cellpose_dic+pp": {
+    "name": "cellpose_dic+pp",
+    "mean_iou": 0.0557850543700652,
+    "std_iou": 0.05729731421262975,
+    "det_rate": 1.0,
+    "n_pairs": 90,
+    "elapsed": 24.82502317428589,
+    "per_genotype": {
+      "cKO": 0.057436571574991345,
+      "gof": 0.008807527464751778,
+      "control": 0.0923027777757062
+    }
+  },
+  "vampire_cellpose_dic_v2": {
+    "name": "cellpose_dic_v2",
+    "mean_iou": 0.2624543204917688,
+    "std_iou": 0.2538990237606802,
+    "det_rate": 0.9444444444444444,
+    "n_pairs": 90,
+    "elapsed": 22.93992304801941,
+    "per_genotype": {
+      "cKO": 0.18145834105440542,
+      "gof": 0.19925086899437414,
+      "control": 0.39480310427076515
+    }
+  },
+  "vampire_cellpose_dic_v2+pp": {
+    "name": "cellpose_dic_v2+pp",
+    "mean_iou": 0.006728294195340341,
+    "std_iou": 0.0192898349666901,
+    "det_rate": 1.0,
+    "n_pairs": 90,
+    "elapsed": 21.05657410621643,
+    "per_genotype": {
+      "cKO": 0.0001231592936575828,
+      "gof": 0.0,
+      "control": 0.01880016813073713
+    }
+  },
+  "vampire_cellpose_robust": {
+    "name": "cellpose_robust",
+    "mean_iou": 0.2934900319204756,
+    "std_iou": 0.26374006451652504,
+    "det_rate": 0.9444444444444444,
+    "n_pairs": 90,
+    "elapsed": 21.700963020324707,
+    "per_genotype": {
+      "cKO": 0.1675756662451312,
+      "gof": 0.2312983559907273,
+      "control": 0.46993513428874056
+    }
+  },
+  "ourgt_cellpose_dic": {
+    "name": "cellpose_dic",
+    "mean_iou": 0.5186101998110814,
+    "std_iou": 0.16010338678012792,
+    "det_rate": 1.0,
+    "n_pairs": 60,
+    "elapsed": 17.560389757156372,
+    "per_genotype": {
+      "cKO": 0.3956910569882783,
+      "control": 0.6415293426338845
+    }
+  },
+  "ourgt_cellpose_dic+pp": {
+    "name": "cellpose_dic+pp",
+    "mean_iou": 0.0117872346264349,
+    "std_iou": 0.013589176420913498,
+    "det_rate": 1.0,
+    "n_pairs": 60,
+    "elapsed": 16.74874496459961,
+    "per_genotype": {
+      "cKO": 0.013735268905886618,
+      "control": 0.009839200346983178
+    }
+  },
+  "ourgt_cellpose_dic_v2": {
+    "name": "cellpose_dic_v2",
+    "mean_iou": 0.41135090259909624,
+    "std_iou": 0.3297666571935699,
+    "det_rate": 0.8,
+    "n_pairs": 60,
+    "elapsed": 13.117791891098022,
+    "per_genotype": {
+      "cKO": 0.43501426810359717,
+      "control": 0.3876875370945953
+    }
+  },
+  "ourgt_cellpose_dic_v2+pp": {
+    "name": "cellpose_dic_v2+pp",
+    "mean_iou": 0.0,
+    "std_iou": 0.0,
+    "det_rate": 1.0,
+    "n_pairs": 60,
+    "elapsed": 14.511234045028687,
+    "per_genotype": {
+      "cKO": 0.0,
+      "control": 0.0
+    }
+  },
+  "ourgt_cellpose_robust": {
+    "name": "cellpose_robust",
+    "mean_iou": 0.6974492572409573,
+    "std_iou": 0.13422408666780059,
+    "det_rate": 1.0,
+    "n_pairs": 60,
+    "elapsed": 16.145460844039917,
+    "per_genotype": {
+      "cKO": 0.6480457963746763,
+      "control": 0.7468527181072379
+    }
+  }
+}

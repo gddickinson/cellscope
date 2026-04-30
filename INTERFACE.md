@@ -10,13 +10,15 @@
 - **setup_wizard.py** — Environment + model installer
 - **make_dist.py** — Create distribution zip
 
-## `core/` — Analysis Pipeline (32 modules)
+## `core/` — Analysis Pipeline (34 modules)
 
 - **io.py** — `load_video`, `load_recording`, `find_recordings`
 - **pipeline.py** — `detect()`, `refine()`, `analyze_recording()`
 - **detection.py** — `detect_cellpose`, `detect_cellpose_labels`, `detect_cellpose_tiled`
 - **hybrid_cpsam.py** — `detect_hybrid_cpsam()` — single-cell cpsam + DeepSea + fallback
 - **hybrid_cpsam_multi.py** — `detect_hybrid_cpsam_multi()` — multi-cell with tracking
+- **hybrid_dic.py** — `detect_hybrid_dic()`, `detect_hybrid_dic_multi()` — DIC-optimized pipelines using cellpose_dic + preprocessing + DeepSea + threshold retry
+- **modality.py** — `detect_modality()` — auto-detect DIC vs phase-contrast from image statistics; `get_pipeline_config()` returns per-modality settings
 - **deepsea_multicell.py** — Per-cell DeepSea refinement preserving labels
 - **medsam_deepsea_union.py** — MedSAM + DeepSea union (single-cell)
 - **medsam_refine.py** — MedSAM bbox-prompt refinement
@@ -54,7 +56,7 @@
 - **main_window.py** — FocusedMainWindow (state machine, ROI, drag-drop)
 - **image_viewer.py** — ImageViewer + FrameNavigatorBar (B/C, zoom, pan)
 - **pipeline_panel.py** — 5 stage buttons + mode selector
-- **params_panel.py** — Context-sensitive parameters
+- **params_panel.py** — Context-sensitive parameters (modality selector: Auto/DIC/Phase-contrast)
 - **analysis_view.py** — Summary/Graphs/Log tabs
 - **analysis_plots.py** — 20 plot functions + GRAPH_REGISTRY (includes 4 VAMPIRE plots: Shape Modes scatter, Mode Distribution histogram, Mode Over Time, Eigenshape variations)
 - **export_dialog.py** — Export configuration dialog

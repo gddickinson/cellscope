@@ -67,18 +67,74 @@ Recording (.tif / .mp4)
 
 ## Quick Start
 
+### macOS / Linux
+
 ```bash
-# 1. Install (see INSTALLATION.md for full instructions)
-conda create -n cellpose4 python=3.10 -y
-conda activate cellpose4
-pip install -r requirements.txt
+# 1. Install Miniconda if you don't have it:
+#    https://docs.conda.io/en/latest/miniconda.html
 
-# 2. Run the setup wizard to install models
-python setup_wizard.py
+# 2. From the cellscope/ directory, create both conda envs:
+bash install.sh
 
-# 3. Launch CellScope
+# 3. Download the cpsam_dic model (1.1 GB) — needs the Drive URL
+#    given to you by the project maintainer:
+conda run -n cellpose python download_models.py \
+    --url 'https://drive.google.com/file/d/<FILE_ID>/view'
+
+# 4. Launch:
+conda activate cellpose
 python main_suite.py
 ```
+
+### Windows
+
+```bat
+REM 1. Install Miniconda for Windows (one-time):
+REM    https://docs.conda.io/en/latest/miniconda.html
+
+REM 2. Open "Anaconda Prompt", `cd` into the cellscope folder, then:
+install.bat
+
+REM 3. Download the cpsam_dic model (1.1 GB):
+conda run -n cellpose python download_models.py ^
+    --url "https://drive.google.com/file/d/<FILE_ID>/view"
+
+REM 4. Launch:
+conda activate cellpose
+python main_suite.py
+```
+
+`install.bat` / `install.sh` create two conda envs:
+- **`cellpose`** — main env with the GUI, CP3 models, and the analysis pipeline.
+- **`cellpose4`** — sibling env hosting cellpose 4.x (cpsam ViT). Invoked
+  automatically via subprocess whenever the pipeline needs cpsam_dic.
+
+The smaller CP3 fine-tunes (`cellpose_dic`, `cellpose_dic_v2/v3`,
+`cellpose_combined_robust`, ~25 MB each) ship with the source. Only the
+1.1 GB `cpsam_dic` ViT fine-tune needs the separate download.
+
+#### Sharing CellScope with collaborators
+
+To send the project to someone else:
+
+1. Zip everything **except** `data/training/`, `data/examples/`, and
+   `results/` (those are large and not needed at runtime).
+2. Include the small `data/models/cellpose_dic*` files (~100 MB).
+3. Send the zip + the Google Drive URL for `cpsam_dic` separately.
+4. Recipient runs `install.bat` (or `install.sh`) then `download_models.py`
+   with the Drive URL.
+
+#### GPU support
+
+- **Apple Silicon (M-series)**: works out of the box via PyTorch MPS.
+- **NVIDIA (Linux / Windows)**: install a CUDA-flavored torch after the
+  base install:
+  ```bash
+  conda activate cellpose
+  pip install torch==2.7.0 --index-url https://download.pytorch.org/whl/cu121
+  ```
+  (replace `cu121` with `cu118` etc. to match your CUDA version)
+- **CPU only**: works but slow on cpsam ViT (~30 s/frame vs ~2 s on GPU).
 
 ## Applications
 
@@ -200,20 +256,12 @@ cellscope/
 
 ## Requirements
 
-- Python 3.10
-- PyTorch 2.0+ with CUDA (Linux/Windows) or MPS (macOS)
-- Cellpose 4.1+ (for cpsam ViT detection)
-- See `requirements.txt` for full list
-
-## Distribution
-
-```bash
-# Create a full zip for sharing (includes models + data)
-python make_dist.py
-
-# Create a code-only zip (small, models downloaded on first run)
-python make_dist.py --code-only
-```
+- Miniconda or Anaconda (managed envs are easier than raw pip)
+- Python 3.10 (created automatically by `install.{sh,bat}`)
+- PyTorch 2.7 with CUDA (Linux / Windows) or MPS (macOS)
+- Cellpose 3.1.1.1 in the `cellpose` env (CP3 models + GUI)
+- Cellpose 4.1.1 in the `cellpose4` env (cpsam ViT)
+- See `environment.yml` and `environment-cellpose4.yml` for full lists.
 
 ## Citation
 

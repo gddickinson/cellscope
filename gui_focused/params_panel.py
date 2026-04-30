@@ -3,7 +3,7 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSpinBox,
     QDoubleSpinBox, QCheckBox, QGroupBox, QStackedWidget,
-    QFormLayout, QPushButton,
+    QFormLayout, QPushButton, QComboBox,
 )
 
 
@@ -37,6 +37,37 @@ class ParamsPanel(QWidget):
     def _build_detection_page(self):
         page = QWidget()
         form = QFormLayout(page)
+
+        # --- Modality selector ---
+        self.modality = QComboBox()
+        self.modality.addItems(["Auto", "Phase-contrast", "DIC"])
+        self.modality.setToolTip(
+            "Imaging modality determines the detection pipeline:\n"
+            "  Auto: auto-detect from image statistics\n"
+            "  Phase-contrast: cpsam (ViT) + DeepSea union\n"
+            "  DIC: cellpose_dic + preprocessing + DeepSea\n\n"
+            "DIC recordings have textured backgrounds that confuse\n"
+            "cpsam. The DIC pipeline uses a model trained specifically\n"
+            "for differential interference contrast microscopy.")
+        form.addRow("Modality:", self.modality)
+
+        # --- DIC model selector (only relevant when modality=DIC/Auto) ---
+        self.dic_model = QComboBox()
+        self.dic_model.setToolTip(
+            "Which DIC model to use when modality is DIC:\n"
+            "  Auto (recommended): pick the strongest available\n"
+            "      (cpsam_dic > cellpose_dic_v3 > v2 > v1)\n"
+            "  cpsam_dic: ViT fine-tune on DIC — best overall\n"
+            "      (IoU 0.795 on our-GT, 0.697 on VAMPIRE OOD)\n"
+            "      Loads via cellpose4 env (delegated automatically).\n"
+            "  cellpose_dic_v3: 448x448 CP3 fine-tune (IoU 0.74)\n"
+            "  cellpose_dic_v2: raw VAMPIRE crops\n"
+            "  cellpose_dic: original CP3 fine-tune\n"
+            "Populated from data/models/{cpsam_dic,cellpose_dic}* "
+            "at startup.")
+        self._populate_dic_models()
+        form.addRow("DIC model:", self.dic_model)
+
         self.min_area = QSpinBox()
         self.min_area.setRange(50, 10000)
         self.min_area.setValue(500)
@@ -223,8 +254,41 @@ class ParamsPanel(QWidget):
         if dt and dt > 0:
             self.time_interval.setValue(dt)
 
+    def _populate_dic_models(self):
+        """Scan data/models for cpsam_dic* and cellpose_dic* models.
+
+        Order in dropdown: cpsam_dic* first (best, ViT fine-tune),
+        then cellpose_dic_v3 / v2 / v1 (older CP3 fine-tunes).
+        Default 'Auto' resolves to the first item (best available).
+        """
+        import os
+        self.dic_model.clear()
+        self.dic_model.addItem("Auto (best available)")
+        base = "data/models"
+        cpsam, cp3 = [], []
+        if os.path.isdir(base):
+            for name in sorted(os.listdir(base)):
+                if name.startswith("cpsam_dic"):
+                    cpsam.append(name)
+                elif name.startswith("cellpose_dic"):
+                    cp3.append(name)
+        # cpsam_dic first (newest first), then cellpose_dic v3/v2/v1
+        for name in sorted(cpsam, reverse=True):
+            self.dic_model.addItem(name)
+        for name in sorted(cp3, reverse=True):
+            self.dic_model.addItem(name)
+
     def get_detect_params(self):
+        modality_map = {"Auto": "auto", "Phase-contrast": "phase_contrast",
+                        "DIC": "dic"}
+        dic_choice = self.dic_model.currentText()
+        if dic_choice.startswith("Auto"):
+            dic_model_path = None  # let core pick newest
+        else:
+            dic_model_path = f"data/models/{dic_choice}"
         return {
+            "modality": modality_map.get(self.modality.currentText(), "auto"),
+            "dic_model_path": dic_model_path,
             "min_area_px": self.min_area.value(),
             "expected_cells": self.expected_cells.value(),
             "search_radius": self.search_radius.value(),

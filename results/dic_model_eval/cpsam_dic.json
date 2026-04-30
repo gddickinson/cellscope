@@ -1,0 +1,748 @@
+{
+  "model": "data/models/cpsam_dic",
+  "test_dir": "data/training/dic_splits_v3/test",
+  "n": 90,
+  "mean_iou": 0.6966755071810203,
+  "std_iou": 0.29698780166104216,
+  "det_rate": 0.8777777777777778,
+  "elapsed_s": 239.69248390197754,
+  "per_genotype": {
+    "control": {
+      "n": 30,
+      "mean_iou": 0.8971286525481716,
+      "std_iou": 0.08295598349190748
+    },
+    "cko": {
+      "n": 30,
+      "mean_iou": 0.4897667480177898,
+      "std_iou": 0.3902496478122685
+    },
+    "gof": {
+      "n": 30,
+      "mean_iou": 0.7031311209770996,
+      "std_iou": 0.14964760985772577
+    }
+  },
+  "rows": [
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos6-WT_Cell1_0001",
+      "genotype": "control",
+      "iou": 0.7769937522969497,
+      "pred_px": 13357,
+      "gt_px": 10819,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos6-WT_Cell1_0006",
+      "genotype": "control",
+      "iou": 0.9452497380370241,
+      "pred_px": 11230,
+      "gt_px": 11047,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos6-WT_Cell1_0013",
+      "genotype": "control",
+      "iou": 0.9323978285363106,
+      "pred_px": 9444,
+      "gt_px": 9422,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos6-WT_Cell1_0015",
+      "genotype": "control",
+      "iou": 0.9428486822623631,
+      "pred_px": 9831,
+      "gt_px": 9852,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos6-WT_Cell1_0028",
+      "genotype": "control",
+      "iou": 0.9351192494630949,
+      "pred_px": 8541,
+      "gt_px": 8579,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos6-WT_Cell1_0066",
+      "genotype": "control",
+      "iou": 0.725454323698012,
+      "pred_px": 6184,
+      "gt_px": 7963,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos6-WT_Cell1_0100",
+      "genotype": "control",
+      "iou": 0.7561809573908469,
+      "pred_px": 5989,
+      "gt_px": 7365,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos6-WT_Cell1_0108",
+      "genotype": "control",
+      "iou": 0.8273142857142857,
+      "pred_px": 8436,
+      "gt_px": 7553,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos6-WT_Cell1_0115",
+      "genotype": "control",
+      "iou": 0.6949490214461502,
+      "pred_px": 7150,
+      "gt_px": 7313,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos6-WT_Cell1_0155",
+      "genotype": "control",
+      "iou": 0.6780104712041884,
+      "pred_px": 5610,
+      "gt_px": 7851,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos6-WT_Cell1_0190",
+      "genotype": "control",
+      "iou": 0.8624547920433996,
+      "pred_px": 8009,
+      "gt_px": 8470,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos6-WT_Cell1_0192",
+      "genotype": "control",
+      "iou": 0.8665421792618629,
+      "pred_px": 8193,
+      "gt_px": 8800,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos8-WT_0010",
+      "genotype": "control",
+      "iou": 0.9541702696328905,
+      "pred_px": 12479,
+      "gt_px": 12380,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos8-WT_0017",
+      "genotype": "control",
+      "iou": 0.941293837771468,
+      "pred_px": 12695,
+      "gt_px": 12602,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos8-WT_0020",
+      "genotype": "control",
+      "iou": 0.9471654454300038,
+      "pred_px": 12639,
+      "gt_px": 12606,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos8-WT_0032",
+      "genotype": "control",
+      "iou": 0.9348381601362862,
+      "pred_px": 13750,
+      "gt_px": 13508,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos8-WT_0036",
+      "genotype": "control",
+      "iou": 0.9398178506375228,
+      "pred_px": 13341,
+      "gt_px": 13283,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos8-WT_0044",
+      "genotype": "control",
+      "iou": 0.9407251391605236,
+      "pred_px": 12831,
+      "gt_px": 12969,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos8-WT_0047",
+      "genotype": "control",
+      "iou": 0.9491066594477531,
+      "pred_px": 12505,
+      "gt_px": 12695,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos8-WT_0063",
+      "genotype": "control",
+      "iou": 0.9432142074106555,
+      "pred_px": 13308,
+      "gt_px": 13281,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos8-WT_0081",
+      "genotype": "control",
+      "iou": 0.9456240290005179,
+      "pred_px": 13323,
+      "gt_px": 12976,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos8-WT_0091",
+      "genotype": "control",
+      "iou": 0.9507918552036199,
+      "pred_px": 11915,
+      "gt_px": 12228,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos8-WT_0105",
+      "genotype": "control",
+      "iou": 0.9435789167152009,
+      "pred_px": 13397,
+      "gt_px": 13300,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos8-WT_0109",
+      "genotype": "control",
+      "iou": 0.9420898657265021,
+      "pred_px": 12821,
+      "gt_px": 13069,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos8-WT_0115",
+      "genotype": "control",
+      "iou": 0.9047511312217195,
+      "pred_px": 12827,
+      "gt_px": 12430,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos8-WT_0119",
+      "genotype": "control",
+      "iou": 0.9356895889358433,
+      "pred_px": 12436,
+      "gt_px": 12757,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos8-WT_0139",
+      "genotype": "control",
+      "iou": 0.9469886205939495,
+      "pred_px": 10382,
+      "gt_px": 10663,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos8-WT_0148",
+      "genotype": "control",
+      "iou": 0.9477436540269508,
+      "pred_px": 12459,
+      "gt_px": 12402,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos8-WT_0164",
+      "genotype": "control",
+      "iou": 0.9437086092715232,
+      "pred_px": 12470,
+      "gt_px": 12771,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos8-WT_0173",
+      "genotype": "control",
+      "iou": 0.9590464547677262,
+      "pred_px": 11162,
+      "gt_px": 11273,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos63-KO_Cell3__0028",
+      "genotype": "cko",
+      "iou": 0.49710674585046444,
+      "pred_px": 6623,
+      "gt_px": 13040,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos63-KO_Cell3__0050",
+      "genotype": "cko",
+      "iou": 0.3989760893594741,
+      "pred_px": 7101,
+      "gt_px": 16946,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos63-KO_Cell3__0100",
+      "genotype": "cko",
+      "iou": 0.0,
+      "pred_px": 0,
+      "gt_px": 10566,
+      "detected": false
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos63-KO_Cell3__0118",
+      "genotype": "cko",
+      "iou": 0.0,
+      "pred_px": 0,
+      "gt_px": 9481,
+      "detected": false
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos63-KO_Cell3__0127",
+      "genotype": "cko",
+      "iou": 0.0,
+      "pred_px": 0,
+      "gt_px": 8475,
+      "detected": false
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos63-KO_Cell3__0134",
+      "genotype": "cko",
+      "iou": 0.0,
+      "pred_px": 0,
+      "gt_px": 9358,
+      "detected": false
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos63-KO_Cell3__0139",
+      "genotype": "cko",
+      "iou": 0.0,
+      "pred_px": 0,
+      "gt_px": 9210,
+      "detected": false
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos63-KO_Cell3__0143",
+      "genotype": "cko",
+      "iou": 0.0,
+      "pred_px": 0,
+      "gt_px": 9300,
+      "detected": false
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos63-KO_Cell3__0145",
+      "genotype": "cko",
+      "iou": 0.0,
+      "pred_px": 0,
+      "gt_px": 8615,
+      "detected": false
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos63-KO_Cell3__0162",
+      "genotype": "cko",
+      "iou": 0.0,
+      "pred_px": 0,
+      "gt_px": 5864,
+      "detected": false
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos63-KO_Cell3__0187",
+      "genotype": "cko",
+      "iou": 0.457466697826595,
+      "pred_px": 4042,
+      "gt_px": 8431,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos64-KO_Cell2_0000",
+      "genotype": "cko",
+      "iou": 0.8074356530028599,
+      "pred_px": 2027,
+      "gt_px": 1765,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos64-KO_Cell2_0007",
+      "genotype": "cko",
+      "iou": 0.8217821782178217,
+      "pred_px": 1804,
+      "gt_px": 1876,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos64-KO_Cell2_0018",
+      "genotype": "cko",
+      "iou": 0.7868447082096933,
+      "pred_px": 1622,
+      "gt_px": 1991,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos64-KO_Cell2_0024",
+      "genotype": "cko",
+      "iou": 0.869942196531792,
+      "pred_px": 1835,
+      "gt_px": 2047,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos64-KO_Cell2_0035",
+      "genotype": "cko",
+      "iou": 0.8492249882573979,
+      "pred_px": 2019,
+      "gt_px": 1918,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos64-KO_Cell2_0041",
+      "genotype": "cko",
+      "iou": 0.8330757341576507,
+      "pred_px": 1817,
+      "gt_px": 1741,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos64-KO_Cell2_0056",
+      "genotype": "cko",
+      "iou": 0.8573240329740013,
+      "pred_px": 1381,
+      "gt_px": 1548,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos64-KO_Cell2_0063",
+      "genotype": "cko",
+      "iou": 0.7937871777924653,
+      "pred_px": 1215,
+      "gt_px": 1499,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos64-KO_Cell2_0073",
+      "genotype": "cko",
+      "iou": 0.7528779739063699,
+      "pred_px": 1021,
+      "gt_px": 1263,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos64-KO_Cell2_0077",
+      "genotype": "cko",
+      "iou": 0.875,
+      "pred_px": 1285,
+      "gt_px": 1265,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos64-KO_Cell2_0084",
+      "genotype": "cko",
+      "iou": 0.8998682476943346,
+      "pred_px": 1386,
+      "gt_px": 1498,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos64-KO_Cell2_0104",
+      "genotype": "cko",
+      "iou": 0.8411843876177658,
+      "pred_px": 1336,
+      "gt_px": 1400,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos64-KO_Cell2_0112",
+      "genotype": "cko",
+      "iou": 0.8754014129736674,
+      "pred_px": 1473,
+      "gt_px": 1447,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos64-KO_Cell2_0121",
+      "genotype": "cko",
+      "iou": 0.7669064748201438,
+      "pred_px": 1145,
+      "gt_px": 1311,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos64-KO_Cell2_0129",
+      "genotype": "cko",
+      "iou": 0.8830290736984449,
+      "pred_px": 1370,
+      "gt_px": 1415,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos64-KO_Cell2_0144",
+      "genotype": "cko",
+      "iou": 0.8257686676427526,
+      "pred_px": 1226,
+      "gt_px": 1268,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos64-KO_Cell2_0163",
+      "genotype": "cko",
+      "iou": 0.0,
+      "pred_px": 0,
+      "gt_px": 1315,
+      "detected": false
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos64-KO_Cell2_0191",
+      "genotype": "cko",
+      "iou": 0.0,
+      "pred_px": 0,
+      "gt_px": 659,
+      "detected": false
+    },
+    {
+      "name": "vamp_vampire_100_2018_12_17_DIC_TL_mKera_SparseSlow_1_MMStack_Pos64-KO_Cell2_0197",
+      "genotype": "cko",
+      "iou": 0.0,
+      "pred_px": 0,
+      "gt_px": 882,
+      "detected": false
+    },
+    {
+      "name": "vamp_vampire_gof_126_2019_04_30_Pos75-GoF_shadecorrect_0015",
+      "genotype": "gof",
+      "iou": 0.8323872124290409,
+      "pred_px": 2958,
+      "gt_px": 3175,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_gof_126_2019_04_30_Pos75-GoF_shadecorrect_0027",
+      "genotype": "gof",
+      "iou": 0.6935779816513762,
+      "pred_px": 3138,
+      "gt_px": 2400,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_gof_126_2019_04_30_Pos75-GoF_shadecorrect_0033",
+      "genotype": "gof",
+      "iou": 0.8049984572662758,
+      "pred_px": 3114,
+      "gt_px": 2736,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_gof_126_2019_04_30_Pos75-GoF_shadecorrect_0060",
+      "genotype": "gof",
+      "iou": 0.8156218571907475,
+      "pred_px": 2756,
+      "gt_px": 2660,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_gof_126_2019_04_30_Pos75-GoF_shadecorrect_0062",
+      "genotype": "gof",
+      "iou": 0.8161073825503355,
+      "pred_px": 2766,
+      "gt_px": 2646,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_gof_126_2019_04_30_Pos75-GoF_shadecorrect_0092",
+      "genotype": "gof",
+      "iou": 0.820530023482053,
+      "pred_px": 2600,
+      "gt_px": 2827,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_gof_126_2019_04_30_Pos75-GoF_shadecorrect_0116",
+      "genotype": "gof",
+      "iou": 0.8184658104824714,
+      "pred_px": 2700,
+      "gt_px": 2539,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_gof_126_2019_04_30_Pos75-GoF_shadecorrect_0122",
+      "genotype": "gof",
+      "iou": 0.7739095638255302,
+      "pred_px": 2186,
+      "gt_px": 2247,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_gof_240_2020_06_21_Pos23-gof_shadecorrect_0004",
+      "genotype": "gof",
+      "iou": 0.3698447893569845,
+      "pred_px": 1854,
+      "gt_px": 4324,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_gof_240_2020_06_21_Pos23-gof_shadecorrect_0015",
+      "genotype": "gof",
+      "iou": 0.8081846799580272,
+      "pred_px": 4139,
+      "gt_px": 4477,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_gof_240_2020_06_21_Pos23-gof_shadecorrect_0026",
+      "genotype": "gof",
+      "iou": 0.7598263254113345,
+      "pred_px": 3510,
+      "gt_px": 4191,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_gof_240_2020_06_21_Pos23-gof_shadecorrect_0035",
+      "genotype": "gof",
+      "iou": 0.4697768762677485,
+      "pred_px": 2722,
+      "gt_px": 4524,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_gof_240_2020_06_21_Pos23-gof_shadecorrect_0043",
+      "genotype": "gof",
+      "iou": 0.6046457062412013,
+      "pred_px": 2622,
+      "gt_px": 4217,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_gof_240_2020_06_21_Pos23-gof_shadecorrect_0050",
+      "genotype": "gof",
+      "iou": 0.3336403831982314,
+      "pred_px": 1944,
+      "gt_px": 5295,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_gof_240_2020_06_21_Pos23-gof_shadecorrect_0062",
+      "genotype": "gof",
+      "iou": 0.5383191410588671,
+      "pred_px": 3169,
+      "gt_px": 5141,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_gof_240_2020_06_21_Pos23-gof_shadecorrect_0074",
+      "genotype": "gof",
+      "iou": 0.5695681973954764,
+      "pred_px": 3073,
+      "gt_px": 3797,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_gof_240_2020_06_21_Pos23-gof_shadecorrect_0081",
+      "genotype": "gof",
+      "iou": 0.7461294862772695,
+      "pred_px": 4679,
+      "gt_px": 5246,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_gof_240_2020_06_21_Pos23-gof_shadecorrect_0101",
+      "genotype": "gof",
+      "iou": 0.8122578372666431,
+      "pred_px": 2629,
+      "gt_px": 2516,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_gof_240_2020_06_21_Pos23-gof_shadecorrect_0110",
+      "genotype": "gof",
+      "iou": 0.6265720735246695,
+      "pred_px": 2515,
+      "gt_px": 2529,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_gof_240_2020_06_21_Pos23-gof_shadecorrect_0118",
+      "genotype": "gof",
+      "iou": 0.4863164517143756,
+      "pred_px": 1763,
+      "gt_px": 2962,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_gof_240_2020_06_21_Pos23-gof_shadecorrect_0149",
+      "genotype": "gof",
+      "iou": 0.775207182320442,
+      "pred_px": 2583,
+      "gt_px": 2558,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_gof_240_2020_06_21_Pos23-gof_shadecorrect_0150",
+      "genotype": "gof",
+      "iou": 0.8415032679738562,
+      "pred_px": 2742,
+      "gt_px": 2893,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_gof_240_2020_06_21_Pos23-gof_shadecorrect_0152",
+      "genotype": "gof",
+      "iou": 0.7815485996705107,
+      "pred_px": 2863,
+      "gt_px": 2544,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_gof_240_2020_06_21_Pos23-gof_shadecorrect_0160",
+      "genotype": "gof",
+      "iou": 0.8057738298599249,
+      "pred_px": 5133,
+      "gt_px": 5438,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_gof_240_2020_06_21_Pos23-gof_shadecorrect_0169",
+      "genotype": "gof",
+      "iou": 0.7870185922974767,
+      "pred_px": 5086,
+      "gt_px": 5679,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_gof_240_2020_06_21_Pos23-gof_shadecorrect_0172",
+      "genotype": "gof",
+      "iou": 0.7392073602264685,
+      "pred_px": 4269,
+      "gt_px": 5561,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_gof_240_2020_06_21_Pos23-gof_shadecorrect_0173",
+      "genotype": "gof",
+      "iou": 0.7916666666666666,
+      "pred_px": 4931,
+      "gt_px": 5819,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_gof_240_2020_06_21_Pos23-gof_shadecorrect_0185",
+      "genotype": "gof",
+      "iou": 0.443479901868277,
+      "pred_px": 2498,
+      "gt_px": 5151,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_gof_240_2020_06_21_Pos23-gof_shadecorrect_0188",
+      "genotype": "gof",
+      "iou": 0.8009736004493541,
+      "pred_px": 4444,
+      "gt_px": 5175,
+      "detected": true
+    },
+    {
+      "name": "vamp_vampire_gof_240_2020_06_21_Pos23-gof_shadecorrect_0193",
+      "genotype": "gof",
+      "iou": 0.8268743914313534,
+      "pred_px": 4721,
+      "gt_px": 4660,
+      "detected": true
+    }
+  ]
+}
