@@ -308,3 +308,7 @@ CellScope builds on:
 - [DeepSea](https://github.com/abzargar/DeepSea) (Zargari et al., Cell Reports Methods 2022)
 - [MedSAM](https://github.com/bowang-lab/MedSAM) (Ma et al., Nature Communications 2024)
 - [VAMPIRE](https://github.com/kukionfr/VAMPIRE_analysis) (Lam et al., Nature Protocols 2021)
+
+
+---
+*Built with AI assistance from [Claude (Anthropic)](https://claude.com/).*
