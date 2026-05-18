@@ -186,8 +186,11 @@ All five GUIs **read identical defaults** from `core/pipeline_defaults.py::DEFAU
 
 The main workflow: **Load → Detect → Edit Masks → Analyze → Export**
 
+![Detection & Analysis GUI](docs/figures/gui_focused.png)
+*The Detection & Analysis GUI after running detection + analysis on the single-cell phase-contrast demo. Left: viewer with cpsam + DeepSea contour overlay. Right: pipeline state, parameters (auto-resolved from the recording's um/px), and summary metrics.*
+
 ![Single-cell detection](docs/figures/focused_detected.png)
-*Single-cell phase-contrast detection on a cropped keratinocyte recording. Red contour = cpsam + DeepSea prediction.*
+*Single-cell phase-contrast detection on the bundled demo recording. Red contour = cpsam + DeepSea prediction.*
 
 - **Image viewer** with brightness/contrast, pan/zoom, mask overlay
 - **ROI selector** — rectangle, ellipse, or polygon regions, persists across frames
@@ -243,6 +246,9 @@ Hungarian wins on TRA by 0.08 — fewer edge-addition errors. Both clear the 0.8
 | Detection rate (OOD) | 42% | 88% | **96%** |
 
 ## Multi-channel recordings (DIC + actin)
+
+![Multichannel detection on IC295 Pos20-KO](docs/figures/multichannel_detected.png)
+*Multi-channel pipeline on IC295 Pos20-KO: 11 cells detected and tracked. Left panel = DIC + per-cell coloured contours. Right panel = detection source breakdown (red = DIC only, green = both channels, yellow = Cy5-rescue). Cropped to the cell-containing region.*
 
 For recordings with both DIC and a fluorescent F-actin probe (e.g. SiR-actin in the Cy5 channel), CellScope provides a dedicated **multi-channel pipeline** that uses the actin signal as a ground-truth filter and recovery prior.
 
@@ -321,26 +327,27 @@ Each cell-frame is classified as **balled** (mitotic / rounded), **attached** (s
 
 Per-state motility metrics are written to the export — stratifies migration speed, MSD, persistence by state to **remove the dividing-cell composition confound**. Particularly important when comparing genotypes that differ in mitotic fraction.
 
-## Statistical Comparison
+## Group analysis (batch mode)
 
-![Group comparison](docs/figures/stats_comparison.png)
-*Box plot with individual data points and significance brackets. Generated automatically from batch comparisons.*
+Process multiple recordings organised by group folder:
 
-Process multiple recordings organized by treatment folder:
 ```
 experiment/
-  control/
-    cell1.tif + cell1.json
-    cell2.tif + cell2.json
-  treated/
-    cell3.tif + cell3.json
+  group_A/
+    rec1.tif + rec1.json
+    rec2.tif + rec2.json
+  group_B/
+    rec3.tif + rec3.json
 ```
 
-Produces per-recording results + group statistical comparisons:
+Per-recording outputs (masks, metrics, plots, `RUN_METADATA.{md,json}`) are written under `results/batch/<group>/<recording>/`. The Tracking GUI's Batch Comparison tab applies group-level statistical tests:
+
 - **2 groups**: Welch's t-test + Mann-Whitney U + Cohen's d effect size
 - **3+ groups**: one-way ANOVA + Kruskal-Wallis + Bonferroni post-hoc
-- Auto parametric/non-parametric selection via Shapiro-Wilk
-- Box/violin plots with significance brackets (\*, \*\*, \*\*\*)
+- Auto parametric / non-parametric selection via Shapiro-Wilk
+- Box / violin plots with significance brackets
+
+CellScope provides the tooling; specific biological comparisons are for the user's publication, not the README.
 
 ## Pipeline defaults — single source of truth
 
@@ -469,3 +476,7 @@ CellScope builds on:
 - [SAM2](https://github.com/facebookresearch/sam2) (Ravi et al., 2024) — track gap fill
 - [VAMPIRE](https://github.com/kukionfr/VAMPIRE_analysis) (Lam et al., Nature Protocols 2021)
 - [Trackastra](https://github.com/weigertlab/trackastra) (Weigert et al., 2024) — alternative tracker
+
+### AI-assisted development
+
+Substantial portions of CellScope's GUI scaffolding, pipeline integration, multichannel fusion logic, test harness, and documentation were developed with the assistance of [Anthropic Claude](https://www.anthropic.com/claude) (Claude Code / Claude Opus). All code was reviewed and validated against ground-truth recordings before being committed; the design decisions, benchmark interpretation, and biological questions remain the user's responsibility.

@@ -11,21 +11,24 @@ def run():
 
     print("\n=== Phase D: Batch GUI ===")
 
-    # Build tiny batch dir: 2 recordings in 2 groups
+    # Build tiny batch dir: 2 recordings in 2 generic groups. Neutral
+    # group names (groupA / groupB) — the README screenshot of this
+    # GUI should not imply any specific treatment comparison; that's
+    # the user's publication, not the README.
     batch_root = tempfile.mkdtemp(prefix="cellscope_batch_")
-    for grp in ["WT", "KO"]:
+    for grp in ["groupA", "groupB"]:
         os.makedirs(os.path.join(batch_root, grp), exist_ok=True)
-    dst_wt = os.path.join(batch_root, "WT",
+    dst_a = os.path.join(batch_root, "groupA",
                           os.path.basename(SINGLE_CELL))
-    dst_ko = os.path.join(batch_root, "KO",
+    dst_b = os.path.join(batch_root, "groupB",
                           os.path.basename(MULTI_CELL))
-    if not os.path.exists(dst_wt):
-        os.symlink(SINGLE_CELL, dst_wt)
-    if not os.path.exists(dst_ko):
-        os.symlink(MULTI_CELL, dst_ko)
+    if not os.path.exists(dst_a):
+        os.symlink(SINGLE_CELL, dst_a)
+    if not os.path.exists(dst_b):
+        os.symlink(MULTI_CELL, dst_b)
     sidecar = SINGLE_CELL.replace(".tif", ".json")
     if os.path.exists(sidecar):
-        shutil.copy(sidecar, dst_wt.replace(".tif", ".json"))
+        shutil.copy(sidecar, dst_a.replace(".tif", ".json"))
 
     w = BatchWindow()
     w.resize(1400, 900)
