@@ -395,3 +395,50 @@ def _track_id_of(tracks, track_dict):
         if t is track_dict:
             return tid
     return -1
+
+
+# ---------------------------------------------------------------------
+# Pipeline integration: annotate parent_id on a tracks LIST
+# ---------------------------------------------------------------------
+def annotate_track_lineage(tracks_list, labels, um_per_px=1.0):
+    """Run division detection on a labels stack and write parent_id
+    back to the tracks list.
+
+    `tracks_list` is the list-of-dicts produced by
+    `core.multi_cell.track_all_cells` (and friends). Convention:
+    `tracks_list[i]` corresponds to label `i + 1` in the labels stack
+    (matches `core.cy5_filter.rebuild_label_stack`).
+
+    For each detected division, sets `tracks_list[daughter_idx]
+    ["parent_id"] = parent_idx` (LIST indices, 0-based — matches the
+    legacy Phase-16b convention in `track_all_cells`).
+
+    Returns (candidates, n_lineage_set). Never raises — on internal
+    error returns ([], 0) so the pipeline keeps going.
+
+    Pre-existing `parent_id` values set by the legacy heuristic are
+    PRESERVED (we only set parent_id where it isn't already set).
+    """
+    try:
+        candidates, _ = find_candidates(labels, um_per_px=um_per_px)
+    except Exception:
+        return [], 0
+    n_set = 0
+    for c in candidates:
+        parent_label = c["parent_track"]
+        daughter_label = c["daughter_track"]
+        # Convert label IDs (1-based, as stored in labels stack) to
+        # tracks-list indices (0-based)
+        p_idx = parent_label - 1
+        d_idx = daughter_label - 1
+        if not (0 <= p_idx < len(tracks_list)):
+            continue
+        if not (0 <= d_idx < len(tracks_list)):
+            continue
+        existing = tracks_list[d_idx].get("parent_id")
+        if existing is None:
+            tracks_list[d_idx]["parent_id"] = p_idx
+            tracks_list[d_idx]["division_score"] = c["score"]
+            tracks_list[d_idx]["division_frame"] = c["frame"]
+            n_set += 1
+    return candidates, n_set

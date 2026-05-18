@@ -23,6 +23,7 @@ import subprocess
 import tempfile
 import logging
 import numpy as np
+from core.division_annotator import annotate_track_lineage
 
 log = logging.getLogger(__name__)
 
@@ -51,12 +52,10 @@ np.savez_compressed("{output_path}", masks=result)
 print("CPSAM_DIC_OK")
 '''
 
-
 def _is_cpsam_model(model_path):
     """True if the model lives in cellpose 4.x territory (cpsam fine-tunes)."""
     return model_path is not None and "cpsam" in os.path.basename(
         model_path).lower()
-
 
 _CPSAM_DIC_LABELS_SCRIPT = '''
 import sys, warnings, logging, numpy as np
@@ -76,7 +75,6 @@ for i in range(n):
 np.savez_compressed("{output_path}", labels=out)
 print("CPSAM_DIC_LABELS_OK")
 '''
-
 
 def _run_cpsam_dic_labels_subprocess(frames, model_path, project_root,
                                      progress_fn=None, augment=False):
@@ -112,7 +110,6 @@ def _run_cpsam_dic_labels_subprocess(frames, model_path, project_root,
             progress_fn("cpsam_dic detection done", 40)
         return np.load(outp)["labels"]
 
-
 def _run_cpsam_dic_subprocess(frames, model_path, project_root,
                               progress_fn=None, augment=False):
     """Run cpsam_dic detection in cellpose4 env; return bool mask array."""
@@ -143,7 +140,6 @@ def _run_cpsam_dic_subprocess(frames, model_path, project_root,
         if progress_fn:
             progress_fn("cpsam_dic detection done", 50)
         return np.load(outp)["masks"]
-
 
 def detect_hybrid_dic(frames, progress_fn=None, area_threshold=None,
                       use_preprocess=True, use_deepsea=True,
@@ -253,7 +249,6 @@ def detect_hybrid_dic(frames, progress_fn=None, area_threshold=None,
     log.info("DIC detection: %d/%d detected, %d missed",
              n - len(missed), n, len(missed))
     return result, missed
-
 
 def detect_hybrid_dic_multi(frames, progress_fn=None,
                             min_area_px=None,
@@ -491,7 +486,6 @@ def detect_hybrid_dic_multi(frames, progress_fn=None,
 
     if progress_fn:
         progress_fn("Done", 100)
-
     return {
         "masks": tracked > 0,
         "labels": tracked,
@@ -500,4 +494,5 @@ def detect_hybrid_dic_multi(frames, progress_fn=None,
         "cell_count": max_cells,
         "n_cy5_fusion_added": n_cy5_fusion_added,
         "fusion_source_stack": fusion_source_stack,
+        "divisions": annotate_track_lineage(tracks, tracked)[0],
     }

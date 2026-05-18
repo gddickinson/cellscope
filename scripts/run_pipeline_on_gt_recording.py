@@ -180,6 +180,31 @@ def main():
     np.savez_compressed(os.path.join(out_dir, "masks.npz"), **save_dict)
     log.info("Wrote %s/masks.npz", out_dir)
 
+    # Division-lineage sidecar — sets parent_id on tracks +
+    # exports divisions.json listing detected events
+    divisions = detect.get("divisions", []) or []
+    if divisions:
+        log.info("Detected %d cell division(s)", len(divisions))
+    div_payload = {
+        "recording": recording["name"],
+        "n_candidates": len(divisions),
+        "candidates": divisions,
+        "track_lineage": [
+            {"track_index": i,
+             "parent_track_index": t.get("parent_id"),
+             "division_frame": t.get("division_frame"),
+             "division_score": t.get("division_score")}
+            for i, t in enumerate(detect.get("tracks", []) or [])
+            if t.get("parent_id") is not None],
+    }
+    import json as _json
+    with open(os.path.join(out_dir, "divisions.json"), "w") as jf:
+        _json.dump(div_payload, jf, indent=2)
+    log.info("Wrote %s/divisions.json (%d division(s), %d lineage "
+             "link(s))",
+             out_dir, len(divisions),
+             len(div_payload["track_lineage"]))
+
     # RUN_METADATA
     from core.pipeline_defaults import DEFAULTS
     from core.run_metadata import write_run_metadata

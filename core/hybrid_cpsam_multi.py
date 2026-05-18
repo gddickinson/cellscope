@@ -311,6 +311,19 @@ def detect_hybrid_cpsam_multi(frames, progress_fn=None,
             src_summary["dic_only"], src_summary["both"],
             src_summary["cy5_only"])
 
+    # Step 7: annotate cell-division lineage (sets parent_id on
+    # daughter tracks). Adds a `divisions` list to the result for
+    # sidecar output. Cheap (<1s on 97-frame stacks).
+    divisions = []
+    try:
+        from core.division_annotator import annotate_track_lineage
+        divisions, n_set = annotate_track_lineage(tracks, tracked)
+        if n_set:
+            log.info("Division annotator: %d lineage link(s) set",
+                     n_set)
+    except Exception as e:
+        log.warning("Division annotator failed: %s", e)
+
     return {
         "masks": tracked > 0,
         "labels": tracked,
@@ -320,6 +333,7 @@ def detect_hybrid_cpsam_multi(frames, progress_fn=None,
         "n_cy5_fusion_added": n_cy5_fusion_added,
         "fusion_source_stack": fusion_source_stack,
         "cell_count": max_cells,
+        "divisions": divisions,
     }
 
 
