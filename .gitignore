@@ -42,6 +42,7 @@ results/*
 !results/gui_smoke/
 !results/best_detections/
 !results/dic_model_eval/
+!results/divisions/
 # figure_pipelines/ contains 25-60 MB .npz arrays — exclude even
 # though it ships with the repo. Users can regenerate via scripts.
 results/figure_pipelines/*.npz

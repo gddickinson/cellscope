@@ -127,20 +127,33 @@
         "name": "Pos39_OT",
         "folder": "data/ic295_gt_full/Pos39_OT",
         "gt_masks_dir": "data/ic295_gt_full/Pos39_OT/gt_masks",
-        "n_masks": 0,
-        "frames_annotated": [],
-        "image_shape": null,
-        "n_cells_min": null,
-        "n_cells_max": null,
-        "n_unique_cell_ids": 0,
-        "tracks_identity_preserved": null,
-        "source_recording": null,
-        "source_accessible": false,
-        "has_pipeline_results": false,
-        "has_evaluation": false,
-        "issues": [
-          "placeholder (no labelled masks)"
-        ]
+        "n_masks": 10,
+        "frames_annotated": [
+          0,
+          10,
+          20,
+          30,
+          40,
+          50,
+          60,
+          70,
+          80,
+          90
+        ],
+        "image_shape": [
+          2048,
+          2048
+        ],
+        "n_cells_min": 7,
+        "n_cells_max": 9,
+        "n_unique_cell_ids": 10,
+        "tracks_identity_preserved": true,
+        "source_recording": "data/ic295_gt_full/Pos39_OT/IC295__1_MMStack_Pos39-OT.ome.tif",
+        "source_accessible": true,
+        "has_pipeline_results": true,
+        "has_evaluation": true,
+        "issues": [],
+        "source_real_path": "/Volumes/GeorgeDrive/ignasi/IC295/IC295__1_MMStack_Pos39-OT.ome.tif"
       },
       {
         "name": "Pos44_OT",
