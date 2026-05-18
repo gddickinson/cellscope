@@ -1,9 +1,15 @@
-"""QThread worker for batch tracking and analysis."""
+"""QThread worker for batch tracking and analysis.
+
+Fallback values for params.get(...) come from
+core.pipeline_defaults.DEFAULTS — keep this worker in lockstep with the
+rest of the suite.
+"""
 import os
 import time
 import logging
 import numpy as np
 from PyQt5.QtCore import QThread, pyqtSignal
+from core.pipeline_defaults import DEFAULTS as _PD
 
 log = logging.getLogger(__name__)
 
@@ -35,7 +41,7 @@ class TrackingBatchWorker(QThread):
             from core.hybrid_cpsam import detect_hybrid_cpsam
 
             mode = self.params.get("mode", "hybrid_cpsam")
-            min_area = self.params.get("min_area_px", 500)
+            min_area = self.params.get("min_area_px", _PD.min_area_px)
             total = len(self.recordings)
             group_results = {}
 

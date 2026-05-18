@@ -29,7 +29,7 @@ from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QPushButton, QSlider, QFileDialog, QButtonGroup,
     QRadioButton, QSpinBox, QMessageBox, QShortcut, QStatusBar,
-    QGraphicsView, QGraphicsScene, QGraphicsPixmapItem,
+    QCheckBox, QGraphicsView, QGraphicsScene, QGraphicsPixmapItem,
 )
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -54,8 +54,32 @@ class MaskCanvas(QGraphicsView):
         self.setMouseTracking(True)
         self.drawing = False
         self.polygon_points = []
+        # Right-button drag panning state
+        self.panning = False
+        self._pan_start = None
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        # Accept drops here too — QGraphicsView fills most of the
+        # window, so without this the QMainWindow's drag handlers
+        # only fire over the title bar / toolbar margins.
+        self.setAcceptDrops(True)
+
+    # --- Drag-drop on the canvas → forward to the editor ---
+    def dragEnterEvent(self, event):
+        if self.editor._dd_accepts(event.mimeData()):
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dragMoveEvent(self, event):
+        if self.editor._dd_accepts(event.mimeData()):
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dropEvent(self, event):
+        self.editor._dd_handle(event.mimeData())
+        event.acceptProposedAction()
 
     def update_pixmap(self, pixmap):
         self.pixmap_item.setPixmap(pixmap)
@@ -81,15 +105,36 @@ class MaskCanvas(QGraphicsView):
             elif tool == "relabel":
                 self.editor.relabel_cell(x, y)
         elif event.button() == Qt.RightButton:
-            tool = self.editor.current_tool()
-            if tool == "polygon" and len(self.polygon_points) >= 3:
-                self.editor.commit_polygon(self.polygon_points)
-                self.polygon_points = []
+            # Shift + Right-click starts a drag-pan. Plain right-click
+            # is reserved for the polygon tool (commits the polygon
+            # when ≥3 points are queued). This keeps the gestures
+            # cleanly separated and avoids accidental pans while
+            # drawing polygons.
+            if event.modifiers() & Qt.ShiftModifier:
+                self.panning = True
+                self._pan_start = event.pos()
+                self.setCursor(Qt.ClosedHandCursor)
+            else:
+                tool = self.editor.current_tool()
+                if tool == "polygon" and len(self.polygon_points) >= 3:
+                    self.editor.commit_polygon(self.polygon_points)
+                    self.polygon_points = []
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event):
         x, y = self._scene_pos(event)
         self.editor.show_coords(x, y)
+        if self.panning and self._pan_start is not None:
+            # Translate scrollbars by the cursor delta so the image
+            # follows the mouse. Note: y axis uses inverse delta because
+            # scrollbar.value() grows downward (same as cursor.y).
+            delta = event.pos() - self._pan_start
+            hbar = self.horizontalScrollBar()
+            vbar = self.verticalScrollBar()
+            hbar.setValue(hbar.value() - delta.x())
+            vbar.setValue(vbar.value() - delta.y())
+            self._pan_start = event.pos()
+            return
         if self.drawing:
             tool = self.editor.current_tool()
             self.editor.paint_at(x, y, tool)
@@ -99,6 +144,10 @@ class MaskCanvas(QGraphicsView):
         if self.drawing:
             self.drawing = False
             self.editor.end_stroke()
+        if self.panning and event.button() == Qt.RightButton:
+            self.panning = False
+            self._pan_start = None
+            self.unsetCursor()
         super().mouseReleaseEvent(event)
 
     def mouseDoubleClickEvent(self, event):
@@ -126,8 +175,29 @@ class MaskEditor(QMainWindow):
         self.current_frame = 0
         self.brush_size = 10
         self.mask_opacity = 0.4
+        self.show_ids = False       # draw cell ID numbers on the overlay
         self.tool = "brush"         # brush / eraser / polygon / fill / none
         self.active_cell = 1        # which cell ID to paint with
+        # Ground-truth labeling helpers — populated by load_video() when
+        # the recording folder has a GT_FRAMES.txt + gt_masks/ layout
+        # (the format produced by scripts/setup_ic295_gt_labeling.py).
+        self.gt_frames = None       # list[int] target frames to label
+        self.gt_jump_size = 10      # stride when no GT_FRAMES.txt
+        self.gt_masks_dir = None    # where labelled masks live
+        # Multichannel support — fluo_frames is set when the recording
+        # has a fluorescence channel. The active_channel toggle swaps
+        # between them for display; masks live in a single shared stack
+        # (cells are the same regardless of which channel you view).
+        self.dic_frames = None
+        self.fluo_frames = None
+        self.active_channel = "dic"
+        # Per-frame dirty flag for unsaved-edit warning + the toggle
+        # that controls whether the warning ever fires.
+        self._dirty_frames = set()
+        self._warn_on_unsaved = True
+        # Inter-target playback timer
+        self._play_timer = None
+        self._play_target = None
 
         # Undo stacks: per-frame list of mask snapshots (deque-like)
         self.undo_stacks = {}   # frame_idx -> list of mask snapshots
@@ -136,8 +206,10 @@ class MaskEditor(QMainWindow):
         self._stroke_snapshot = None
 
         self._build_ui()
-        from gui.drag_drop import setup_drag_drop, VIDEO_EXTS
-        setup_drag_drop(self, self._on_drop_file, VIDEO_EXTS)
+        # Enable drops on the main window. The canvas (QGraphicsView)
+        # also accepts drops and forwards to us; both routes call
+        # `_dd_handle` so a drop anywhere in the editor works.
+        self.setAcceptDrops(True)
 
         if video_path:
             self.load_video(video_path, mask_path)
@@ -227,9 +299,12 @@ class MaskEditor(QMainWindow):
         tools.addWidget(btn_fit)
         tools.addWidget(QLabel("  Cell:"))
         self.cell_spin = QSpinBox()
-        self.cell_spin.setRange(1, 9)
+        self.cell_spin.setRange(1, 20)
         self.cell_spin.setValue(1)
-        self.cell_spin.setToolTip("Active cell ID (1-9). Paint with this ID.")
+        self.cell_spin.setToolTip(
+            "Active cell ID (1-20). Paint with this ID.\n"
+            "Keyboard: 1-9 select cells 1-9, 0 selects cell 10,\n"
+            "Shift+1..Shift+9 select cells 11-19, Shift+0 selects 20.")
         self.cell_spin.valueChanged.connect(self._on_cell_id)
         tools.addWidget(self.cell_spin)
         self.cell_color_label = QLabel("  ●")
@@ -239,6 +314,13 @@ class MaskEditor(QMainWindow):
         btn_new_cell.setToolTip("Add a new cell ID (next unused)")
         btn_new_cell.clicked.connect(self._on_new_cell)
         tools.addWidget(btn_new_cell)
+        self.chk_show_ids = QCheckBox("Cell IDs")
+        self.chk_show_ids.setChecked(False)
+        self.chk_show_ids.setToolTip(
+            "Draw each cell's ID number at its centroid.\n"
+            "Keyboard shortcut: I")
+        self.chk_show_ids.toggled.connect(self._on_toggle_ids)
+        tools.addWidget(self.chk_show_ids)
         tools.addStretch()
         layout.addLayout(tools)
 
@@ -246,10 +328,98 @@ class MaskEditor(QMainWindow):
         self.canvas = MaskCanvas(self)
         layout.addWidget(self.canvas, stretch=1)
 
-        # Frame slider
+        # GT-frame navigation row (above the time scrubber).
+        # Stride defaults to 10 (matches the IC295 GT setup) but can be
+        # changed live; auto-loads GT_FRAMES.txt if present in the
+        # recording's folder.
+        gt = QHBoxLayout()
+        gt.addWidget(QLabel("GT frame:"))
+        self.btn_gt_prev = QPushButton("⟪ Prev")
+        self.btn_gt_prev.setToolTip(
+            "Jump to previous target frame (Shift+Left).")
+        self.btn_gt_prev.clicked.connect(self.prev_target_frame)
+        gt.addWidget(self.btn_gt_prev)
+        self.btn_gt_next = QPushButton("Next ⟫")
+        self.btn_gt_next.setToolTip(
+            "Jump to next target frame (Shift+Right).")
+        self.btn_gt_next.clicked.connect(self.next_target_frame)
+        gt.addWidget(self.btn_gt_next)
+        gt.addWidget(QLabel("  Every N frames:"))
+        self.gt_jump_spin = QSpinBox()
+        self.gt_jump_spin.setRange(1, 1000)
+        self.gt_jump_spin.setValue(self.gt_jump_size)
+        self.gt_jump_spin.setToolTip(
+            "Frame stride for target sampling. Ignored if a\n"
+            "GT_FRAMES.txt file is found in the recording's folder.")
+        self.gt_jump_spin.valueChanged.connect(self._on_jump_size)
+        gt.addWidget(self.gt_jump_spin)
+        btn_load_gt = QPushButton("Load GT_FRAMES.txt")
+        btn_load_gt.setToolTip(
+            "Load an explicit target-frame list from a file.\n"
+            "Auto-detected when you open a recording in a folder\n"
+            "with GT_FRAMES.txt next to the .ome.tif.")
+        btn_load_gt.clicked.connect(self._on_load_gt_frames)
+        gt.addWidget(btn_load_gt)
+        btn_gt_save = QPushButton("Save GT for this frame")
+        btn_gt_save.setToolTip(
+            "Save current frame's mask as the labelled GT for this\n"
+            "frame into the recording's gt_masks/ folder.")
+        btn_gt_save.clicked.connect(self._on_save_gt_frame)
+        gt.addWidget(btn_gt_save)
+        btn_gt_save_all = QPushButton("Save all GT")
+        btn_gt_save_all.setToolTip(
+            "Save every frame that has any labels into gt_masks/.\n"
+            "Skips empty frames. (Ctrl+Shift+G)")
+        btn_gt_save_all.clicked.connect(self._on_save_all_gt)
+        gt.addWidget(btn_gt_save_all)
+        self.chk_warn_unsaved = QCheckBox("Warn on unsaved")
+        self.chk_warn_unsaved.setChecked(True)
+        self.chk_warn_unsaved.setToolTip(
+            "If on, prompt before navigating away from a target frame\n"
+            "with unsaved label edits. Turn off if you prefer to\n"
+            "manage saves manually (Ctrl+G).")
+        self.chk_warn_unsaved.toggled.connect(self._on_warn_toggle)
+        gt.addWidget(self.chk_warn_unsaved)
+        # Inter-target playback: scrub from current frame to the next
+        # target at ~5 fps so the user can verify motion before labeling.
+        self.btn_play_to_next = QPushButton("▶ Play to next target")
+        self.btn_play_to_next.setCheckable(True)
+        self.btn_play_to_next.setToolTip(
+            "Scrub forward at ~5 fps until the next target frame.\n"
+            "Useful for verifying cell motion + identity before "
+            "labelling.")
+        self.btn_play_to_next.toggled.connect(self._on_play_toggle)
+        gt.addWidget(self.btn_play_to_next)
+        self.gt_progress_label = QLabel("Labeled: – / –")
+        self.gt_progress_label.setStyleSheet("color: #888; padding-left: 10px;")
+        gt.addWidget(self.gt_progress_label)
+        gt.addStretch()
+        layout.addLayout(gt)
+
+        # Channel toggle (shown only when multichannel data is loaded).
+        ch = QHBoxLayout()
+        self._channel_label = QLabel("Channel:")
+        ch.addWidget(self._channel_label)
+        self.radio_dic = QRadioButton("DIC")
+        self.radio_dic.setChecked(True)
+        self.radio_dic.toggled.connect(self._on_channel_toggle)
+        self.radio_fluo = QRadioButton("Fluo")
+        ch.addWidget(self.radio_dic)
+        ch.addWidget(self.radio_fluo)
+        self._channel_group = QButtonGroup(self)
+        self._channel_group.addButton(self.radio_dic)
+        self._channel_group.addButton(self.radio_fluo)
+        ch.addStretch()
+        # Hidden until a fluo channel is loaded
+        for w in (self._channel_label, self.radio_dic, self.radio_fluo):
+            w.setVisible(False)
+        layout.addLayout(ch)
+
+        # Frame slider — custom subclass so we can paint GT-target ticks.
+        from gui.gt_slider import GtTickSlider
         sl = QHBoxLayout()
         sl.addWidget(QLabel("Frame:"))
-        self.frame_slider = QSlider(Qt.Horizontal)
+        self.frame_slider = GtTickSlider(Qt.Horizontal)
         self.frame_slider.setEnabled(False)
         self.frame_slider.valueChanged.connect(self._on_frame)
         sl.addWidget(self.frame_slider)
@@ -264,6 +434,14 @@ class MaskEditor(QMainWindow):
         # Keyboard shortcuts
         QShortcut(QKeySequence("Left"), self, activated=self.prev_frame)
         QShortcut(QKeySequence("Right"), self, activated=self.next_frame)
+        QShortcut(QKeySequence("Shift+Left"), self,
+                  activated=self.prev_target_frame)
+        QShortcut(QKeySequence("Shift+Right"), self,
+                  activated=self.next_target_frame)
+        QShortcut(QKeySequence("Ctrl+G"), self,
+                  activated=self._on_save_gt_frame)
+        QShortcut(QKeySequence("Ctrl+Shift+G"), self,
+                  activated=self._on_save_all_gt)
         QShortcut(QKeySequence("Ctrl+Z"), self, activated=self.undo)
         QShortcut(QKeySequence("Ctrl+Shift+Z"), self, activated=self.redo)
         QShortcut(QKeySequence("Ctrl+S"), self, activated=self._on_save)
@@ -272,18 +450,188 @@ class MaskEditor(QMainWindow):
         QShortcut(QKeySequence("P"), self, activated=lambda: self._select_tool("polygon"))
         QShortcut(QKeySequence("F"), self, activated=lambda: self._select_tool("fill"))
         QShortcut(QKeySequence("R"), self, activated=lambda: self._select_tool("relabel"))
+        QShortcut(QKeySequence("I"), self,
+                  activated=lambda: self.chk_show_ids.toggle())
+        # 1-9 select cells 1-9; 0 = cell 10. Shift+1..Shift+9 select
+        # cells 11-19; Shift+0 = cell 20.
         for k in range(1, 10):
             QShortcut(QKeySequence(str(k)), self,
                       activated=lambda v=k: self._set_active_cell(v))
+        QShortcut(QKeySequence("0"), self,
+                  activated=lambda: self._set_active_cell(10))
+        for k in range(1, 10):
+            QShortcut(QKeySequence(f"Shift+{k}"), self,
+                      activated=lambda v=10 + k:
+                          self._set_active_cell(v))
+        QShortcut(QKeySequence("Shift+0"), self,
+                  activated=lambda: self._set_active_cell(20))
 
     # ------------------------------------------------------------------
+    # Drag-and-drop dispatcher. Accepts:
+    #   - Video / multichannel TIFF (.ome.tif, .tif, .mp4, .avi, .mov)
+    #     → load_video()
+    #   - Mask .npz (anything ending in _masks.npz or named masks.npz)
+    #     → _load_masks_from()
+    #   - Mask folder (folder containing *.png masks or masks.npz)
+    #     → _load_masks_from(folder)
+    #   - GT_FRAMES.txt → _load_gt_frames_from()
+    #   - Folder containing a single .ome.tif → load that recording
+    # ------------------------------------------------------------------
+
+    VIDEO_EXTS = (".mp4", ".avi", ".mov", ".tif", ".tiff")
+    MASK_EXTS = (".npz",)
+
+    def _dd_accepts(self, mime):
+        """Return True if `mime` contains at least one droppable URL."""
+        if not mime.hasUrls():
+            return False
+        for url in mime.urls():
+            p = url.toLocalFile()
+            if not p:
+                continue
+            if self._dd_classify(p) is not None:
+                return True
+        return False
+
+    def _dd_classify(self, path):
+        """Categorise a path. Returns one of {'video','mask','gt',
+        'folder', None}."""
+        if not path:
+            return None
+        if os.path.isdir(path):
+            return "folder"
+        low = path.lower()
+        if low.endswith(self.VIDEO_EXTS):
+            return "video"
+        if low.endswith(self.MASK_EXTS):
+            return "mask"
+        if os.path.basename(path) == "GT_FRAMES.txt":
+            return "gt"
+        return None
+
+    def _dd_handle(self, mime):
+        """Dispatch a drop event. Called by both the main window's
+        dropEvent and the canvas's forwarded drop."""
+        if not mime.hasUrls():
+            return
+        # If multiple files dropped, process the first that we
+        # recognise. (Mixed drops are rare; users typically drag one.)
+        for url in mime.urls():
+            path = url.toLocalFile()
+            kind = self._dd_classify(path)
+            if kind == "video":
+                self.load_video(path)
+                return
+            if kind == "mask":
+                if self.masks is None:
+                    self.status.showMessage(
+                        "Load a recording first, then drop the mask file")
+                    return
+                self._load_masks_from(path)
+                self._redraw()
+                self.status.showMessage(
+                    f"Loaded masks from {os.path.basename(path)}")
+                return
+            if kind == "gt":
+                self._load_gt_frames_from(path)
+                return
+            if kind == "folder":
+                self._dd_handle_folder(path)
+                return
+
+    def _dd_handle_folder(self, folder):
+        """Drop of a folder: prefer a single .ome.tif inside; else look
+        for a mask stack."""
+        tifs = sorted(
+            os.path.join(folder, f) for f in os.listdir(folder)
+            if f.lower().endswith(self.VIDEO_EXTS)
+            and not f.startswith("."))
+        # If exactly one recording in the folder, load it.
+        if len(tifs) == 1:
+            self.load_video(tifs[0])
+            return
+        # If there's a masks.npz, load it (assuming a recording is
+        # already open).
+        candidates = [os.path.join(folder, "masks.npz")]
+        for f in os.listdir(folder):
+            if f.endswith("_masks.npz") or f.endswith(".npz"):
+                candidates.append(os.path.join(folder, f))
+        for cand in candidates:
+            if os.path.exists(cand):
+                if self.masks is None:
+                    self.status.showMessage(
+                        "Load a recording before dropping a mask file")
+                    return
+                self._load_masks_from(cand)
+                self._redraw()
+                self.status.showMessage(
+                    f"Loaded masks from {os.path.basename(cand)}")
+                return
+        # Folder of PNG masks?
+        if any(f.lower().endswith(".png") and "mask" in f.lower()
+               for f in os.listdir(folder)):
+            if self.masks is None:
+                self.status.showMessage(
+                    "Load a recording before dropping a mask folder")
+                return
+            self._load_masks_from(folder)
+            self._redraw()
+            self.status.showMessage(
+                f"Loaded masks from {os.path.basename(folder)}/")
+            return
+        # Otherwise tell the user we couldn't make sense of it
+        self.status.showMessage(
+            f"Folder dropped but no recording or masks found in "
+            f"{os.path.basename(folder)}/")
+
+    def dragEnterEvent(self, event):
+        if self._dd_accepts(event.mimeData()):
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dragMoveEvent(self, event):
+        if self._dd_accepts(event.mimeData()):
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+
+    def dropEvent(self, event):
+        self._dd_handle(event.mimeData())
+        event.acceptProposedAction()
+
+    # Backwards-compat alias — some external callers may invoke this.
     def _on_drop_file(self, path):
-        self.load_video(path)
+        kind = self._dd_classify(path)
+        if kind == "video":
+            self.load_video(path)
+        else:
+            self.status.showMessage(f"Don't know how to load {path}")
 
     def load_video(self, video_path, mask_path=None):
         try:
-            self.frames = load_video(video_path)
-            meta = load_metadata(video_path)
+            from core.io import detect_channels, load_recording
+            self.dic_frames = None
+            self.fluo_frames = None
+            self.active_channel = "dic"
+            n_ch = (detect_channels(video_path)
+                    if video_path.lower().endswith((".tif", ".tiff"))
+                    else 1)
+            if n_ch > 1:
+                # Default DIC=ch1, Fluo=ch0 (matches IC295 layout).
+                # We don't pop a channel chooser dialog here to keep the
+                # editor minimal — the assumption is the user is editing
+                # GT for the IC295 layout.
+                rec = load_recording(
+                    video_path, dic_channel=1, fluo_channel=0)
+                self.frames = rec["frames"]
+                self.fluo_frames = rec.get("cy5_frames")
+                self.dic_frames = self.frames
+                meta = rec
+            else:
+                self.frames = load_video(video_path)
+                self.dic_frames = self.frames
+                meta = load_metadata(video_path)
             self.name = meta.get("name", os.path.basename(video_path))
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to load: {e}")
@@ -297,14 +645,30 @@ class MaskEditor(QMainWindow):
 
         self.undo_stacks.clear()
         self.redo_stacks.clear()
+        self._dirty_frames.clear()
         self.current_frame = 0
         self.frame_slider.setEnabled(True)
         self.frame_slider.setRange(0, n - 1)
         self.frame_slider.setValue(0)
         self.frame_label.setText(f"0 / {n - 1}")
+        # Show/hide channel toggle based on whether fluo data is present
+        has_fluo = self.fluo_frames is not None
+        for widget in (self._channel_label, self.radio_dic,
+                       self.radio_fluo):
+            widget.setVisible(has_fluo)
+        if has_fluo:
+            self.radio_dic.blockSignals(True)
+            self.radio_dic.setChecked(True)
+            self.radio_dic.blockSignals(False)
+        cy5_note = " [+ Fluo channel]" if has_fluo else ""
         self.status.showMessage(
-            f"Loaded {self.name}: {n} frames, {w}×{h}"
+            f"Loaded {self.name}: {n} frames, {w}×{h}{cy5_note}"
         )
+        # Auto-detect GT labelling setup in the recording's folder
+        try:
+            self._auto_detect_gt_setup(video_path)
+        except Exception as e:
+            self.status.showMessage(f"GT auto-detect skipped: {e}")
         self._redraw()
 
     def _load_masks_from(self, path):
@@ -486,9 +850,128 @@ class MaskEditor(QMainWindow):
         self.mask_opacity = val / 100.0
         self._redraw()
 
+    def _on_warn_toggle(self, checked):
+        self._warn_on_unsaved = checked
+
+    def _on_toggle_ids(self, checked):
+        self.show_ids = checked
+        self._redraw()
+
     def _on_frame(self, idx):
+        prev = self.current_frame
+        # Confirm-before-navigate when leaving a dirty target frame.
+        # Only triggered for TARGET frames so casual scrubbing through
+        # non-target frames stays fast. Gated by the user toggle —
+        # off by default? No, on by default; user can disable it.
+        if (self._warn_on_unsaved
+                and prev != idx and prev in self._dirty_frames
+                and prev in self._current_target_frames()
+                and not getattr(self, "_suppress_dirty_check", False)):
+            action = self._prompt_unsaved(prev)
+            if action == "cancel":
+                # Roll back the slider without re-triggering this guard
+                self._suppress_dirty_check = True
+                self.frame_slider.setValue(prev)
+                self._suppress_dirty_check = False
+                return
+            if action == "save":
+                self._save_gt_for(prev)
+            elif action == "discard":
+                self._dirty_frames.discard(prev)
         self.current_frame = idx
         self.frame_label.setText(f"{idx} / {self.frame_slider.maximum()}")
+        self._refresh_gt_progress()
+        self._redraw()
+
+    def _prompt_unsaved(self, frame_idx):
+        """Show a confirm dialog. Returns 'save' / 'discard' / 'cancel'."""
+        from PyQt5.QtWidgets import QMessageBox
+        box = QMessageBox(self)
+        box.setWindowTitle("Unsaved GT changes")
+        box.setText(
+            f"Frame {frame_idx} has unsaved label edits.\n"
+            f"Save as GT before leaving?")
+        save_btn = box.addButton("Save and continue", QMessageBox.AcceptRole)
+        disc_btn = box.addButton("Discard", QMessageBox.DestructiveRole)
+        cancel_btn = box.addButton("Cancel", QMessageBox.RejectRole)
+        box.setDefaultButton(save_btn)
+        box.exec_()
+        clicked = box.clickedButton()
+        if clicked is save_btn:
+            return "save"
+        if clicked is disc_btn:
+            return "discard"
+        return "cancel"
+
+    def _on_play_toggle(self, checked):
+        """Start / stop inter-target playback. Steps the slider forward
+        at ~5 fps until we hit the next GT target, then stops."""
+        from PyQt5.QtCore import QTimer
+        if not checked:
+            # Stopping
+            if self._play_timer is not None:
+                self._play_timer.stop()
+                self._play_timer = None
+            self.btn_play_to_next.setText("▶ Play to next target")
+            return
+        targets = self._current_target_frames()
+        cur = self.frame_slider.value()
+        next_targets = [f for f in targets if f > cur]
+        if not next_targets:
+            self.btn_play_to_next.setChecked(False)
+            self.status.showMessage("No target ahead of current frame")
+            return
+        self._play_target = min(next_targets)
+        self._play_timer = QTimer(self)
+        self._play_timer.setInterval(200)   # 5 fps
+        self._play_timer.timeout.connect(self._play_tick)
+        self._play_timer.start()
+        self.btn_play_to_next.setText("⏸ Pause")
+        self.status.showMessage(
+            f"Playing forward to F{self._play_target} …")
+
+    def _play_tick(self):
+        """One step of inter-target playback."""
+        if self.frames is None:
+            self.btn_play_to_next.setChecked(False)
+            return
+        nxt = self.frame_slider.value() + 1
+        if nxt > self.frame_slider.maximum():
+            self.btn_play_to_next.setChecked(False)
+            return
+        # Set the next frame WITHOUT triggering the dirty-check guard
+        # (playback through transient frames shouldn't pop the dialog).
+        self._suppress_dirty_check = True
+        self.frame_slider.setValue(nxt)
+        self._suppress_dirty_check = False
+        if (self._play_target is not None
+                and nxt >= self._play_target):
+            self.btn_play_to_next.setChecked(False)
+            self.status.showMessage(
+                f"Arrived at target F{self._play_target}")
+
+    def _save_gt_for(self, frame_idx):
+        """Save the mask for a specific frame index to gt_masks/."""
+        if self.gt_masks_dir is None:
+            self._on_save_gt_frame()
+            return
+        os.makedirs(self.gt_masks_dir, exist_ok=True)
+        from skimage import io as skio
+        out_path = os.path.join(
+            self.gt_masks_dir, f"mask_F{frame_idx}.png")
+        skio.imsave(out_path,
+                    self.masks[frame_idx].astype(np.uint16),
+                    check_contrast=False)
+        self._dirty_frames.discard(frame_idx)
+        self._refresh_gt_progress()
+
+    def _on_channel_toggle(self, dic_checked):
+        """Swap which channel the canvas displays. Masks are shared."""
+        if self.dic_frames is None or self.fluo_frames is None:
+            return
+        self.active_channel = "dic" if dic_checked else "fluo"
+        self.frames = (self.dic_frames if dic_checked
+                       else self.fluo_frames)
         self._redraw()
 
     def prev_frame(self):
@@ -498,6 +981,185 @@ class MaskEditor(QMainWindow):
     def next_frame(self):
         if self.frame_slider.value() < self.frame_slider.maximum():
             self.frame_slider.setValue(self.frame_slider.value() + 1)
+
+    # ------------------------------------------------------------------
+    # GT-frame navigation
+    # ------------------------------------------------------------------
+
+    def _current_target_frames(self):
+        """Return the active list of GT target frame indices."""
+        if self.gt_frames is not None:
+            return self.gt_frames
+        if self.frames is None:
+            return []
+        return list(range(0, len(self.frames), self.gt_jump_size))
+
+    def prev_target_frame(self):
+        """Jump to the largest GT frame < current frame."""
+        targets = self._current_target_frames()
+        if not targets:
+            return
+        cur = self.frame_slider.value()
+        candidates = [f for f in targets if f < cur]
+        if candidates:
+            self.frame_slider.setValue(max(candidates))
+        else:
+            # Wrap to the LAST target (so cycling through is easy)
+            self.frame_slider.setValue(targets[-1])
+
+    def next_target_frame(self):
+        """Jump to the smallest GT frame > current frame."""
+        targets = self._current_target_frames()
+        if not targets:
+            return
+        cur = self.frame_slider.value()
+        candidates = [f for f in targets if f > cur]
+        if candidates:
+            self.frame_slider.setValue(min(candidates))
+        else:
+            self.frame_slider.setValue(targets[0])
+
+    def _on_jump_size(self, n):
+        self.gt_jump_size = max(1, int(n))
+        # If we had loaded explicit frames from file, switching the
+        # stride should clear the file-driven list so the spinbox wins.
+        self.gt_frames = None
+        self._refresh_gt_progress()
+
+    def _on_load_gt_frames(self):
+        """Manually load a GT_FRAMES.txt file."""
+        from PyQt5.QtWidgets import QFileDialog
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Load GT_FRAMES.txt", "",
+            "Text files (*.txt);;All files (*)")
+        if path:
+            self._load_gt_frames_from(path)
+
+    def _load_gt_frames_from(self, path):
+        """Parse a GT_FRAMES.txt file (one integer per line, '#' lines
+        are comments) and replace the active target list."""
+        try:
+            frames = []
+            with open(path) as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith("#"):
+                        continue
+                    try:
+                        frames.append(int(line))
+                    except ValueError:
+                        pass
+            if frames:
+                self.gt_frames = sorted(set(frames))
+                self.status.showMessage(
+                    f"Loaded {len(self.gt_frames)} GT frames from "
+                    f"{os.path.basename(path)}")
+                self._refresh_gt_progress()
+        except Exception as e:
+            self.status.showMessage(f"GT load failed: {e}")
+
+    def _auto_detect_gt_setup(self, video_path):
+        """When a video is loaded, look for GT_FRAMES.txt + gt_masks/
+        in the same folder and wire them up automatically."""
+        folder = os.path.dirname(os.path.abspath(video_path))
+        gt_file = os.path.join(folder, "GT_FRAMES.txt")
+        if os.path.exists(gt_file):
+            self._load_gt_frames_from(gt_file)
+        masks_dir = os.path.join(folder, "gt_masks")
+        if os.path.isdir(masks_dir):
+            self.gt_masks_dir = masks_dir
+        else:
+            self.gt_masks_dir = None
+        self._refresh_gt_progress()
+
+    def _refresh_gt_progress(self):
+        """Update the 'Labeled: 3/10' label by scanning gt_masks/, and
+        push the target + labeled state to the slider for tick marks."""
+        targets = self._current_target_frames()
+        labeled_set = set()
+        if self.gt_masks_dir and os.path.isdir(self.gt_masks_dir):
+            existing = set(os.listdir(self.gt_masks_dir))
+            for fi in targets:
+                if (f"mask_F{fi}.png" in existing
+                        or f"mask_F{fi:03d}.png" in existing):
+                    labeled_set.add(fi)
+        # Slider tick marks
+        if hasattr(self.frame_slider, "set_target_frames"):
+            self.frame_slider.set_target_frames(targets)
+            self.frame_slider.set_labeled_frames(labeled_set)
+        if not targets:
+            self.gt_progress_label.setText("Labeled: – / –")
+            return
+        # Current-frame status indicator
+        cur = self.frame_slider.value() if self.frames is not None else None
+        cur_status = ""
+        if cur in targets:
+            cur_status = " ✓" if cur in labeled_set else " ●"
+        self.gt_progress_label.setText(
+            f"Labeled: {len(labeled_set)} / {len(targets)}{cur_status}")
+
+    def _on_save_gt_frame(self):
+        """Save the current frame's mask into gt_masks/ as
+        mask_F<idx>.png. Creates the folder if missing."""
+        if self.frames is None or self.masks is None:
+            return
+        fi = self.frame_slider.value()
+        if not self.gt_masks_dir:
+            # Default to a sibling folder next to the loaded video.
+            from PyQt5.QtWidgets import QFileDialog
+            base = os.path.dirname(os.path.abspath(
+                getattr(self, "video_path", "")))
+            default = os.path.join(base, "gt_masks") if base else ""
+            chosen = QFileDialog.getExistingDirectory(
+                self, "Choose gt_masks folder", default)
+            if not chosen:
+                return
+            self.gt_masks_dir = chosen
+        os.makedirs(self.gt_masks_dir, exist_ok=True)
+        from skimage import io as skio
+        out_path = os.path.join(
+            self.gt_masks_dir, f"mask_F{fi}.png")
+        skio.imsave(out_path,
+                    self.masks[fi].astype(np.uint16),
+                    check_contrast=False)
+        self._dirty_frames.discard(fi)
+        self.status.showMessage(
+            f"Saved GT for F{fi} → {os.path.basename(out_path)}")
+        self._refresh_gt_progress()
+
+    def _on_save_all_gt(self):
+        """Save every frame that has any label content into gt_masks/.
+
+        Empty frames (no cells painted) are skipped. The save folder is
+        prompted once if it isn't already known."""
+        if self.frames is None or self.masks is None:
+            return
+        if not self.gt_masks_dir:
+            from PyQt5.QtWidgets import QFileDialog
+            base = os.path.dirname(os.path.abspath(
+                getattr(self, "video_path", "")))
+            default = os.path.join(base, "gt_masks") if base else ""
+            chosen = QFileDialog.getExistingDirectory(
+                self, "Choose gt_masks folder", default)
+            if not chosen:
+                return
+            self.gt_masks_dir = chosen
+        os.makedirs(self.gt_masks_dir, exist_ok=True)
+        from skimage import io as skio
+        n_saved = 0
+        for fi in range(len(self.masks)):
+            if not self.masks[fi].any():
+                continue
+            out_path = os.path.join(
+                self.gt_masks_dir, f"mask_F{fi}.png")
+            skio.imsave(out_path,
+                        self.masks[fi].astype(np.uint16),
+                        check_contrast=False)
+            self._dirty_frames.discard(fi)
+            n_saved += 1
+        self.status.showMessage(
+            f"Saved GT for {n_saved} frames → {self.gt_masks_dir}")
+        self._refresh_gt_progress()
 
     def show_coords(self, x, y):
         self.status.showMessage(
@@ -522,6 +1184,8 @@ class MaskEditor(QMainWindow):
             if len(self.undo_stacks[idx]) > self.max_undo:
                 self.undo_stacks[idx].pop(0)
             self.redo_stacks.setdefault(idx, []).clear()
+            # Mark this frame as having unsaved edits
+            self._dirty_frames.add(idx)
         self._stroke_snapshot = None
 
     def paint_at(self, x, y, tool):
@@ -680,7 +1344,8 @@ class MaskEditor(QMainWindow):
             rgb = render_label_overlay(
                 img, self.masks[idx], opacity=self.mask_opacity,
                 active_cell=self.active_cell,
-                polygon_preview=polygon_preview)
+                polygon_preview=polygon_preview,
+                show_ids=self.show_ids)
         else:
             rgb = np.stack([img, img, img], axis=-1).copy()
             if polygon_preview and len(polygon_preview) >= 2:

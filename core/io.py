@@ -129,22 +129,109 @@ def load_metadata(video_path):
     return meta
 
 
-def load_recording(video_path):
+def detect_channels(tif_path):
+    """Inspect a TIFF/OME-TIFF and return n_channels (1 if not multichannel).
+
+    Reads from the metadata sidecar first ({base}_metadata.txt for OME),
+    falls back to the first IFD's SamplesPerPixel.
+    """
+    import re
+    # Look for a Micro-Manager-style sidecar. Only valid when the path
+    # actually ends in `.ome.tif` — otherwise .replace returns the
+    # original .tif path and we'd try to decode binary TIFF as UTF-8.
+    sidecar = tif_path.replace(".ome.tif", "_metadata.txt")
+    if sidecar != tif_path and os.path.exists(sidecar):
+        with open(sidecar) as f:
+            m = re.search(r'"Channels"\s*:\s*(\d+)', f.read())
+        if m:
+            return int(m.group(1))
+    try:
+        import tifffile
+        with tifffile.TiffFile(tif_path) as tf:
+            ome = getattr(tf, "ome_metadata", None)
+            if ome:
+                m = re.search(r'SizeC="(\d+)"', ome)
+                if m:
+                    return int(m.group(1))
+            n_pages = len(tf.pages)
+            if n_pages == 1:
+                return 1
+            # Heuristic: if N_pages divisible by likely channel counts {2,3,4}
+            # AND first page has 1 sample, treat first dim as channels.
+            # Without more info we default to 1 here; multichannel callers
+            # should pass n_channels explicitly when known.
+            return 1
+    except Exception:
+        return 1
+
+
+def load_video_multichannel(tif_path, dic_channel=1, fluo_channel=0,
+                             n_channels=None):
+    """Load a multi-channel OME-TIFF as (dic_uint8, fluo_uint8) stacks.
+
+    Channels are interleaved frame-by-frame: page i*nch+ch is frame i,
+    channel ch. DIC gets flat-field correction (σ=80); fluorescence
+    gets flat-field σ=200 (broader because fluorescent clusters span
+    larger spatial scales) — both via core.multichannel utilities.
+
+    Args:
+        tif_path: path to multichannel .ome.tif
+        dic_channel: which channel index is DIC (default 1)
+        fluo_channel: which channel index is fluorescence (default 0)
+        n_channels: total channels; auto-detected from metadata if None
+
+    Returns:
+        (dic_uint8, fluo_uint8) — both (N, H, W) uint8
+    """
+    if n_channels is None:
+        n_channels = detect_channels(tif_path)
+    from core.multichannel import load_recording_multi
+    return load_recording_multi(tif_path, dic_ch=dic_channel,
+                                 fluo_ch=fluo_channel)
+
+
+def load_recording(video_path, dic_channel=None, fluo_channel=None):
     """Load a video and its metadata as a dict.
+
+    For single-channel files the result has the existing shape. For
+    multichannel TIFFs, pass `dic_channel` (and optionally
+    `fluo_channel`) to load DIC + fluorescence stacks; otherwise the
+    file is loaded with channels collapsed (legacy behaviour).
 
     Returns:
         {
             "name": str,
-            "frames": (N, H, W) uint8,
+            "frames": (N, H, W) uint8 — DIC if multichannel else raw,
+            "cy5_frames": (N, H, W) uint8 or None — present when
+                fluo_channel is given,
+            "n_channels": int,
+            "dic_channel": int (if multichannel),
+            "fluo_channel": int or None,
             "um_per_px": float,
             "time_interval_min": float,
             "video_path": str,
         }
     """
-    frames = load_video(video_path)
+    n_ch = detect_channels(video_path) if video_path.lower().endswith(
+        (".tif", ".tiff")) else 1
     meta = load_metadata(video_path)
-    meta["frames"] = frames
     meta["video_path"] = video_path
+    meta["n_channels"] = n_ch
+    meta["cy5_frames"] = None
+    meta["dic_channel"] = None
+    meta["fluo_channel"] = None
+    if n_ch > 1 and dic_channel is not None:
+        dic_frames, fluo_frames = load_video_multichannel(
+            video_path, dic_channel=dic_channel,
+            fluo_channel=fluo_channel if fluo_channel is not None else 0,
+            n_channels=n_ch)
+        meta["frames"] = dic_frames
+        meta["cy5_frames"] = (
+            fluo_frames if fluo_channel is not None else None)
+        meta["dic_channel"] = dic_channel
+        meta["fluo_channel"] = fluo_channel
+    else:
+        meta["frames"] = load_video(video_path)
     return meta
 
 

@@ -3,7 +3,7 @@ import numpy as np
 from PyQt5.QtCore import pyqtSignal, Qt
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QSlider, QLabel, QPushButton,
-    QCheckBox,
+    QCheckBox, QRadioButton, QButtonGroup, QFrame,
 )
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
@@ -74,20 +74,41 @@ class FrameNavigatorBar(QWidget):
 
 
 class ImageViewer(QWidget):
-    """Display DIC frames with mask overlay, B/C controls, pan/zoom."""
+    """Display image frames with mask overlay, B/C controls, pan/zoom.
+
+    When a multichannel recording is loaded (DIC + fluorescence such
+    as Cy5/SiR-actin), the viewer stores BOTH stacks and lets the user
+    toggle between them with a small radio control. The active stack
+    is bound to `self.frames` so the rest of the rendering code stays
+    channel-agnostic.
+    """
 
     frame_changed = pyqtSignal(int)
 
     def __init__(self):
         super().__init__()
-        self.frames = None
+        self.frames = None        # active stack (DIC by default)
+        self.dic_frames = None    # DIC channel
+        self.fluo_frames = None   # fluorescence channel (e.g. Cy5)
+        self.active_channel = "dic"   # "dic" | "fluo"
+        # Per-channel brightness/contrast — fluorescence usually needs
+        # different defaults, so we remember separate settings per channel.
+        self._bc_per_channel = {
+            "dic":  {"brightness": 0.0, "contrast": 1.0},
+            "fluo": {"brightness": 0.0, "contrast": 1.0},
+        }
         self.masks = None
+        self.source_stack = None  # (N, H, W) uint8 fusion-source codes
+        self.color_by_source = False
         self.current_frame = 0
         self.brightness = 0.0
         self.contrast = 1.0
         self.mask_opacity = 0.4
         self.show_mask = True
         self.show_contour = True
+        self.show_ids = False
+        self.show_tracks = False
+        self._track_centroids = None  # (n_cells, n_frames, 2) cached
         self._xlim = None
         self._ylim = None
         self._dragging = False
@@ -124,64 +145,135 @@ class ImageViewer(QWidget):
         slider_row.addWidget(self.frame_label)
         layout.addLayout(slider_row)
 
-        ctrl_row = QHBoxLayout()
-        ctrl_row.addWidget(QLabel("Bright:"))
+        # === Row 1: brightness/contrast/opacity + zoom buttons ===
+        bc_row = QHBoxLayout()
+        bc_row.setSpacing(8)
+
+        bc_row.addWidget(QLabel("Bright:"))
         self.bright_slider = QSlider(Qt.Horizontal)
         self.bright_slider.setRange(-100, 100)
         self.bright_slider.setValue(0)
-        self.bright_slider.setMaximumWidth(110)
+        self.bright_slider.setMinimumWidth(150)
         self.bright_slider.valueChanged.connect(self._on_bc_changed)
-        ctrl_row.addWidget(self.bright_slider)
+        bc_row.addWidget(self.bright_slider, stretch=2)
 
-        ctrl_row.addWidget(QLabel("Contrast:"))
+        bc_row.addWidget(QLabel("Contrast:"))
         self.contrast_slider = QSlider(Qt.Horizontal)
         self.contrast_slider.setRange(10, 300)
         self.contrast_slider.setValue(100)
-        self.contrast_slider.setMaximumWidth(110)
+        self.contrast_slider.setMinimumWidth(150)
         self.contrast_slider.valueChanged.connect(self._on_bc_changed)
-        ctrl_row.addWidget(self.contrast_slider)
+        bc_row.addWidget(self.contrast_slider, stretch=2)
 
         btn_auto = QPushButton("Auto B/C")
         btn_auto.setToolTip("Auto brightness/contrast (p1/p99 stretch)")
         btn_auto.clicked.connect(self._auto_bc)
-        ctrl_row.addWidget(btn_auto)
+        bc_row.addWidget(btn_auto)
 
         btn_reset_bc = QPushButton("Reset B/C")
         btn_reset_bc.setToolTip("Reset brightness/contrast to defaults")
         btn_reset_bc.clicked.connect(self._reset_bc)
-        ctrl_row.addWidget(btn_reset_bc)
+        bc_row.addWidget(btn_reset_bc)
 
-        ctrl_row.addWidget(QLabel("Opacity:"))
+        bc_row.addSpacing(12)
+        bc_row.addWidget(QLabel("Opacity:"))
         self.opacity_slider = QSlider(Qt.Horizontal)
         self.opacity_slider.setRange(0, 100)
         self.opacity_slider.setValue(40)
-        self.opacity_slider.setMaximumWidth(80)
+        self.opacity_slider.setMinimumWidth(110)
         self.opacity_slider.valueChanged.connect(self._on_opacity)
-        ctrl_row.addWidget(self.opacity_slider)
+        bc_row.addWidget(self.opacity_slider, stretch=1)
 
-        btn_zm = QPushButton(" - ")
+        bc_row.addSpacing(12)
+        btn_zm = QPushButton(" – ")
         btn_zm.setToolTip("Zoom out")
         btn_zm.clicked.connect(self._zoom_out)
-        ctrl_row.addWidget(btn_zm)
+        bc_row.addWidget(btn_zm)
         btn_zp = QPushButton(" + ")
         btn_zp.setToolTip("Zoom in")
         btn_zp.clicked.connect(self._zoom_in)
-        ctrl_row.addWidget(btn_zp)
+        bc_row.addWidget(btn_zp)
         btn_fit = QPushButton("Fit View")
         btn_fit.setToolTip("Reset zoom and center image")
         btn_fit.clicked.connect(self._zoom_fit)
-        ctrl_row.addWidget(btn_fit)
+        bc_row.addWidget(btn_fit)
+
+        layout.addLayout(bc_row)
+
+        # === Row 2: view toggles ===
+        view_row = QHBoxLayout()
+        view_row.setSpacing(10)
 
         self.chk_mask = QCheckBox("Mask")
         self.chk_mask.setChecked(True)
         self.chk_mask.toggled.connect(self._on_toggle_mask)
-        ctrl_row.addWidget(self.chk_mask)
+        view_row.addWidget(self.chk_mask)
+
         self.chk_contour = QCheckBox("Contour")
         self.chk_contour.setChecked(True)
         self.chk_contour.toggled.connect(self._on_toggle_contour)
-        ctrl_row.addWidget(self.chk_contour)
-        ctrl_row.addStretch()
-        layout.addLayout(ctrl_row)
+        view_row.addWidget(self.chk_contour)
+
+        self.chk_ids = QCheckBox("Cell IDs")
+        self.chk_ids.setChecked(False)
+        self.chk_ids.setToolTip(
+            "Draw the cell / track ID at each cell's centroid.")
+        self.chk_ids.toggled.connect(self._on_toggle_ids)
+        view_row.addWidget(self.chk_ids)
+
+        self.chk_tracks = QCheckBox("Tracks")
+        self.chk_tracks.setChecked(False)
+        self.chk_tracks.setToolTip(
+            "Overlay the trajectory of each cell from frame 0 to the\n"
+            "current frame, coloured by cell ID. Computed from the\n"
+            "label stack on the fly.")
+        self.chk_tracks.toggled.connect(self._on_toggle_tracks)
+        view_row.addWidget(self.chk_tracks)
+
+        self.chk_source = QCheckBox("Source ⓘ")
+        self.chk_source.setToolTip(
+            "Colour cells by which channel detected them:\n"
+            "  red    = DIC-only (cellpose_dic found it, Cy5 didn't)\n"
+            "  green  = both channels (DIC + Cy5 agreed)\n"
+            "  yellow = Cy5-only (cpsam(Cy5) added; DIC missed it)\n\n"
+            "Available after running detection with Cy5 fusion ON.")
+        self.chk_source.setVisible(False)
+        self.chk_source.toggled.connect(self._on_toggle_source)
+        view_row.addWidget(self.chk_source)
+
+        # --- Channel toggle (shown only when fluorescence is loaded) ---
+        self._channel_divider = QFrame()
+        self._channel_divider.setFrameShape(QFrame.VLine)
+        self._channel_divider.setFrameShadow(QFrame.Sunken)
+        self._channel_divider.setVisible(False)
+        view_row.addSpacing(8)
+        view_row.addWidget(self._channel_divider)
+
+        self._channel_label = QLabel("Channel:")
+        self._channel_label.setVisible(False)
+        view_row.addWidget(self._channel_label)
+
+        self.radio_dic = QRadioButton("DIC")
+        self.radio_dic.setChecked(True)
+        self.radio_dic.setVisible(False)
+        self.radio_dic.setToolTip(
+            "Show the DIC (differential interference contrast) channel.")
+        view_row.addWidget(self.radio_dic)
+
+        self.radio_fluo = QRadioButton("Fluo")
+        self.radio_fluo.setVisible(False)
+        self.radio_fluo.setToolTip(
+            "Show the fluorescence channel (e.g. Cy5 / SiR-actin).\n"
+            "Each channel keeps its own brightness/contrast settings.")
+        view_row.addWidget(self.radio_fluo)
+
+        self._channel_group = QButtonGroup(self)
+        self._channel_group.addButton(self.radio_dic)
+        self._channel_group.addButton(self.radio_fluo)
+        self.radio_dic.toggled.connect(self._on_channel_toggle)
+
+        view_row.addStretch()
+        layout.addLayout(view_row)
 
     def _full_extent(self):
         if self.frames is None:
@@ -189,7 +281,27 @@ class ImageViewer(QWidget):
         H, W = self.frames[0].shape[:2]
         return (0, W), (H, 0)
 
-    def set_data(self, frames, masks=None):
+    def set_data(self, frames, masks=None, fluo_frames=None):
+        """Load image data into the viewer.
+
+        Args:
+            frames: (N, H, W) uint8 — the primary DIC channel (always
+                shown by default).
+            masks: optional (N, H, W) bool/int — cell-mask overlay.
+            fluo_frames: optional (N, H, W) uint8 — fluorescence
+                channel (e.g. Cy5 / SiR-actin). When given, the
+                Channel toggle (DIC / Fluo) appears in the control
+                row. When None, the toggle stays hidden.
+        """
+        self.dic_frames = frames
+        self.fluo_frames = fluo_frames
+        # Reset both channels' BC to defaults on new data
+        self._bc_per_channel = {
+            "dic":  {"brightness": 0.0, "contrast": 1.0},
+            "fluo": {"brightness": 0.0, "contrast": 1.0},
+        }
+        # Default channel is DIC
+        self.active_channel = "dic"
         self.frames = frames
         self.masks = masks
         self.current_frame = 0
@@ -199,11 +311,87 @@ class ImageViewer(QWidget):
         self.frame_slider.setRange(0, max(0, n - 1))
         self.frame_slider.setValue(0)
         self.frame_label.setText(f"0 / {max(0, n - 1)}")
+
+        # Show/hide the channel toggle based on whether fluo data is present
+        has_fluo = fluo_frames is not None
+        for w in (self._channel_divider, self._channel_label,
+                  self.radio_dic, self.radio_fluo):
+            w.setVisible(has_fluo)
+        if has_fluo:
+            # Reset to DIC without triggering the toggle handler
+            self.radio_dic.blockSignals(True)
+            self.radio_dic.setChecked(True)
+            self.radio_dic.blockSignals(False)
+
+        # Reset the B/C sliders to neutral (we just reset the stored
+        # values too). Block signals so the redraw doesn't fire twice.
+        for sl, val in [(self.bright_slider, 0), (self.contrast_slider, 100)]:
+            sl.blockSignals(True)
+            sl.setValue(val)
+            sl.blockSignals(False)
+        self.brightness = 0.0
+        self.contrast = 1.0
+
+        self._redraw()
+
+    def _on_channel_toggle(self, dic_checked):
+        """Swap displayed channel. dic_checked is True when DIC is
+        selected; False when Fluo is selected (mutually exclusive)."""
+        if self.dic_frames is None or self.fluo_frames is None:
+            return
+        # Remember the current channel's B/C before swapping
+        self._bc_per_channel[self.active_channel] = {
+            "brightness": self.brightness,
+            "contrast": self.contrast,
+        }
+        # Swap
+        self.active_channel = "dic" if dic_checked else "fluo"
+        self.frames = (self.dic_frames if dic_checked
+                       else self.fluo_frames)
+        # Restore the new channel's B/C
+        bc = self._bc_per_channel[self.active_channel]
+        self.brightness = bc["brightness"]
+        self.contrast = bc["contrast"]
+        # Update sliders silently
+        self.bright_slider.blockSignals(True)
+        self.contrast_slider.blockSignals(True)
+        self.bright_slider.setValue(int(self.brightness))
+        self.contrast_slider.setValue(int(self.contrast * 100))
+        self.bright_slider.blockSignals(False)
+        self.contrast_slider.blockSignals(False)
         self._redraw()
 
     def update_masks(self, masks):
         self.masks = masks
+        # Track centroids depend on the labels stack — invalidate so
+        # the toggle recomputes them on next use.
+        self._track_centroids = None
         self._redraw()
+
+    def _compute_track_centroids(self):
+        """Build (n_cells, n_frames, 2) array of (y, x) centroids from
+        the labels stack. NaN where the cell is absent in that frame.
+        Used by the Tracks overlay."""
+        if (self.masks is None or self.masks.dtype == bool
+                or self.masks.max() == 0):
+            self._track_centroids = None
+            return
+        n_frames = len(self.masks)
+        n_cells = int(self.masks.max())
+        centroids = np.full((n_cells, n_frames, 2), np.nan,
+                            dtype=np.float32)
+        for fi in range(n_frames):
+            lab_frame = self.masks[fi]
+            if lab_frame.max() == 0:
+                continue
+            for lab in range(1, n_cells + 1):
+                m = lab_frame == lab
+                if not m.any():
+                    continue
+                ys, xs = np.where(m)
+                centroids[lab - 1, fi] = (float(ys.mean()),
+                                          float(xs.mean()))
+        self._track_centroids = centroids
 
     def _apply_bc(self, frame):
         f = frame.astype(np.float32)
@@ -220,6 +408,11 @@ class ImageViewer(QWidget):
         is_multi = self.masks.dtype != bool and self.masks[idx].max() > 1
         rgb = np.stack([img, img, img], axis=-1).astype(np.float32)
 
+        # If source colouring is on AND a source stack is loaded, use
+        # red/yellow/green per-cell instead of the cell-ID palette.
+        use_source = (self.color_by_source
+                      and self.source_stack is not None)
+
         if self.show_mask:
             if is_multi:
                 from gui.mask_editor_multicell import cell_color
@@ -227,7 +420,13 @@ class ImageViewer(QWidget):
                     m = self.masks[idx] == lab
                     if not m.any():
                         continue
-                    c = np.array(cell_color(lab), dtype=np.float32)
+                    if use_source:
+                        # cv2 BGR → matplotlib RGB swap for the fill
+                        bgr = self._cell_source_color(lab, idx)
+                        c = np.array([bgr[2], bgr[1], bgr[0]],
+                                     dtype=np.float32)
+                    else:
+                        c = np.array(cell_color(lab), dtype=np.float32)
                     alpha = self.mask_opacity
                     rgb[m] = rgb[m] * (1 - alpha) + c * alpha
             else:
@@ -247,8 +446,11 @@ class ImageViewer(QWidget):
                     contours, _ = cv2.findContours(
                         m.astype(np.uint8), cv2.RETR_EXTERNAL,
                         cv2.CHAIN_APPROX_NONE)
-                    cv2.drawContours(rgb, contours, -1,
-                                    cell_color(lab), 1)
+                    if use_source:
+                        color = self._cell_source_color(lab, idx)
+                    else:
+                        color = cell_color(lab)
+                    cv2.drawContours(rgb, contours, -1, color, 1)
             else:
                 m = (self.masks[idx] > 0).astype(np.uint8)
                 contours, _ = cv2.findContours(
@@ -269,12 +471,64 @@ class ImageViewer(QWidget):
         else:
             img = self._apply_bc(self.frames[idx])
             self.ax.imshow(img, cmap="gray", vmin=0, vmax=255)
+        # Track trajectories — drawn before IDs so labels stay on top
+        if (self.show_tracks and self._track_centroids is not None):
+            self._draw_track_trails(idx)
+        # Cell ID labels overlaid on matplotlib axes (after imshow)
+        if (self.show_ids and self.masks is not None
+                and self.masks.dtype != bool
+                and self.masks[idx].max() > 0):
+            self._draw_cell_ids(idx)
         if self._xlim and self._ylim:
             self.ax.set_xlim(self._xlim)
             self.ax.set_ylim(self._ylim)
         if self._roi_selector is not None:
             self._roi_selector.draw_on_axes(self.ax)
         self.canvas.draw_idle()
+
+    def _draw_track_trails(self, current_idx):
+        """Plot each cell's centroid trajectory from frame 0 up to
+        the current frame, coloured by cell ID and using the same
+        palette as the cell masks. A small filled circle marks the
+        cell's current position."""
+        if self._track_centroids is None:
+            return
+        from gui.mask_editor_multicell import cell_color
+        n_cells = self._track_centroids.shape[0]
+        for cell_idx in range(n_cells):
+            lab = cell_idx + 1
+            trail = self._track_centroids[cell_idx, :current_idx + 1]
+            valid = ~np.isnan(trail[:, 0])
+            if valid.sum() < 1:
+                continue
+            ys = trail[valid, 0]
+            xs = trail[valid, 1]
+            # Convert cv2 BGR colour palette to matplotlib RGB
+            bgr = cell_color(lab)
+            rgb_color = (bgr[2] / 255, bgr[1] / 255, bgr[0] / 255)
+            if valid.sum() >= 2:
+                self.ax.plot(xs, ys, "-", color=rgb_color, lw=1.8,
+                             alpha=0.9, solid_capstyle="round")
+            # Mark current position
+            self.ax.plot(xs[-1], ys[-1], "o", color=rgb_color,
+                         markersize=4, markeredgecolor="white",
+                         markeredgewidth=0.5)
+
+    def _draw_cell_ids(self, idx):
+        """Annotate each cell with its label ID at the mask centroid."""
+        lab_frame = self.masks[idx]
+        for lab in range(1, int(lab_frame.max()) + 1):
+            m = lab_frame == lab
+            if not m.any():
+                continue
+            ys, xs = np.where(m)
+            cy, cx = float(ys.mean()), float(xs.mean())
+            self.ax.text(
+                cx, cy, str(int(lab)),
+                color="white", fontsize=9, fontweight="bold",
+                ha="center", va="center",
+                bbox=dict(facecolor="black", alpha=0.55,
+                          edgecolor="none", pad=1.5))
 
     # --- Frame navigation ---
     def _on_frame(self, idx):
@@ -318,6 +572,61 @@ class ImageViewer(QWidget):
     def _on_toggle_contour(self, checked):
         self.show_contour = checked
         self._redraw()
+
+    def _on_toggle_ids(self, checked):
+        self.show_ids = checked
+        self._redraw()
+
+    def _on_toggle_tracks(self, checked):
+        self.show_tracks = checked
+        # Compute centroids on first use; cached until masks change.
+        if checked and self._track_centroids is None:
+            self._compute_track_centroids()
+        self._redraw()
+
+    def _on_toggle_source(self, checked):
+        self.color_by_source = checked
+        self._redraw()
+
+    def set_source_stack(self, source_stack):
+        """Attach the per-pixel fusion source map (N, H, W) uint8.
+
+        Codes: 0=bg, 1=dic_only, 2=cy5_only, 3=both. Enables the
+        "Source" checkbox in the viewer control row. Pass None to
+        clear (hides the checkbox)."""
+        self.source_stack = source_stack
+        has_src = source_stack is not None
+        self.chk_source.setVisible(has_src)
+        if not has_src and self.color_by_source:
+            self.color_by_source = False
+            self.chk_source.setChecked(False)
+        self._redraw()
+
+    def _cell_source_color(self, lab, frame_idx):
+        """Return (B, G, R) cv2 colour for the cell `lab` in frame
+        `frame_idx`, based on its dominant pixel source. Returns the
+        regular per-cell palette colour if no source map is loaded."""
+        if (self.source_stack is None
+                or frame_idx >= len(self.source_stack)):
+            from gui.mask_editor_multicell import cell_color
+            return cell_color(lab)
+        mask = self.masks[frame_idx] == lab
+        if not mask.any():
+            from gui.mask_editor_multicell import cell_color
+            return cell_color(lab)
+        src_under = self.source_stack[frame_idx][mask]
+        n_dic = int((src_under == 1).sum())
+        n_cy5 = int((src_under == 2).sum())
+        n_both = int((src_under == 3).sum())
+        # OpenCV uses BGR, matplotlib RGB — keep this in BGR:
+        # red:    (0, 0, 255)
+        # yellow: (0, 255, 255)
+        # lime:   (0, 255, 0)
+        if n_both >= max(n_dic, n_cy5):
+            return (0, 255, 0)        # lime / both
+        if n_cy5 > n_dic:
+            return (0, 255, 255)      # yellow / cy5-only
+        return (0, 0, 255)            # red / dic-only
 
     # --- Zoom ---
     def _zoom_at(self, factor, cx=None, cy=None):

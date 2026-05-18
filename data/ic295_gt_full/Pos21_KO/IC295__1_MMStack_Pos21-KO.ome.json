@@ -1,0 +1,13 @@
+{
+  "name": "Pos21_KO",
+  "um_per_px": 0.6523,
+  "time_interval_min": 10.0,
+  "condition": "KO",
+  "cell_type": "keratinocyte (SiR-actin labelled)",
+  "n_channels": 2,
+  "channels": {
+    "0": "Cy5 (F-actin)",
+    "1": "DIC"
+  },
+  "source": "/Volumes/GeorgeDrive/ignasi/IC295_batch2/IC295__1_MMStack_Pos21-KO.ome.tif"
+}

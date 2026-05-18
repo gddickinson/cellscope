@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "recording": {
+    "video_path": "data/ic295_gt_full/Pos20_KO/IC295__1_MMStack_Pos20-KO.ome.tif",
+    "name": "Pos20_KO",
+    "um_per_px": 0.6523,
+    "time_interval_min": 10.0,
+    "n_frames": 97
+  },
+  "mode": "multi",
+  "params": {
+    "mode": "multi"
+  },
+  "masks_file": "Pos20_KO_masks.npz"
+}

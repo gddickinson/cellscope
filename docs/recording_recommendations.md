@@ -51,6 +51,23 @@ Benchmarks for cpsam_dic (vs older cellpose_dic_v3):
 | Out-of-domain DIC crops | 0.279 | **0.697** |
 | Detection rate (in-domain) | 95% | **100%** |
 
+### TTA on cpsam_dic — not worth it
+
+We benchmarked `augment=True` (test-time augmentation: 4 rotations
+averaged) on cpsam_dic v2 against the held-out OOD set:
+
+| Test | No TTA | +TTA | Δ | Cost |
+|---|---:|---:|---:|---:|
+| Mean IoU | 0.732 | 0.732 | 0.000 | 2.5× slower |
+| Detection rate | 98% | 98% | 0% | |
+| Per-genotype | balanced | minor wins/losses cancel | | |
+
+cpsam_dic is already strong enough that TTA's averaging doesn't help.
+Leave the **TTA (augment)** checkbox off by default for DIC. It can
+still help on default cpsam (phase-contrast), where some recordings
+gain ~3 frames per recording — turn it on case-by-case when you see
+missed cells.
+
 ### When to use the older CP3 fine-tunes
 
 - **cellpose_combined_robust** (CP3) — trained with heavy noise and

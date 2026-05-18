@@ -1,22 +1,236 @@
-# Claude collaboration notes for `cellscope`
+# CellScope — agent notes
 
-This project was built with substantial assistance from **Claude (Anthropic)**, primarily via **Claude Code**.
+## Ground-truth data — DO NOT DELETE
 
-## Global preferences
+All hand-labelled GT lives under `data/ic295_gt_full/` and
+`data/legacy_gt/`. **`data/GT_INDEX.md` is the canonical registry** —
+re-generate it any time you add/remove a GT folder by running
+`python scripts/audit_gt.py`. The audit script also writes a
+machine-readable `data/gt_index.json`.
 
-George's global Claude preferences live in `~/.claude/CLAUDE.md` and apply to every project. Highlights:
+**Periodic backup**: `python scripts/backup_gt.py` writes a tarball
+to `data/gt_backups/gt_<YYYY-MM-DD>_<HHMMSS>.tar.gz` containing
+every mask PNG + the index. Run this whenever new GT lands.
 
-- Keep all source files under 500 lines; split into focused modules if approaching that limit.
-- For Python projects, maintain an `INTERFACE.md` at the project root as a navigation map of modules, classes, and key functions.
-- Prefer many small, focused files over fewer large ones.
-- Group related functionality; extract reusable logic into utility modules.
+**Do not delete** any folder containing `gt_masks/*.png` without
+explicit user confirmation. The PNGs are real files (not symlinks)
+and easily worth several days of manual labelling work each.
 
-## Project navigation
+## Two rules you MUST follow
 
-See [`INTERFACE.md`](./INTERFACE.md) for a navigation map of this repository's modules and how they connect. Read `INTERFACE.md` before opening individual source files.
+### 1. Pipeline defaults live in ONE place
 
-## Working with Claude on this repo
+All defaults for **every CellScope GUI** (`gui_focused/`, `gui_batch/`,
+`gui_tracking/`) and the multichannel pipeline (`hybrid_dic.py`,
+`hybrid_cpsam_multi.py`, `dic_cy5_fusion.py`) come from
+**`core/pipeline_defaults.py::DEFAULTS`**. State-classification
+thresholds come from **`core/cell_state.py::DEFAULT_THRESHOLDS`** —
+both GUIs that expose them (`gui_focused/params_panel.py`,
+`gui_batch/batch_window.py`) read from there.
 
-When directing Claude Code on this codebase, follow the global rules above, prefer making targeted edits via the `Edit` tool over rewriting whole files, and update `INTERFACE.md` whenever the project structure changes.
+- `core/pipeline_defaults.py::DEFAULTS` is the canonical source for
+  detection / tracking / refinement / Cy5 / VAMPIRE defaults.
+- All widget initial values (every `setValue` / `setChecked` on a
+  param widget) MUST come from `DEFAULTS.<field>`. **Do not hardcode
+  values** — change `DEFAULTS` and the widgets track it.
+- All `params.get("key", FALLBACK)` calls in workers MUST use
+  `DEFAULTS.<field>` as the fallback (not bare literals). This
+  prevents drift between the panel's initial value and the worker's
+  behaviour when a key is missing from the params dict (e.g. when an
+  older saved project is loaded or a script forgets to pass a key).
+- Pipeline functions accept overrides but default to `None` and fall
+  back to `DEFAULTS` internally. **Do not pass parameter overrides in
+  scripts unless you have a documented reason** — that's how the
+  May-2026 GUI-vs-script mismatch happened (`min_area_px=200` vs GUI
+  `=500`, hardcoded `cellpose_dic` vs GUI `cpsam_dic`).
+- For recording-aware physical-unit thresholds, call
+  `DEFAULTS.pixel_thresholds(um_per_px, time_interval_min)` — the
+  tracking GUI's `_on_track` uses this so tracking parameters auto-
+  scale with the recording's pixel size.
+- The legacy `config.py` at the project root still serves the older
+  pipeline (`core/auto_params.py`, `core/refinement.py`, etc.). Leave
+  it alone unless you're editing legacy refinement.
 
-Project-specific conventions, build instructions, and lab-specific notes should be added below as the project evolves.
+When proposing a default change:
+- Edit only `core/pipeline_defaults.py`.
+- Smoke-test the GUI (`scripts/test_focused_gui.py`) before claiming
+  the change works.
+- Note the change in `SESSION_LOG.md`.
+
+### 2. Every analysis run MUST write RUN_METADATA.{md,json}
+
+`core/run_metadata.py::write_run_metadata(out_dir, ...)` writes both
+a human-readable `RUN_METADATA.md` and a machine-readable
+`RUN_METADATA.json` containing:
+
+- source recording path + checksum + n_frames + um_per_px
+- pipeline function name + mode
+- **all** params used + a diff against `DEFAULTS` (only the keys that
+  deviated from defaults)
+- env info: conda env, python, cellpose, numpy, scipy, skimage,
+  tifffile, torch versions
+- git commit hash if the cellscope repo is git-tracked
+- timestamp_started / timestamp_finished / runtime_seconds
+- exact shell command to reproduce the run
+
+**Required at every analysis entry point**:
+- `gui_focused/export_dialog.py::_on_export` — always writes, even
+  if no other checkboxes are ticked
+- `gui_batch/batch_worker.py` — should write one per recording in
+  the batch loop
+- Any new `scripts/*.py` that runs detection or analysis — must call
+  `write_run_metadata` before exiting
+
+When you add a new analysis script: add the call. Don't ship without
+it. Reviewers should reject PRs that produce results without metadata.
+
+If you find existing results directories without `RUN_METADATA.md`,
+they were produced before this requirement landed (May 2026) or by a
+broken path — flag them and treat the params as unknown.
+
+---
+
+## File-size policy
+Keep every Python file under 500 lines (project-wide rule from
+`/Users/george/.claude/CLAUDE.md`). If a refactor would push a file
+past 500, split first.
+
+## INTERFACE.md
+`@INTERFACE.md` is the navigation map. Read it before opening source
+files. Update it when you add or rename modules.
+
+## SESSION_LOG.md
+Append a short entry whenever you make a non-trivial change. Source
+of project memory; treated as authoritative for "why does X work
+this way?".
+
+## Environments
+- `cellpose` — torch 2.7, cellpose 3.1.1.1, vampire-analysis 0.0.1,
+  sam2 (any version), hosts CP3 models.
+- `cellpose4` — clone of `cellpose` with cellpose 4.1.1, hosts cpsam
+  + cpsam_dic (CP4 ViT). Default env for evaluation runs because the
+  auto-selector may pick either backbone.
+
+**Run pipeline scripts from `cellpose4`** by default. Both
+`hybrid_dic_multi` (cpsam_dic) and `hybrid_cpsam_multi` (raw cpsam)
+load CP4 ViT models natively there. CP3 fallback steps subprocess
+out to the `cellpose` env automatically.
+
+## Detection backbone — auto-selected per recording
+
+For multi-cell scenes, **`cpsam_dic` (the DIC fine-tune) merges
+touching cells**. Diagnosed on IC293 Pos3 (3 cells/frame): cpsam_dic
+F1 0.65, raw cpsam F1 0.90 — same recording, same defaults, only the
+backbone differs.
+
+`core/pipeline_defaults.py::select_pipeline_for_recording(frames)`
+samples 5 evenly-spaced frames, runs cpsam_dic to count cells, and
+returns:
+
+- `('cpsam_dic', model_path, info)` when median cell count < 1.5 →
+  cleaner boundaries on isolated cells
+- `('cpsam', None, info)` when median ≥ 1.5 → handles touching cells
+
+`scripts/run_pipeline_on_gt_recording.py` calls this automatically.
+The choice + sample counts are recorded in `RUN_METADATA.json` under
+`extra.auto_select` so any evaluation can be reproduced exactly.
+
+## Unified detection path (GUI ↔ script)
+
+`core/unified_detection.detect_recording(...)` is the **single
+canonical detection function** used by:
+
+- `gui_focused/workers.py::FocusedDetectWorker` when `mode == "auto"`
+  (the default the main_window picks for any DIC multi-cell recording)
+- `scripts/run_pipeline_on_gt_recording.py` for batch / evaluation
+  runs
+
+It performs the full chain in fixed order:
+
+1. measure + apply DIC↔Cy5 alignment (when multichannel)
+2. resolve downsample factor + downsample stacks
+3. convert physical-unit thresholds to per-recording px
+4. auto-select cpsam_dic vs raw cpsam by sampled cell density
+5. run the chosen detection pipeline
+6. annotate Cy5 metrics + apply multi-metric filter (multichannel)
+7. upscale labels back to original resolution
+
+**Any change to detection defaults belongs in `detect_recording` or
+its dependencies (`pipeline_defaults`, `channel_alignment`,
+`hybrid_dic`, `hybrid_cpsam_multi`).** Don't fork the logic into
+script-only or GUI-only paths.
+
+Launch the GUI from the **`cellpose4`** env — both `cpsam_dic`
+(CP4 ViT fine-tune) and raw cpsam need cellpose 4.x. The runner
+script needs cellpose4 for the same reason.
+
+```bash
+conda run -n cellpose4 python main_focused.py
+```
+
+## Auto-downsample
+
+`run_pipeline_on_gt_recording.py` takes `--downsample auto` (default),
+`--downsample N` (integer ≥ 1), or `--downsample off`.
+
+`core/pipeline_defaults.resolve_downsample(spec, frame_shape)` is the
+single decision point. Auto mode uses `max(H, W)` of the recording:
+
+| max(H, W) | Factor | Rationale |
+|---|:---:|---|
+| < 900 | 1 (no change) | cells get too small for cpsam at ds≥2 (Pos0 F1 0.92 → 0.82 was the lesson) |
+| 900–1500 | 2 | medium recordings get ~3× speedup, ~3% IoU cost (Pos3) |
+| ≥ 1500 | 2 | large recordings get ~5× speedup with NO IoU cost (Pos7_WT actually IMPROVED with ds=2) |
+
+Tunable per-run via `--downsample-small-px` / `--downsample-large-px`.
+
+## Physical-unit thresholds
+
+`PipelineDefaults` exposes both pixel (`min_area_px=200`) and
+physical-unit (`min_area_um2=85.0`) defaults. Call
+`DEFAULTS.pixel_thresholds(um_per_px=..., time_interval_min=...)` to
+get the per-recording px values; falls back to raw px defaults when
+scale is unknown. The runner does this conversion automatically using
+the recording's `.ome.json` sidecar metadata.
+
+Important physical defaults:
+
+| Default | Value | Why |
+|---|---|---|
+| `min_area_um2` | 85 µm² | catches balled keratinocytes (~80-150 µm²) |
+| `expected_cell_diameter_um` | 30 µm | typical spread keratinocyte; passed to cellpose for cross-scope robustness |
+| `max_hop_um_per_min` | 15 µm/min | upper bound on keratinocyte motion |
+| `search_radius_um` | 100 µm | tracker gap-fill window |
+
+For a hypothetical 0.4 µm/px microscope, the converter gives
+`min_area_px=531, cell_diameter_px=75` — automatically scaled.
+
+## Track gap-fill cascade
+
+When the Hungarian tracker assigns identity, a track may have internal
+gaps (frames where detection failed). `core/track_gap_fill.fill_track_gaps`
+runs a four-phase cascade to recover the cell:
+
+1. **Phase 1 — cpsam(augment=True)**: re-run cpsam at the gap frame
+   with 4-rotation TTA. Catches detections cpsam missed at the
+   default orientation.
+2. **Phase 2 — CP3 fallback**: cellpose+MedSAM+DeepSea via subprocess
+   in the `cellpose4` env. Different model family; catches different
+   failures.
+3. **Phase 3 — SAM2 video propagation**: use `core/sam2_video.py` to
+   propagate the most recent flanking mask through the gap using
+   SAM2's memory attention. **This is the key win for cells that
+   biologically retract / dim too much for any single-frame
+   detector.** Tagged in `track["sam2_propagated_frames"]`.
+4. **Phase 4 — simple mask translation**: carry the last-known mask
+   forward, translated to the interpolated centroid. Last resort.
+   Tagged in `track["propagated_frames"]`.
+
+Each phase only operates on gaps the previous phase left unfilled.
+Tags let downstream analytics distinguish "real" detections from
+propagated estimates if needed.
+
+Defaults are configurable via `core/pipeline_defaults.py`:
+- `max_gap_frames` (15) — how long the tracker keeps a track alive
+  through a gap before declaring it dead.
+- `use_sam2_video_gap_fill` (True) — enable Phase 3.

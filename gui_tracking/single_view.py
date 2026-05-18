@@ -2,6 +2,7 @@
 import os
 import numpy as np
 from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QColor
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QSplitter, QPushButton,
     QLabel, QComboBox, QTableWidget, QTableWidgetItem, QFileDialog,
@@ -9,6 +10,8 @@ from PyQt5.QtWidgets import (
 )
 from gui_focused.image_viewer import ImageViewer
 from gui_focused.analysis_plots import GRAPH_REGISTRY
+from core.track_quality import compute_track_quality, quality_color
+from core.pipeline_defaults import DEFAULTS as _PD
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 
@@ -57,11 +60,15 @@ class SingleTrackingView(QWidget):
         right = QWidget()
         rl = QVBoxLayout(right)
         rl.addWidget(QLabel("<b>Tracks</b>"))
-        self.track_table = QTableWidget(0, 5)
+        self.track_table = QTableWidget(0, 6)
         self.track_table.setHorizontalHeaderLabels(
-            ["Track", "Frames", "Area", "Speed", "Parent"])
+            ["Track", "Quality", "Frames", "Area", "Speed", "Parent"])
         self.track_table.horizontalHeader().setStretchLastSection(True)
         self.track_table.setMaximumHeight(200)
+        self.track_table.setToolTip(
+            "Quality combines frames-present, area stability, and "
+            "total path. Green = good (≥0.7), amber = ok (≥0.4), "
+            "red = poor (<0.4). Click a row to highlight that cell.")
         self.track_table.currentCellChanged.connect(
             lambda row, *_: self._on_track_selected(row))
         rl.addWidget(self.track_table)
@@ -76,6 +83,18 @@ class SingleTrackingView(QWidget):
         self.cell_combo.currentIndexChanged.connect(
             lambda _: self._on_graph(self.graph_combo.currentText()))
         plot_row.addWidget(self.cell_combo)
+        plot_row.addWidget(QLabel("Gap fill:"))
+        self.gap_combo = QComboBox()
+        self.gap_combo.setToolTip(
+            "Linearly interpolate short NaN gaps in timeseries plots.\n"
+            "Filled samples are drawn dotted so they're never confused\n"
+            "with measured points. Off by default.")
+        for label, val in [("off", 0), ("≤1", 1), ("≤2", 2),
+                           ("≤3", 3), ("≤5", 5)]:
+            self.gap_combo.addItem(label, val)
+        self.gap_combo.currentIndexChanged.connect(
+            lambda _: self._on_graph(self.graph_combo.currentText()))
+        plot_row.addWidget(self.gap_combo)
         rl.addLayout(plot_row)
 
         self.plot_fig = Figure(figsize=(5, 4), dpi=100)
@@ -147,9 +166,18 @@ class SingleTrackingView(QWidget):
         if self.masks is None:
             return
         from core.multi_cell import track_all_cells
+        # Use per-recording physical-unit thresholds when the recording's
+        # scale is known; otherwise fall back to the px-space DEFAULTS.
+        um_per_px = (self.recording or {}).get("um_per_px")
+        t_min = (self.recording or {}).get("time_interval_min")
+        px = _PD.pixel_thresholds(um_per_px=um_per_px,
+                                   time_interval_min=t_min)
         self.tracks = track_all_cells(
-            self.masks, min_area_px=200, max_hop_px=150,
-            spawn_new_tracks=True, min_track_length=3)
+            self.masks,
+            min_area_px=px["min_area_px"],
+            max_hop_px=px["max_hop_px"],
+            spawn_new_tracks=True,
+            min_track_length=_PD.min_track_length)
         self._populate_track_table()
         self.btn_analyze.setEnabled(True)
         self.status_label.setText(f"Found {len(self.tracks)} tracks")
@@ -176,22 +204,46 @@ class SingleTrackingView(QWidget):
 
     def _populate_track_table(self):
         self.track_table.setRowCount(len(self.tracks))
+        n_total = (self.masks.shape[0] if self.masks is not None
+                   else max((int(t["stack"].shape[0])
+                             for t in self.tracks), default=1))
         for i, t in enumerate(self.tracks):
             active = int(t["stack"].any(axis=(1, 2)).sum())
+            ar = (self.per_cell_results[i]
+                  if self.per_cell_results
+                  and i < len(self.per_cell_results) else None)
+            q = compute_track_quality(t, n_total, analysis_result=ar)
             self.track_table.setItem(i, 0, QTableWidgetItem(str(i + 1)))
-            self.track_table.setItem(i, 1, QTableWidgetItem(str(active)))
-            if self.per_cell_results and i < len(self.per_cell_results):
-                r = self.per_cell_results[i]
-                ss = r.get("shape_summary", {}).get("area_um2", {})
-                self.track_table.setItem(
-                    i, 2, QTableWidgetItem(
-                        f"{ss.get('mean', 0):.0f}"))
+            qitem = QTableWidgetItem(
+                f"{q['composite']:.2f}  ({q['label']})")
+            tip = (f"Composite {q['composite']:.2f} ({q['label']})\n"
+                   f"  frames present: {q['frames_active']}/"
+                   f"{q['frames_total']} → {q['frames_score']:.2f}\n"
+                   f"  area stability: "
+                   + (f"{q['area_score']:.2f}" if q['area_score'] is not None
+                      else "n/a") + "\n"
+                   f"  path: "
+                   + (f"{q['path_score']:.2f}" if q['path_score'] is not None
+                      else "n/a (analyse to compute)"))
+            qitem.setToolTip(tip)
+            self.track_table.setItem(i, 1, qitem)
+            self.track_table.setItem(i, 2, QTableWidgetItem(str(active)))
+            if ar is not None:
+                ss = ar.get("shape_summary", {}).get("area_um2", {})
                 self.track_table.setItem(
                     i, 3, QTableWidgetItem(
-                        f"{r.get('mean_speed', 0):.3f}"))
+                        f"{ss.get('mean', 0):.0f}"))
+                self.track_table.setItem(
+                    i, 4, QTableWidgetItem(
+                        f"{ar.get('mean_speed', 0):.3f}"))
             parent = t.get("parent_id")
             self.track_table.setItem(
-                i, 4, QTableWidgetItem(str(parent) if parent else "-"))
+                i, 5, QTableWidgetItem(str(parent) if parent else "-"))
+            color = QColor(*quality_color(q["label"]))
+            for c in range(self.track_table.columnCount()):
+                cell = self.track_table.item(i, c)
+                if cell is not None:
+                    cell.setBackground(color)
 
     def _on_track_selected(self, row):
         if row < 0 or not self.tracks:
@@ -217,13 +269,16 @@ class SingleTrackingView(QWidget):
             return
         fn, requires_multi = GRAPH_REGISTRY[name]
         cell_id = self.cell_combo.currentData()
+        gap_max = self.gap_combo.currentData() or 0
         if requires_multi:
-            fn(self.plot_fig, self.per_cell_results)
+            fn(self.plot_fig, self.per_cell_results,
+               gap_interp_max=gap_max)
         elif cell_id is None:
-            fn(self.plot_fig, self.per_cell_results[0])
+            fn(self.plot_fig, self.per_cell_results[0],
+               gap_interp_max=gap_max)
         else:
             r = next((r for r in self.per_cell_results
                        if r["cell_id"] == cell_id),
                       self.per_cell_results[0])
-            fn(self.plot_fig, r)
+            fn(self.plot_fig, r, gap_interp_max=gap_max)
         self.plot_canvas.draw_idle()

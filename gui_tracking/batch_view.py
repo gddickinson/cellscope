@@ -12,6 +12,7 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 
 from gui_tracking.stats_plots import plot_group_boxplot, plot_group_violin
+from core.pipeline_defaults import DEFAULTS as _PD
 
 
 COMPARISON_METRICS = [
@@ -155,7 +156,7 @@ class BatchTrackingView(QWidget):
         recs = [(g, p) for g, p, _ in self._recordings]
         params = {
             "mode": self.mode_combo.currentData(),
-            "min_area_px": 500,
+            "min_area_px": _PD.min_area_px,
         }
         self._worker = TrackingBatchWorker(
             recs, params, "results/tracking_batch")

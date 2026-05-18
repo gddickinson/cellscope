@@ -1,7 +1,63 @@
 """Helper dialogs for the focused GUI (system info, shortcuts, about)."""
 import os
 import subprocess
-from PyQt5.QtWidgets import QMessageBox
+from PyQt5.QtWidgets import (
+    QMessageBox, QDialog, QVBoxLayout, QHBoxLayout, QLabel,
+    QSpinBox, QCheckBox, QPushButton, QFormLayout,
+)
+
+
+def channel_chooser(parent, n_channels, default_dic=1, default_fluo=0):
+    """Modal dialog asking user to map DIC + fluorescence channels.
+
+    Used after loading a multichannel TIFF (n_channels > 1).
+    Returns (dic_idx, fluo_idx) or (None, None) if user picks
+    "single-channel mode" (collapse channels).
+    """
+    dlg = QDialog(parent)
+    dlg.setWindowTitle("Multichannel recording detected")
+    layout = QVBoxLayout(dlg)
+    layout.addWidget(QLabel(
+        f"This file has {n_channels} channels. Select which channel\n"
+        f"is DIC (for detection) and which is the fluorescence label\n"
+        f"(SiR-actin Cy5 or similar — used for false-positive filtering\n"
+        f"and Cy5 recovery). Channels are 0-indexed."))
+    form = QFormLayout()
+    dic_sp = QSpinBox(); dic_sp.setRange(0, n_channels - 1)
+    dic_sp.setValue(min(default_dic, n_channels - 1))
+    form.addRow("DIC channel:", dic_sp)
+    fluo_sp = QSpinBox(); fluo_sp.setRange(0, n_channels - 1)
+    fluo_sp.setValue(min(default_fluo, n_channels - 1))
+    form.addRow("Fluorescence channel:", fluo_sp)
+    use_fluo = QCheckBox("Use fluorescence channel for Cy5 recovery + scoring")
+    use_fluo.setChecked(True)
+    form.addRow(use_fluo)
+    layout.addLayout(form)
+    btn_row = QHBoxLayout()
+    btn_single = QPushButton("Single-channel only")
+    btn_ok = QPushButton("OK")
+    btn_ok.setDefault(True)
+    btn_row.addWidget(btn_single)
+    btn_row.addStretch()
+    btn_row.addWidget(btn_ok)
+    layout.addLayout(btn_row)
+
+    result = {"dic": None, "fluo": None}
+
+    def _ok():
+        result["dic"] = dic_sp.value()
+        result["fluo"] = fluo_sp.value() if use_fluo.isChecked() else None
+        dlg.accept()
+
+    def _single():
+        result["dic"] = None
+        result["fluo"] = None
+        dlg.accept()
+
+    btn_ok.clicked.connect(_ok)
+    btn_single.clicked.connect(_single)
+    dlg.exec_()
+    return result["dic"], result["fluo"]
 
 
 def detect_gpu():

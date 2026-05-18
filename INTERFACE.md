@@ -21,6 +21,8 @@
 
 - **io.py** — `load_video`, `load_recording`, `find_recordings`
 - **pipeline.py** — `detect()`, `refine()`, `analyze_recording()`
+- **unified_detection.py** — `detect_recording()` — **single canonical detection entry point.** Performs alignment → downsample → threshold conversion → auto-pipeline-select → detect → Cy5 multi-metric filter → upscale labels back. Called from both `gui_focused/workers.py` (mode="auto") and `scripts/run_pipeline_on_gt_recording.py`, guaranteeing the GUI and runner produce identical output.
+- **channel_alignment.py** — `align_cy5_to_dic()` measures DIC↔Cy5 offset via cellpose centroid matching (in `cellpose4` subprocess), `apply_offset_to_stack()` shifts via scipy.ndimage. Skips when |offset| < 1px.
 - **detection.py** — `detect_cellpose`, `detect_cellpose_labels`, `detect_cellpose_tiled`
 - **hybrid_cpsam.py** — `detect_hybrid_cpsam()` — single-cell cpsam + DeepSea + fallback
 - **hybrid_cpsam_multi.py** — `detect_hybrid_cpsam_multi()` — multi-cell with tracking
@@ -51,6 +53,8 @@
 - **flow_quality.py** — Optical flow quality
 - **membrane_quality.py** — Membrane texture metrics
 - **vampire_analysis.py** — VAMPIRE shape mode analysis: contour extraction, PCA eigenshapes, K-means clustering, Shannon entropy heterogeneity (wraps vampire-analysis package)
+- **gap_interp.py** — `interpolate_short_gaps()` + `plot_with_gaps()` — linearly fills NaN runs ≤ N frames in analysis timeseries (speed/area/etc.), draws filled samples dotted so they're never confused with measured points. Surfaced in the focused + tracking GUIs as a "Gap fill" combo (off / ≤1 / ≤2 / ≤3 / ≤5).
+- **track_quality.py** — `compute_track_quality(track, n_total_frames, analysis_result)` returns a 0-1 composite quality score from frames-present + area stability + total path length. `quality_color(label)` maps "good"/"ok"/"poor" to pale-green/amber/red RGBA. Used by the Tracking GUI to color the track table.
 
 ## `gui/` — Shared Components
 - **mask_editor.py** — Interactive mask editor (brush/eraser/polygon/fill, multi-cell labels)
@@ -65,7 +69,8 @@
 - **pipeline_panel.py** — 5 stage buttons + mode selector
 - **params_panel.py** — Context-sensitive parameters (modality selector: Auto/DIC/Phase-contrast)
 - **analysis_view.py** — Summary/Graphs/Log tabs
-- **analysis_plots.py** — 20 plot functions + GRAPH_REGISTRY (includes 4 VAMPIRE plots: Shape Modes scatter, Mode Distribution histogram, Mode Over Time, Eigenshape variations)
+- **analysis_plots.py** — 16 plot functions + GRAPH_REGISTRY (timeseries plots accept `gap_interp_max` kwarg for short-gap interpolation)
+- **vampire_plots.py** — 4 VAMPIRE plots (Shape Modes scatter, Mode Distribution histogram, Mode Over Time, Eigenshape variations); split out so analysis_plots stays under the 500-line limit
 - **export_dialog.py** — Export configuration dialog
 - **workers.py** — FocusedDetectWorker, FocusedAnalyzeWorker
 - **roi_selector.py** — Rectangle/ellipse/polygon ROI
@@ -115,6 +120,29 @@
 - **train_*.py / prepare_*.py** — model training + data prep scripts
   (dev only; require `BENCHMARK_DATA_ROOT` to point at the sibling
   `piezo1_analysis` project).
+- **test_defaults_consistency.py** — Defaults-drift regression
+  test. Verifies every GUI's initial widget values match
+  `core.pipeline_defaults.DEFAULTS` and `core.cell_state.
+  DEFAULT_THRESHOLDS`, and that every worker has `_PD` wired. 28
+  checks. Run after editing any param-widget default. Catches the
+  May-2026 class of "the same recording analysed via batch vs
+  focused gave different debris filtering" bugs.
+- **test_focused_gui.py** — Phase A of the GUI test suite: full
+  single-cell load → detect → analyze → 16 graph types → export
+  flow with screenshots. 59 checks. Runs headless via
+  `QT_QPA_PLATFORM=offscreen`.
+- **test_comprehensive_gui.py** — Phases B–G of the GUI test suite
+  (multi-cell, ROI + mask editor, batch, tracking, training,
+  parameter flow). 48 checks across 5 GUIs. Pass `--phase B|C|D|E|F|G`
+  to run a single phase, `--phase all` (default) to run them all.
+  Per-phase test bodies live in `scripts/comprehensive/`.
+- **aggregate_comprehensive_report.py** — merge Phase A + Phases B–G
+  reports into `results/comprehensive_gui_tests/FINAL_REPORT.{md,json}`.
+- **comprehensive/** — per-phase test modules
+  (`phase_b.py` … `phase_g.py`) plus `_common.py` with shared
+  paths and helpers. Each phase imports `gui_focused` / `gui_batch`
+  / `gui_tracking` / `gui_editor` / `gui_training` directly and
+  drives the same widget paths the user clicks.
 
 ## `docs/`
 - **user_manual.md** — How to use the GUIs (load → detect → edit → analyse → export).
@@ -125,3 +153,72 @@
 ## `notebooks/` (maintainer only)
 - **train_cpsam_dic_colab.ipynb** — Colab notebook for fine-tuning cpsam on DIC.
 - **resume_cpsam_dic_colab.ipynb** — Resume training from a partial checkpoint.
+- **train_cpsam_dic_v4_brightness_colab.ipynb** — Colab notebook for the brightness-augmented retrain (Phase 3.5). See `docs/brightness_robustness.md`.
+
+## Brightness robustness (3.5)
+- **scripts/build_brightness_test.py** — generates 8-perturbation test set from `dic_splits_v3/test`.
+- **scripts/augment_brightness.py** — generates v4 brightness-augmented training set.
+- **scripts/bench_brightness.py** — orchestrates `bench_cpsam_dic.py` across all perturbations + retention metric + `--compare` mode.
+
+## Multi-channel (DIC + SiR-actin Cy5) pipeline — IC295 dataset
+Source: `/Volumes/GeorgeDrive/ignasi/IC295/` (19 recordings × 1.6 GB,
+2048×2048 × 97 frames × 3 channels: Cy5/SiR-actin, DIC 10x, None).
+Conditions: WT (4), KO (3), GOF (3), Y1 (3), DMSO (3), OT (3).
+
+The Cy5 channel is **SiR-actin** (fluorogenic F-actin probe, only
+bright when bound to polymerised F-actin). User-confirmed:
+no fully un-stained cells, large intensity range, occasional
+non-cell fluorescence artefacts.
+
+- **core/multichannel.py** — channel-aware loader (`load_recording_multi`),
+  per-channel preprocessing (`to_uint8_dic`, `to_uint8_fluorescence`),
+  Cy5 presence scoring (`cy5_presence_score`: z-score of inside-mask
+  p75 vs local 30-px annulus median, robust MAD denominator → 0-1),
+  AND-filter (`filter_dic_labels_by_cy5`), per-cell Cy5 features.
+- **core/cy5_fallbacks.py** — three tiers of fail-safe recovery for
+  cells DIC misses. Tier 2 (`recover_missed_cells_via_dic_crop`):
+  Cy5+ regions without DIC masks → crop + re-run cpsam(DIC, TTA
+  optional). Tier 3 (`cy5_gap_fill_for_track`): track has gap at
+  frame N + Cy5 signal at interpolated centroid → fill via cpsam(Cy5
+  crop) [default], `cy5_cleanup` (threshold + morphological), or
+  `cy5_threshold` (raw threshold). cpsam-based strategies use cell-
+  shape prior so fluorescence artefacts are rejected.
+- **core/hybrid_multichannel.py** — orchestrator: wraps
+  `hybrid_cpsam_multi` on DIC, then optional Cy5 fail-safe recovery
+  (Tier 2), then track-level Cy5 filtering. Returns kept tracks +
+  dropped tracks (debris) + raw labels + n_cy5_recovered.
+- **scripts/test_multichannel_unit.py** — synthetic unit tests
+  (bright/faint/debris/filopodia/edge/empty cases). All passing.
+- **scripts/test_multichannel_pilot.py** — real-data pilot on a few
+  IC295 frames; renders side-by-side comparison grid (DIC, Cy5,
+  raw masks, filtered masks). Run after IC293 full pipeline frees
+  cellpose4 GPU.
+- **scripts/bench_multichannel.py** — benchmark vs hand-labelled GT;
+  reports IoU DIC-only vs IoU after Cy5 filter, per-condition.
+- **scripts/sample_gt_frames.py** — `--multichannel` flag added;
+  saves `<name>_dic.png` (label this) + `_cy5.png` + `_composite.png`
+  per candidate. New `_LABELLING_INSTRUCTIONS_MULTICHANNEL` template.
+- **output/run_metadata.py** — `write_run_metadata(out_path, title,
+  sections, rerun_cli, ...)` helper; auto-captures cellpose / torch /
+  numpy / scipy / tifffile / python / platform versions. Used by all
+  new analysis scripts to comply with the project's "always emit
+  RUN_METADATA.md alongside results" convention.
+
+See `docs/multichannel_analysis_plan.md` for the full plan + phased
+implementation; `data/ic295_inspection/` for the channel inspection
+PDF + contact sheet that informed the design.
+
+## New Ignasi recordings — testing + GT sampling (IC293 single-channel)
+Source: `/Users/george/Desktop/ignasi_cellscope_test_data` (16 recordings × 1.6 GB,
+2048×2048 phase contrast at 0.65 µm/px, 10-min interval, 97 frames × 2 channels;
+phase = channel 0). Conditions: WT (3), KO (3), GOF (3), Y1 (3), DMSO (4).
+
+- **scripts/sample_gt_frames.py** — picks 4 frames per recording (5/34/62/91 by quantile),
+  applies flat-field correction (subtract Gaussian-blurred background, σ=80) to remove
+  the severe vignette, writes uint8 PNGs + manifest CSV + CLAHE contact sheet +
+  `LABELLING.md`. Output: `data/ignasi_new_gt/candidates/`.
+- **scripts/test_ignasi_new.py** — smoke-tests every .ome.tif: parses metadata, reads
+  first/middle/last frames, runs cpsam on the middle frame in `cellpose4` env via
+  subprocess, writes per-recording previews + `summary.csv` + `report.md`.
+- **scripts/bench_ignasi_new.py** — once `*_masks.png` files exist, runs cpsam against
+  every labelled candidate and reports IoU per condition (WT/KO/GOF/Y1/DMSO).

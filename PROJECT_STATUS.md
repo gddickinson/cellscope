@@ -1,6 +1,6 @@
 # CellScope — Project Status
 
-*Last updated: 2026-04-30*
+*Last updated: 2026-05-01*
 
 ![CellScope pipeline](docs/figures/hero.png)
 
@@ -238,21 +238,72 @@ from 4 experiments (85, 100, 126, 135, 240).
 
 ## In Progress
 
-1. **Resume cpsam_dic fine-tune** — current model is from a partial
+1. **IC293 full pipeline run** (started 2026-05-01) — 16 new full-frame
+   2048×2048 phase-contrast Ignasi recordings × 5 conditions
+   (WT/KO/GOF/Y1/DMSO). 8/16 done at the time of writing, ~50 min per
+   recording, ETA total ~13 h. Caching per recording, resumable.
+   Outputs: `results/ignasi_new_full/{<pos>_<cond>.npz, .html,
+   _image.tif, _labels.tif}` + summary CSV + RUN_METADATA.md.
+   Best config from comparison: `cpsam_base` (no fine-tune) without
+   TTA, with flat-field σ=80 preprocessing — wins by 2.5× over
+   `cpsam_dic` on these out-of-distribution recordings.
+2. **IC295 multichannel pipeline (DIC + SiR-actin Cy5)** — Phases 1–2c
+   built and unit-tested. Pilot queued for after IC293 frees the GPU.
+   See `docs/multichannel_analysis_plan.md`.
+3. **IC295 ground truth** — 38 candidates sampled to
+   `data/ic295_gt/candidates/` (each candidate = DIC + Cy5 + composite
+   PNGs), pending hand-labelling. After labelling,
+   `scripts/bench_multichannel.py` quantifies IoU DIC-only vs
+   AND-fusion vs full 3-tier per condition.
+4. **Resume cpsam_dic fine-tune** — current model is from a partial
    ~6-epoch run that timed out on Colab. Resuming notebook is at
    `notebooks/resume_cpsam_dic_colab.ipynb`; expect another +0.02 IoU
    when the full 20-epoch run completes.
-2. **Distribution polish** — install scripts, model bundles, and Drive
+5. **Distribution polish** — install scripts, model bundles, and Drive
    downloader are wired (`install.{bat,sh}`, `download_models.py`,
    `make_models_bundle.py`, `make_dist.py`). Doc updates in flight.
 
 ## Planned Next Steps
 
+- Run IC295 multichannel pilot once IC293 GPU is free.
+- Hand-label IC295 GT, then quantitative benchmark.
+- Phase 3 of multichannel: Cy5 features in Hungarian tracker.
+- Phase 4 of multichannel: track-quality penalty for low-Cy5 tracks.
+- Phase 5 of multichannel (speculative): subcellular features
+  (lamellipodia polarity, cortex ratio, stress-fibre density) — most
+  likely to give a strong Piezo1 phenotype signal.
 - Multi-cell ground truth expansion (broader CTC test or new annotated
   Jesse recordings).
 - Boundary separation for touching cells in dense recordings.
-- Optional brightness-shift augmentation in next cpsam_dic retrain.
+- Brightness-augmented retrain (3.5 in roadmap; setup done).
 - GitHub release once distribution dry-run is complete.
+
+---
+
+## GUI test coverage
+
+**107/107 checks pass across 7 phases (A–G) covering 6 GUIs** —
+see `results/comprehensive_gui_tests/FINAL_REPORT.md` and 63
+screenshots in `results/comprehensive_gui_tests/screenshots/`.
+
+| Phase | GUI(s) | Checks | Coverage |
+|---|---|---:|---|
+| A | Detection & Analysis (single-cell) | 59 | load → detect → analyze → 16 graph types → export, B/C, zoom, pan, frame nav |
+| B | Detection & Analysis (multi-cell) | 8 | mode switch, multi detection, per-cell analytics, all 20 graphs, cell selector |
+| C | ROI + Mask Editor integration | 9 | draw / persist / apply / clear ROI, mask editor open + send-to-GUI roundtrip |
+| D | Batch GUI | 6 | directory scan, recording tree, settings widgets, params dict |
+| E | Tracking GUI | 7 | load masks, Hungarian tracking, per-track analysis, track table, plots |
+| F | Training + Mask Editor (standalone) | 7 | launch, scan data dir, dock panel |
+| G | Parameter flow | 11 | params plumb through to detect dict; scale overrides; toggle behaviour |
+
+Run via:
+```bash
+conda run -n cellpose4 python scripts/test_focused_gui.py       # Phase A
+conda run -n cellpose4 python scripts/test_comprehensive_gui.py # Phases B-G
+python scripts/aggregate_comprehensive_report.py                 # merge
+```
+
+All tests run headless via `QT_QPA_PLATFORM=offscreen`.
 
 ---
 

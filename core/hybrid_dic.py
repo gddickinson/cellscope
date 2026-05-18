@@ -99,7 +99,7 @@ def _run_cpsam_dic_labels_subprocess(frames, model_path, project_root,
         )
         proc = subprocess.run(
             ["conda", "run", "-n", CELLPOSE4_ENV, "python", "-c", script],
-            capture_output=True, text=True, timeout=1800,
+            capture_output=True, text=True, timeout=7200,
             cwd=project_root,
         )
         if "CPSAM_DIC_LABELS_OK" not in proc.stdout:
@@ -132,7 +132,7 @@ def _run_cpsam_dic_subprocess(frames, model_path, project_root,
         )
         proc = subprocess.run(
             ["conda", "run", "-n", CELLPOSE4_ENV, "python", "-c", script],
-            capture_output=True, text=True, timeout=1800,
+            capture_output=True, text=True, timeout=7200,
             cwd=project_root,
         )
         if "CPSAM_DIC_OK" not in proc.stdout:
@@ -163,19 +163,8 @@ def detect_hybrid_dic(frames, progress_fn=None, area_threshold=None,
     if area_threshold is None:
         area_threshold = AREA_THRESHOLD
     if model_path is None:
-        # Prefer cpsam_dic > cellpose_dic_v3 > v2 > v1.
-        cpsam_dic = "data/models/cpsam_dic"
-        v3 = "data/models/cellpose_dic_v3"
-        v2 = "data/models/cellpose_dic_v2"
-        v1 = "data/models/cellpose_dic"
-        if os.path.exists(cpsam_dic):
-            model_path = cpsam_dic
-        elif os.path.exists(v3):
-            model_path = v3
-        elif os.path.exists(v2):
-            model_path = v2
-        else:
-            model_path = v1
+        from core.pipeline_defaults import resolve_dic_model_path
+        model_path = resolve_dic_model_path()
 
     n = len(frames)
     is_cpsam = _is_cpsam_model(model_path)
@@ -267,39 +256,56 @@ def detect_hybrid_dic(frames, progress_fn=None, area_threshold=None,
 
 
 def detect_hybrid_dic_multi(frames, progress_fn=None,
-                            min_area_px=200,
-                            use_preprocess=True,
-                            use_deepsea=True,
-                            use_retry=True,
-                            use_gap_fill=True,
-                            expected_cells=0,
+                            min_area_px=None,
+                            use_preprocess=None,
+                            use_deepsea=None,
+                            use_retry=None,
+                            use_gap_fill=None,
+                            expected_cells=None,
                             model_path=None,
-                            use_tta=False):
+                            use_tta=None,
+                            cy5_frames=None,
+                            use_cy5_fusion=None,
+                            cy5_fusion_augment=None,
+                            cy5_fusion_jaccard_thresh=None):
+    # All defaults come from core.pipeline_defaults — single source of
+    # truth shared with the GUI. Callers may override any value by
+    # passing it explicitly; None means "use the canonical default".
+    from core.pipeline_defaults import get_defaults
+    d = get_defaults(has_cy5=(cy5_frames is not None))
+    if min_area_px is None: min_area_px = d.min_area_px
+    if use_preprocess is None: use_preprocess = d.use_preprocess
+    if use_deepsea is None: use_deepsea = d.use_deepsea
+    if use_retry is None: use_retry = d.use_retry
+    if use_gap_fill is None: use_gap_fill = d.use_gap_fill
+    if expected_cells is None: expected_cells = d.expected_cells
+    if use_tta is None: use_tta = d.use_tta
+    if use_cy5_fusion is None: use_cy5_fusion = d.use_cy5_fusion
+    if cy5_fusion_augment is None:
+        cy5_fusion_augment = d.cy5_fusion_augment_cpsam
+    if cy5_fusion_jaccard_thresh is None:
+        cy5_fusion_jaccard_thresh = d.cy5_fusion_jaccard_thresh
     """DIC-optimized multi-cell detection + tracking.
 
     Same structure as hybrid_cpsam_multi but uses cellpose_dic
     instead of cpsam for initial detection.
 
+    Cy5 fusion (when use_cy5_fusion=True and cy5_frames provided):
+      After the DIC pass, raw cpsam is run on the Cy5 channel and
+      its detections are merged into raw_labels. Cells unique to
+      Cy5 enter the same DeepSea/track/gap-fill pipeline as DIC
+      cells. Adds ~30-60s for a 40-frame 1024² recording.
+
     Returns dict with keys: masks, labels, tracks, missed_frames,
-    cell_count.
+    cell_count, n_cy5_fusion_added (if fusion ran).
     """
     from core.detection import detect_cellpose_labels
     from core.preprocess import preprocess_sequence
     from core.multi_cell import track_all_cells
 
     if model_path is None:
-        cpsam_dic = "data/models/cpsam_dic"
-        v3 = "data/models/cellpose_dic_v3"
-        v2 = "data/models/cellpose_dic_v2"
-        v1 = "data/models/cellpose_dic"
-        if os.path.exists(cpsam_dic):
-            model_path = cpsam_dic
-        elif os.path.exists(v3):
-            model_path = v3
-        elif os.path.exists(v2):
-            model_path = v2
-        else:
-            model_path = v1
+        from core.pipeline_defaults import resolve_dic_model_path
+        model_path = resolve_dic_model_path()
 
     n = len(frames)
     is_cpsam = _is_cpsam_model(model_path)
@@ -379,6 +385,36 @@ def detect_hybrid_dic_multi(frames, progress_fn=None,
     log.info("DIC cell counts: min=%d max=%d mean=%.1f",
              cell_counts.min(), max_cells, cell_counts.mean())
 
+    # Step 3b: Cy5 fusion — run cpsam on Cy5, merge cells unique to
+    # fluorescence into raw_labels before DeepSea + tracking.
+    n_cy5_fusion_added = 0
+    fusion_source_stack = None
+    if use_cy5_fusion and cy5_frames is not None:
+        from core.dic_cy5_fusion import detect_dic_cy5_fusion
+        if cy5_frames.shape != frames.shape:
+            log.warning(
+                "Cy5 fusion skipped: shape mismatch dic=%s cy5=%s",
+                frames.shape, cy5_frames.shape)
+        else:
+            project_root = os.path.dirname(
+                os.path.dirname(os.path.abspath(__file__)))
+            if progress_fn:
+                progress_fn("Cy5 fusion: cpsam on fluorescence", 42)
+            fusion = detect_dic_cy5_fusion(
+                raw_labels, cy5_frames, project_root,
+                min_area_px=min_area_px,
+                augment_cpsam=cy5_fusion_augment,
+                jaccard_thresh=cy5_fusion_jaccard_thresh)
+            raw_labels = fusion["labels"]
+            fusion_source_stack = fusion["source_stack"]
+            n_cy5_fusion_added = fusion["n_added_total"]
+            cell_counts = np.array(
+                [int(raw_labels[i].max()) for i in range(n)])
+            max_cells = int(cell_counts.max())
+            log.info("After Cy5 fusion: max %d cells/frame "
+                     "(+%d cells added)",
+                     max_cells, n_cy5_fusion_added)
+
     # Step 4: per-cell DeepSea refinement
     if use_deepsea:
         from core.deepsea_multicell import refine_labels_with_deepsea
@@ -418,10 +454,12 @@ def detect_hybrid_dic_multi(frames, progress_fn=None,
             os.path.dirname(os.path.abspath(__file__)))
         if progress_fn:
             progress_fn("Filling track gaps", 85)
+        from core.pipeline_defaults import DEFAULTS as _PD
         n_filled = fill_track_gaps(
             tracks, frames, min_area=min_area_px,
             search_radius=150,
             project_root=project_root,
+            use_sam2_video=_PD.use_sam2_video_gap_fill,
             progress_fn=lambda msg, pct: progress_fn(
                 msg, int(85 + 10 * pct / 100)) if progress_fn else None)
         if n_filled:
@@ -437,6 +475,20 @@ def detect_hybrid_dic_multi(frames, progress_fn=None,
     from core.hybrid_cpsam_multi import _build_tracked_labels
     tracked = _build_tracked_labels(tracks, frames.shape)
     missed = list(np.where(cell_counts == 0)[0])
+
+    # Step 6b: annotate tracks with their fusion source (which channel
+    # proposed them). dic_only / cy5_only / both — picked by majority
+    # pixel vote across the track's lifetime.
+    if fusion_source_stack is not None:
+        from core.fusion_diagnostics import (
+            annotate_tracks_with_source, per_track_source_summary)
+        annotate_tracks_with_source(tracks, fusion_source_stack)
+        src_summary = per_track_source_summary(tracks)
+        log.info(
+            "Track sources: %d dic_only, %d both, %d cy5_only",
+            src_summary["dic_only"], src_summary["both"],
+            src_summary["cy5_only"])
+
     if progress_fn:
         progress_fn("Done", 100)
 
@@ -446,4 +498,6 @@ def detect_hybrid_dic_multi(frames, progress_fn=None,
         "tracks": tracks,
         "missed_frames": missed,
         "cell_count": max_cells,
+        "n_cy5_fusion_added": n_cy5_fusion_added,
+        "fusion_source_stack": fusion_source_stack,
     }

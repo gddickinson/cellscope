@@ -1,0 +1,13 @@
+pos,condition,source_path,rec_dir,n_frames_total,frames_to_annotate
+Pos68,DMSO,/Volumes/GeorgeDrive/ignasi/IC295_batch2/IC295__1_MMStack_Pos68-DMSO.ome.tif,/Users/george/claude_test/cellscope/data/ic295_gt_full/Pos68_DMSO,97,"0,10,20,30,40,50,60,70,80,90"
+Pos69,DMSO,/Volumes/GeorgeDrive/ignasi/IC295_batch2/IC295__1_MMStack_Pos69-DMSO.ome.tif,/Users/george/claude_test/cellscope/data/ic295_gt_full/Pos69_DMSO,97,"0,10,20,30,40,50,60,70,80,90"
+Pos31,GOF,/Volumes/GeorgeDrive/ignasi/IC295_batch2/IC295__1_MMStack_Pos31-GOF.ome.tif,/Users/george/claude_test/cellscope/data/ic295_gt_full/Pos31_GOF,97,"0,10,20,30,40,50,60,70,80,90"
+Pos30,GOF,/Volumes/GeorgeDrive/ignasi/IC295_batch2/IC295__1_MMStack_Pos30-GOF.ome.tif,/Users/george/claude_test/cellscope/data/ic295_gt_full/Pos30_GOF,97,"0,10,20,30,40,50,60,70,80,90"
+Pos21,KO,/Volumes/GeorgeDrive/ignasi/IC295_batch2/IC295__1_MMStack_Pos21-KO.ome.tif,/Users/george/claude_test/cellscope/data/ic295_gt_full/Pos21_KO,97,"0,10,20,30,40,50,60,70,80,90"
+Pos20,KO,/Volumes/GeorgeDrive/ignasi/IC295_batch2/IC295__1_MMStack_Pos20-KO.ome.tif,/Users/george/claude_test/cellscope/data/ic295_gt_full/Pos20_KO,97,"0,10,20,30,40,50,60,70,80,90"
+Pos39,OT,/Volumes/GeorgeDrive/ignasi/IC295/IC295__1_MMStack_Pos39-OT.ome.tif,/Users/george/claude_test/cellscope/data/ic295_gt_full/Pos39_OT,97,"0,10,20,30,40,50,60,70,80,90"
+Pos44,OT,/Volumes/GeorgeDrive/ignasi/IC295_batch2/IC295__1_MMStack_Pos44-OT.ome.tif,/Users/george/claude_test/cellscope/data/ic295_gt_full/Pos44_OT,97,"0,10,20,30,40,50,60,70,80,90"
+Pos10,WT,/Volumes/GeorgeDrive/ignasi/IC295_batch2/IC295__1_MMStack_Pos10-WT.ome.tif,/Users/george/claude_test/cellscope/data/ic295_gt_full/Pos10_WT,97,"0,10,20,30,40,50,60,70,80,90"
+Pos7,WT,/Volumes/GeorgeDrive/ignasi/IC295_batch2/IC295__1_MMStack_Pos7-WT.ome.tif,/Users/george/claude_test/cellscope/data/ic295_gt_full/Pos7_WT,97,"0,10,20,30,40,50,60,70,80,90"
+Pos53,Y1,/Volumes/GeorgeDrive/ignasi/IC295_batch2/IC295__1_MMStack_Pos53-Y1.ome.tif,/Users/george/claude_test/cellscope/data/ic295_gt_full/Pos53_Y1,97,"0,10,20,30,40,50,60,70,80,90"
+Pos51,Y1,/Volumes/GeorgeDrive/ignasi/IC295/IC295__1_MMStack_Pos51-Y1.ome.tif,/Users/george/claude_test/cellscope/data/ic295_gt_full/Pos51_Y1,97,"0,10,20,30,40,50,60,70,80,90"

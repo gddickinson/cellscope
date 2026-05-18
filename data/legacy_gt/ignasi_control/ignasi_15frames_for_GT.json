@@ -1,0 +1,6 @@
+{
+  "name": "ignasi_control",
+  "um_per_px": 0.6523,
+  "time_interval_min": 10.0,
+  "source": "/Volumes/GeorgeDrive/cellscope_data/piezo1_analysis/data/ignasi/ignasi_15frames_for_GT.tif"
+}

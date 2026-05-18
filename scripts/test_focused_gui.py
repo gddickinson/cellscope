@@ -24,7 +24,13 @@ app = QApplication.instance() or QApplication(sys.argv)
 OUT_DIR = "results/focused_gui_tests"
 os.makedirs(OUT_DIR, exist_ok=True)
 
-RECORDING = "data/ignasi/C1-IC293__1_MMStack_Pos0-WT.ome-1cropped.tif"
+# The Ignasi cropped WT recording lives in the piezo1_analysis project
+# (sibling repo). This path is now resolved by the data-move symlinks
+# under /Volumes/GeorgeDrive/cellscope_data/piezo1_analysis/data/ignasi/.
+RECORDING = (
+    "/Users/george/claude_test/piezo1_analysis/data/ignasi/"
+    "C1-IC293__1_MMStack_Pos0-WT.ome-1cropped.tif"
+)
 
 passed = []
 failed = []
@@ -61,14 +67,19 @@ def main():
     print("\n=== 1. Startup state ===")
     screenshot(w, "01_startup")
     check("window_title", "Focused Pipeline" in w.windowTitle())
-    check("6_stages", len(w.pipeline.stages) == 6)
+    # Pipeline currently has 5 stages: load, detect, edit, analyze, export.
+    # (Gap-fill is now part of the detect stage, not a separate pipeline
+    # button.)
+    expected_stages = {"load", "detect", "edit", "analyze", "export"}
+    check("5_stages",
+          set(w.pipeline.stages.keys()) == expected_stages,
+          f"got {set(w.pipeline.stages.keys())}")
     check("default_mode", w.mode == "single")
     check("expected_cells_default", w.params.expected_cells.value() == 1)
     check("multi_widgets_disabled",
           not w.params.search_radius.isEnabled())
     check("load_enabled", w.pipeline.stages["load"].isEnabled())
     check("detect_disabled", not w.pipeline.stages["detect"].isEnabled())
-    check("gap_fill_hidden", not w.pipeline.stages["gap_fill"].isVisible())
 
     print("\n=== 2. Mode switching ===")
     w.pipeline.set_mode("multi")
@@ -76,7 +87,6 @@ def main():
     check("multi_mode", w.mode == "multi")
     check("expected_cells_auto", w.params.expected_cells.value() == 0)
     check("search_radius_enabled", w.params.search_radius.isEnabled())
-    check("gap_fill_visible", w.pipeline.stages["gap_fill"].isVisible())
     screenshot(w, "02_multi_mode")
 
     w.pipeline.set_mode("single")
@@ -172,7 +182,9 @@ def main():
 
     print("\n=== 7. Graph rendering (single-cell) ===")
     from gui_focused.analysis_plots import GRAPH_REGISTRY
-    w.analysis.tabs.setCurrentIndex(1)  # switch to Graphs tab
+    # AnalysisView no longer has an internal QTabWidget — Summary, Graphs,
+    # and Log are now separate dock widgets. Bring Graphs to the front.
+    w.dock_graphs.raise_()
     app.processEvents()
     single_graphs = [(n, fn) for n, (fn, multi) in GRAPH_REGISTRY.items()
                      if not multi]
@@ -185,7 +197,7 @@ def main():
             check(f"graph_{safe}", True)
         except Exception as e:
             check(f"graph_{safe}", False, str(e))
-    w.analysis.tabs.setCurrentIndex(0)  # back to Summary
+    w.dock_summary.raise_()  # back to Summary
 
     print("\n=== 8. Export ===")
     export_dir = os.path.join(OUT_DIR, "export_single")
@@ -227,7 +239,7 @@ def main():
           abs(metrics.get("persistence", 0) - result.get("persistence", 0)) < 0.001)
 
     print("\n=== 10. Params panel context switching ===")
-    for stage in ["load", "detect", "gap_fill", "edit", "analyze", "export"]:
+    for stage in ["load", "detect", "edit", "analyze", "export"]:
         w.params.set_context(stage, w.mode)
         app.processEvents()
         check(f"context_{stage}",

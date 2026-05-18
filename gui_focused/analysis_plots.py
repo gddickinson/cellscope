@@ -2,9 +2,18 @@
 
 Each function takes a matplotlib Figure + result dict (or list for
 multi-cell), clears the figure, and renders one plot type.
+
+Timeseries plots accept an optional ``gap_interp_max`` kwarg
+(default 0 = off). When > 0, NaN runs of that length or shorter
+are linearly interpolated and shown dotted so the line doesn't
+visually break for brief detection misses. See ``core/gap_interp.py``.
+Plot functions that don't render timeseries accept and ignore the
+kwarg via ``**_`` so the dispatcher can pass it unconditionally.
 """
 import numpy as np
 from matplotlib.figure import Figure
+
+from core.gap_interp import interpolate_short_gaps, plot_with_gaps
 
 try:
     from gui.mask_editor_multicell import CELL_COLORS
@@ -17,7 +26,7 @@ def _cell_color(idx):
     return _COLORS[idx % len(_COLORS)]
 
 
-def plot_trajectory(fig: Figure, result: dict):
+def plot_trajectory(fig: Figure, result: dict, **_):
     fig.clear()
     ax = fig.add_subplot(111)
     traj = result.get("trajectory")
@@ -37,7 +46,7 @@ def plot_trajectory(fig: Figure, result: dict):
     fig.tight_layout()
 
 
-def plot_speed(fig: Figure, result: dict):
+def plot_speed(fig: Figure, result: dict, gap_interp_max=0, **_):
     fig.clear()
     ax = fig.add_subplot(111)
     speed = result.get("speed")
@@ -45,11 +54,17 @@ def plot_speed(fig: Figure, result: dict):
         ax.text(0.5, 0.5, "No speed data", ha="center", va="center",
                 transform=ax.transAxes)
         return
-    ax.plot(speed, "steelblue", lw=0.8)
+    speed = np.asarray(speed, dtype=float)
+    filled, was_interp = interpolate_short_gaps(speed, gap_interp_max)
+    plot_with_gaps(ax, filled, was_interp,
+                   color="steelblue", lw=0.8)
     valid = speed[~np.isnan(speed)]
     if len(valid):
         ax.axhline(valid.mean(), color="orange", ls="--",
                    label=f"mean {valid.mean():.2f}")
+        if was_interp.any():
+            ax.plot([], [], color="steelblue", linestyle=":", lw=0.8,
+                    label=f"interp ≤{gap_interp_max} frame")
         ax.legend()
     ax.set_xlabel("Frame"); ax.set_ylabel("Speed (um/min)")
     ax.set_title("Instantaneous Speed")
@@ -57,7 +72,7 @@ def plot_speed(fig: Figure, result: dict):
     fig.tight_layout()
 
 
-def plot_msd(fig: Figure, result: dict):
+def plot_msd(fig: Figure, result: dict, **_):
     fig.clear()
     ax = fig.add_subplot(111)
     traj = result.get("trajectory")
@@ -84,7 +99,7 @@ def plot_msd(fig: Figure, result: dict):
     fig.tight_layout()
 
 
-def plot_direction_autocorrelation(fig: Figure, result: dict):
+def plot_direction_autocorrelation(fig: Figure, result: dict, **_):
     fig.clear()
     ax = fig.add_subplot(111)
     cents = result.get("centroids_px")
@@ -106,7 +121,7 @@ def plot_direction_autocorrelation(fig: Figure, result: dict):
     fig.tight_layout()
 
 
-def plot_area(fig: Figure, result: dict):
+def plot_area(fig: Figure, result: dict, gap_interp_max=0, **_):
     fig.clear()
     ax = fig.add_subplot(111)
     ts = result.get("shape_timeseries", {})
@@ -115,7 +130,10 @@ def plot_area(fig: Figure, result: dict):
         ax.text(0.5, 0.5, "No area data", ha="center", va="center",
                 transform=ax.transAxes)
         return
-    ax.plot(area, "steelblue", lw=0.8)
+    area = np.asarray(area, dtype=float)
+    filled, was_interp = interpolate_short_gaps(area, gap_interp_max)
+    plot_with_gaps(ax, filled, was_interp,
+                   color="steelblue", lw=0.8)
     valid = area[~np.isnan(area)]
     if len(valid):
         m, s = valid.mean(), valid.std()
@@ -124,6 +142,9 @@ def plot_area(fig: Figure, result: dict):
                         np.full(len(area), m - s),
                         np.full(len(area), m + s),
                         alpha=0.15, color="orange")
+        if was_interp.any():
+            ax.plot([], [], color="steelblue", linestyle=":", lw=0.8,
+                    label=f"interp ≤{gap_interp_max} frame")
         ax.legend()
     ax.set_xlabel("Frame"); ax.set_ylabel("Area (um^2)")
     ax.set_title("Cell Area Over Time")
@@ -131,25 +152,33 @@ def plot_area(fig: Figure, result: dict):
     fig.tight_layout()
 
 
-def plot_shape_panel(fig: Figure, result: dict):
+def plot_shape_panel(fig: Figure, result: dict, gap_interp_max=0, **_):
     fig.clear()
     ts = result.get("shape_timeseries", {})
     keys = ["area_um2", "perimeter_um", "circularity",
             "solidity", "aspect_ratio", "eccentricity"]
     labels = ["Area (um^2)", "Perimeter (um)", "Circularity",
               "Solidity", "Aspect Ratio", "Eccentricity"]
+    any_interp = False
     for i, (k, lab) in enumerate(zip(keys, labels)):
         ax = fig.add_subplot(2, 3, i + 1)
         arr = ts.get(k)
         if arr is not None:
-            ax.plot(arr, lw=0.7)
+            arr = np.asarray(arr, dtype=float)
+            filled, was_interp = interpolate_short_gaps(
+                arr, gap_interp_max)
+            plot_with_gaps(ax, filled, was_interp, lw=0.7)
+            any_interp = any_interp or bool(was_interp.any())
         ax.set_title(lab, fontsize=9)
         ax.tick_params(labelsize=7)
         ax.grid(alpha=0.2)
+    if any_interp:
+        fig.suptitle(f"(dotted = interp ≤{gap_interp_max} frame)",
+                     fontsize=8, y=1.02)
     fig.tight_layout()
 
 
-def plot_edge_kymograph(fig: Figure, result: dict):
+def plot_edge_kymograph(fig: Figure, result: dict, **_):
     fig.clear()
     ax = fig.add_subplot(111)
     vel = result.get("edge_velocity")
@@ -168,7 +197,7 @@ def plot_edge_kymograph(fig: Figure, result: dict):
     fig.tight_layout()
 
 
-def plot_edge_summary_bar(fig: Figure, result: dict):
+def plot_edge_summary_bar(fig: Figure, result: dict, **_):
     fig.clear()
     ax = fig.add_subplot(111)
     es = result.get("edge_summary", {})
@@ -188,7 +217,8 @@ def plot_edge_summary_bar(fig: Figure, result: dict):
     fig.tight_layout()
 
 
-def plot_boundary_confidence(fig: Figure, result: dict):
+def plot_boundary_confidence(fig: Figure, result: dict,
+                             gap_interp_max=0, **_):
     fig.clear()
     ax = fig.add_subplot(111)
     bc = result.get("boundary_confidence_per_frame")
@@ -201,9 +231,14 @@ def plot_boundary_confidence(fig: Figure, result: dict):
             ax.text(0.5, 0.5, "No data", ha="center", va="center",
                     transform=ax.transAxes)
         return
-    ax.plot(bc, "steelblue", lw=0.8)
+    bc = np.asarray(bc, dtype=float)
+    filled, was_interp = interpolate_short_gaps(bc, gap_interp_max)
+    plot_with_gaps(ax, filled, was_interp, color="steelblue", lw=0.8)
     ax.axhline(np.nanmean(bc), color="orange", ls="--",
                label=f"mean {np.nanmean(bc):.3f}")
+    if was_interp.any():
+        ax.plot([], [], color="steelblue", linestyle=":", lw=0.8,
+                label=f"interp ≤{gap_interp_max} frame")
     ax.legend()
     ax.set_xlabel("Frame"); ax.set_ylabel("Confidence")
     ax.set_title("Boundary Confidence per Frame")
@@ -211,7 +246,8 @@ def plot_boundary_confidence(fig: Figure, result: dict):
     fig.tight_layout()
 
 
-def plot_consecutive_iou(fig: Figure, result: dict):
+def plot_consecutive_iou(fig: Figure, result: dict,
+                         gap_interp_max=0, **_):
     fig.clear()
     ax = fig.add_subplot(111)
     stab = result.get("area_stability", {})
@@ -223,11 +259,24 @@ def plot_consecutive_iou(fig: Figure, result: dict):
         return
     from core.evaluation import compute_iou
     ious = np.array([compute_iou(masks[i], masks[i+1])
-                     for i in range(len(masks)-1)])
-    ax.plot(ious, "steelblue", lw=0.8)
+                     for i in range(len(masks)-1)], dtype=float)
+    # Empty masks → IoU 0; treat those as missing for interp purposes
+    if gap_interp_max > 0:
+        empty_pair = np.array([
+            (not masks[i].any()) or (not masks[i+1].any())
+            for i in range(len(masks)-1)])
+        ious_masked = np.where(empty_pair, np.nan, ious)
+    else:
+        ious_masked = ious
+    filled, was_interp = interpolate_short_gaps(
+        ious_masked, gap_interp_max)
+    plot_with_gaps(ax, filled, was_interp, color="steelblue", lw=0.8)
     if len(ious):
         ax.axhline(np.nanmean(ious), color="orange", ls="--",
                    label=f"mean {np.nanmean(ious):.3f}")
+        if was_interp.any():
+            ax.plot([], [], color="steelblue", linestyle=":", lw=0.8,
+                    label=f"interp ≤{gap_interp_max} frame")
         ax.legend()
     ax.set_xlabel("Frame pair"); ax.set_ylabel("IoU")
     ax.set_title("Consecutive Frame IoU")
@@ -238,38 +287,58 @@ def plot_consecutive_iou(fig: Figure, result: dict):
 
 # --- Multi-cell comparison plots ---
 
-def plot_speed_comparison(fig: Figure, results: list):
+def plot_speed_comparison(fig: Figure, results: list,
+                          gap_interp_max=0, **_):
     fig.clear()
     ax = fig.add_subplot(111)
+    any_interp = False
     for i, r in enumerate(results):
         speed = r.get("speed")
         if speed is not None:
-            ax.plot(speed, color=_cell_color(i), lw=0.8, alpha=0.8,
-                    label=f"Cell {r.get('cell_id', i+1)}")
+            speed = np.asarray(speed, dtype=float)
+            filled, was_interp = interpolate_short_gaps(
+                speed, gap_interp_max)
+            plot_with_gaps(ax, filled, was_interp,
+                           color=_cell_color(i), lw=0.8, alpha=0.8,
+                           label=f"Cell {r.get('cell_id', i+1)}")
+            any_interp = any_interp or bool(was_interp.any())
     ax.set_xlabel("Frame"); ax.set_ylabel("Speed (um/min)")
-    ax.set_title("Speed Comparison (all cells)")
+    title = "Speed Comparison (all cells)"
+    if any_interp:
+        title += f"  (dotted = interp ≤{gap_interp_max} frame)"
+    ax.set_title(title)
     ax.legend(fontsize=8)
     ax.grid(alpha=0.3)
     fig.tight_layout()
 
 
-def plot_area_comparison(fig: Figure, results: list):
+def plot_area_comparison(fig: Figure, results: list,
+                         gap_interp_max=0, **_):
     fig.clear()
     ax = fig.add_subplot(111)
+    any_interp = False
     for i, r in enumerate(results):
         ts = r.get("shape_timeseries", {})
         area = ts.get("area_um2")
         if area is not None:
-            ax.plot(area, color=_cell_color(i), lw=0.8, alpha=0.8,
-                    label=f"Cell {r.get('cell_id', i+1)}")
+            area = np.asarray(area, dtype=float)
+            filled, was_interp = interpolate_short_gaps(
+                area, gap_interp_max)
+            plot_with_gaps(ax, filled, was_interp,
+                           color=_cell_color(i), lw=0.8, alpha=0.8,
+                           label=f"Cell {r.get('cell_id', i+1)}")
+            any_interp = any_interp or bool(was_interp.any())
     ax.set_xlabel("Frame"); ax.set_ylabel("Area (um^2)")
-    ax.set_title("Area Comparison (all cells)")
+    title = "Area Comparison (all cells)"
+    if any_interp:
+        title += f"  (dotted = interp ≤{gap_interp_max} frame)"
+    ax.set_title(title)
     ax.legend(fontsize=8)
     ax.grid(alpha=0.3)
     fig.tight_layout()
 
 
-def plot_trajectory_comparison(fig: Figure, results: list):
+def plot_trajectory_comparison(fig: Figure, results: list, **_):
     fig.clear()
     ax = fig.add_subplot(111)
     for i, r in enumerate(results):
@@ -291,7 +360,7 @@ def plot_trajectory_comparison(fig: Figure, results: list):
     fig.tight_layout()
 
 
-def plot_cell_summary_table(fig: Figure, results: list):
+def plot_cell_summary_table(fig: Figure, results: list, **_):
     fig.clear()
     ax = fig.add_subplot(111)
     ax.axis("off")
@@ -325,7 +394,7 @@ def plot_cell_summary_table(fig: Figure, results: list):
     fig.tight_layout()
 
 
-def plot_msd_with_fit(fig: Figure, result: dict):
+def plot_msd_with_fit(fig: Figure, result: dict, **_):
     """MSD with diffusion model fit (D, alpha)."""
     fig.clear()
     ax = fig.add_subplot(111)
@@ -358,7 +427,7 @@ def plot_msd_with_fit(fig: Figure, result: dict):
     fig.tight_layout()
 
 
-def plot_quality_flags(fig: Figure, result: dict):
+def plot_quality_flags(fig: Figure, result: dict, **_):
     """Frame quality flagging — highlight suspect frames."""
     fig.clear()
     ax = fig.add_subplot(111)
@@ -386,115 +455,10 @@ def plot_quality_flags(fig: Figure, result: dict):
     fig.tight_layout()
 
 
-def plot_vampire_modes(fig: Figure, result: dict):
-    """VAMPIRE shape mode scatter (PC1 vs PC2, colored by mode)."""
-    fig.clear()
-    ax = fig.add_subplot(111)
-    vamp = result.get("vampire")
-    if vamp is None:
-        ax.text(0.5, 0.5, "Run VAMPIRE analysis first\n"
-                "(enable in Analysis params)",
-                ha="center", va="center", transform=ax.transAxes)
-        return
-    pc = vamp["modes"]["principal_components"]
-    ids = vamp["modes"]["cluster_ids"]
-    n_cl = vamp["n_clusters"]
-    for k in range(n_cl):
-        mask = ids == k
-        if mask.any():
-            ax.scatter(pc[mask, 0], pc[mask, 1], s=15, alpha=0.6,
-                       label=f"Mode {k+1} ({mask.sum()})")
-    ax.set_xlabel("PC1"); ax.set_ylabel("PC2")
-    ax.set_title(f"VAMPIRE Shape Modes ({n_cl} clusters, "
-                 f"{len(ids)} contours)")
-    ax.legend(fontsize=7, loc="best")
-    ax.grid(alpha=0.2)
-    fig.tight_layout()
-
-
-def plot_vampire_distribution(fig: Figure, result: dict):
-    """VAMPIRE shape mode frequency histogram."""
-    fig.clear()
-    ax = fig.add_subplot(111)
-    vamp = result.get("vampire")
-    if vamp is None:
-        ax.text(0.5, 0.5, "No VAMPIRE data", ha="center",
-                va="center", transform=ax.transAxes)
-        return
-    h = vamp["heterogeneity"]
-    fracs = h["mode_fractions"]
-    n = len(fracs)
-    colors = ["#4CAF50", "#2196F3", "#FF9800", "#E91E63",
-              "#9C27B0", "#00BCD4", "#FF5722", "#607D8B"]
-    ax.bar(range(1, n+1), fracs, color=[colors[i % len(colors)]
-                                         for i in range(n)])
-    ax.set_xlabel("Shape Mode")
-    ax.set_ylabel("Fraction of Frames")
-    ax.set_title(f"Shape Mode Distribution "
-                 f"(H={h['entropy']:.2f} / {h['max_entropy']:.2f})")
-    ax.set_xticks(range(1, n+1))
-    ax.grid(alpha=0.2, axis="y")
-    fig.tight_layout()
-
-
-def plot_vampire_timeseries(fig: Figure, result: dict):
-    """VAMPIRE shape mode assignment over time."""
-    fig.clear()
-    ax = fig.add_subplot(111)
-    vamp = result.get("vampire")
-    if vamp is None:
-        ax.text(0.5, 0.5, "No VAMPIRE data", ha="center",
-                va="center", transform=ax.transAxes)
-        return
-    fm = vamp["frame_modes"]
-    valid = ~np.isnan(fm)
-    colors = ["#4CAF50", "#2196F3", "#FF9800", "#E91E63",
-              "#9C27B0", "#00BCD4", "#FF5722", "#607D8B"]
-    for k in range(vamp["n_clusters"]):
-        mask = valid & (fm == k)
-        if mask.any():
-            ax.scatter(np.where(mask)[0], fm[mask] + 1, s=20,
-                       color=colors[k % len(colors)],
-                       label=f"Mode {k+1}", zorder=2)
-    ax.set_xlabel("Frame")
-    ax.set_ylabel("Shape Mode")
-    ax.set_title("Shape Mode Over Time")
-    ax.set_yticks(range(1, vamp["n_clusters"] + 1))
-    ax.legend(fontsize=7)
-    ax.grid(alpha=0.2)
-    fig.tight_layout()
-
-
-def plot_vampire_eigenshapes(fig: Figure, result: dict):
-    """VAMPIRE mean shape + top eigenshape variations."""
-    fig.clear()
-    vamp = result.get("vampire")
-    if vamp is None:
-        return
-    mean_c = vamp["modes"]["mean_contour"]
-    n_pts = len(mean_c) // 2
-    mx, my = mean_c[:n_pts], mean_c[n_pts:]
-    pd = vamp["modes"]["principal_directions"]
-    ev = vamp["modes"]["explained_variance"]
-
-    n_show = min(4, len(ev))
-    for i in range(n_show):
-        ax = fig.add_subplot(1, n_show, i + 1)
-        dx, dy = pd[:n_pts, i], pd[n_pts:, i]
-        scale = 0.3
-        ax.fill(mx, my, alpha=0.15, color="gray")
-        ax.plot(mx, my, "k-", lw=0.5)
-        ax.plot(mx + scale*dx, my + scale*dy, "r-", lw=1,
-                label="+")
-        ax.plot(mx - scale*dx, my - scale*dy, "b-", lw=1,
-                label="-")
-        ax.set_title(f"PC{i+1} ({ev[i]*100:.0f}%)", fontsize=9)
-        ax.set_aspect("equal")
-        ax.axis("off")
-        if i == 0:
-            ax.legend(fontsize=7)
-    fig.suptitle("Eigenshape Variations", fontsize=11)
-    fig.tight_layout()
+from gui_focused.vampire_plots import (  # noqa: E402
+    plot_vampire_modes, plot_vampire_distribution,
+    plot_vampire_timeseries, plot_vampire_eigenshapes,
+)
 
 
 GRAPH_REGISTRY = {

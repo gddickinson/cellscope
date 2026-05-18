@@ -5,11 +5,11 @@ import logging
 import numpy as np
 import tempfile
 
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QByteArray
 from PyQt5.QtWidgets import (
     QMainWindow, QWidget, QSplitter, QVBoxLayout, QHBoxLayout,
     QFileDialog, QMessageBox, QStatusBar, QProgressBar, QMenuBar,
-    QAction, QLabel,
+    QAction, QLabel, QDockWidget,
 )
 
 from gui.run_log import RunLogger
@@ -19,7 +19,7 @@ from gui_focused.params_panel import ParamsPanel
 from gui_focused.analysis_view import AnalysisView
 from gui_focused.dialogs import (
     detect_gpu, show_system_info, show_recording_info,
-    show_shortcuts, show_about, open_doc,
+    show_shortcuts, show_about, open_doc, channel_chooser,
 )
 from gui_focused.roi_selector import ROISelector
 
@@ -52,37 +52,54 @@ class FocusedMainWindow(QMainWindow):
         self.params.set_context("load", self.mode)
 
     def _build_ui(self):
-        central = QWidget()
-        self.setCentralWidget(central)
-        root = QHBoxLayout(central)
-        root.setContentsMargins(4, 4, 4, 4)
+        """Dock-widget layout — every panel is detachable + resizable.
 
-        splitter = QSplitter(Qt.Horizontal)
-        root.addWidget(splitter)
+        Default layout:
+          Central:   ImageViewer (always docked, takes most of the window)
+          Right top: Pipeline dock
+          Right mid: Parameters dock
+          Right bot: Summary / Graphs / Log docks (tabified)
 
+        Users can drag any dock out to its own window, drop it into a
+        different area, hide it (close button), or tabify it with another
+        dock. View > Reset Layout returns everything to this default.
+        """
+        # Allow nested + animated docking, with tab moves
+        self.setDockNestingEnabled(True)
+        self.setDockOptions(
+            QMainWindow.AllowNestedDocks
+            | QMainWindow.AllowTabbedDocks
+            | QMainWindow.AnimatedDocks)
+
+        # --- Central widget: the image viewer ---
         self.viewer = ImageViewer()
-        splitter.addWidget(self.viewer)
+        self.setCentralWidget(self.viewer)
 
-        right_splitter = QSplitter(Qt.Vertical)
-
-        top_right = QWidget()
-        trl = QVBoxLayout(top_right)
-        trl.setContentsMargins(0, 0, 0, 0)
-        self.pipeline = PipelinePanel()
-        trl.addWidget(self.pipeline)
-        self.params = ParamsPanel()
-        trl.addWidget(self.params)
-        right_splitter.addWidget(top_right)
-
+        # --- Create the AnalysisView controller (builds 3 child panels
+        #     internally; we put each into its own dock below) ---
         self.analysis = AnalysisView(logger=self.logger)
-        right_splitter.addWidget(self.analysis)
-        right_splitter.setStretchFactor(0, 0)
-        right_splitter.setStretchFactor(1, 1)
 
-        splitter.addWidget(right_splitter)
-        splitter.setStretchFactor(0, 2)
-        splitter.setStretchFactor(1, 1)
+        # --- Build each dock ---
+        self.pipeline = PipelinePanel()
+        self.params = ParamsPanel()
 
+        self.dock_pipeline = self._make_dock("Pipeline", self.pipeline)
+        self.dock_params   = self._make_dock("Parameters", self.params)
+        self.dock_summary  = self._make_dock("Summary",
+                                              self.analysis.summary_panel)
+        self.dock_graphs   = self._make_dock("Graphs",
+                                              self.analysis.graphs_panel)
+        self.dock_log      = self._make_dock("Log",
+                                              self.analysis.log_panel)
+
+        # Set reasonable starting sizes
+        self.dock_pipeline.setMinimumWidth(300)
+        self.dock_params.setMinimumWidth(300)
+        self.dock_summary.setMinimumWidth(360)
+        self.dock_graphs.setMinimumWidth(360)
+        self.dock_log.setMinimumWidth(360)
+
+        # --- Status bar ---
         self.status = QStatusBar()
         self.setStatusBar(self.status)
         self.progress_bar = QProgressBar()
@@ -90,6 +107,69 @@ class FocusedMainWindow(QMainWindow):
         self.progress_bar.setVisible(False)
         self.status.addPermanentWidget(self.progress_bar)
         self.status.showMessage("Ready - load a recording to begin")
+
+        # --- Apply default layout ---
+        self._apply_default_layout()
+        # Save state immediately so Reset Layout can restore exactly this.
+        self._default_state = self.saveState()
+        self._default_geometry = self.saveGeometry()
+
+    def _make_dock(self, title, widget):
+        """Wrap a widget in a QDockWidget with full move/float/close
+        features enabled."""
+        dock = QDockWidget(title, self)
+        dock.setObjectName(f"dock_{title.lower().replace(' ', '_')}")
+        dock.setAllowedAreas(Qt.AllDockWidgetAreas)
+        dock.setFeatures(QDockWidget.DockWidgetMovable
+                         | QDockWidget.DockWidgetFloatable
+                         | QDockWidget.DockWidgetClosable)
+        dock.setWidget(widget)
+        return dock
+
+    def _apply_default_layout(self):
+        """Place each dock in its default area. Called by both initial
+        setup and View > Reset Layout."""
+        # Remove anything currently docked, in case we're resetting
+        for dock in [self.dock_pipeline, self.dock_params,
+                     self.dock_summary, self.dock_graphs, self.dock_log]:
+            self.removeDockWidget(dock)
+            dock.setFloating(False)
+            dock.setVisible(True)
+
+        # Right column, top-to-bottom: Pipeline, Parameters
+        self.addDockWidget(Qt.RightDockWidgetArea, self.dock_pipeline)
+        self.addDockWidget(Qt.RightDockWidgetArea, self.dock_params)
+        # Split to put Pipeline above Params
+        self.splitDockWidget(self.dock_pipeline, self.dock_params,
+                             Qt.Vertical)
+
+        # Bottom of right column: Summary / Graphs / Log tabified together
+        self.addDockWidget(Qt.RightDockWidgetArea, self.dock_summary)
+        self.splitDockWidget(self.dock_params, self.dock_summary,
+                             Qt.Vertical)
+        self.tabifyDockWidget(self.dock_summary, self.dock_graphs)
+        self.tabifyDockWidget(self.dock_summary, self.dock_log)
+        # Show Summary on top by default
+        self.dock_summary.raise_()
+
+        # Ensure visibility on each
+        for d in [self.dock_pipeline, self.dock_params,
+                  self.dock_summary, self.dock_graphs, self.dock_log]:
+            d.setVisible(True)
+
+    def reset_layout(self):
+        """Restore the layout to its initial state (called from View
+        menu). Re-shows all docks and returns them to default areas."""
+        if hasattr(self, "_default_state") and self._default_state is not None:
+            # Make sure all docks are visible before restoring (closed
+            # docks aren't recreated by restoreState)
+            for d in [self.dock_pipeline, self.dock_params,
+                      self.dock_summary, self.dock_graphs, self.dock_log]:
+                d.setFloating(False)
+                d.setVisible(True)
+            self.restoreState(self._default_state)
+        else:
+            self._apply_default_layout()
 
     def _build_menu(self):
         mb = self.menuBar()
@@ -171,6 +251,29 @@ class FocusedMainWindow(QMainWindow):
         act_rbc.triggered.connect(self.viewer._reset_bc)
         view_menu.addAction(act_rbc)
         view_menu.addSeparator()
+
+        # --- Panels submenu: show/hide each dock individually ---
+        panels_menu = view_menu.addMenu("Panels")
+        for dock, label in [
+            (self.dock_pipeline, "Pipeline"),
+            (self.dock_params,   "Parameters"),
+            (self.dock_summary,  "Summary"),
+            (self.dock_graphs,   "Graphs"),
+            (self.dock_log,      "Log"),
+        ]:
+            act = dock.toggleViewAction()
+            act.setText(label)
+            panels_menu.addAction(act)
+
+        act_reset = QAction("Reset Layout", self)
+        act_reset.setShortcut("Ctrl+Shift+R")
+        act_reset.setToolTip(
+            "Return all panels (Pipeline, Parameters, Summary, Graphs, "
+            "Log) to their default docked positions.")
+        act_reset.triggered.connect(self.reset_layout)
+        view_menu.addAction(act_reset)
+        view_menu.addSeparator()
+
         act_info = QAction("Recording Info...", self)
         act_info.setShortcut("Ctrl+I")
         act_info.triggered.connect(self._show_recording_info)
@@ -245,39 +348,71 @@ class FocusedMainWindow(QMainWindow):
 
     def _load_path(self, path):
         try:
-            from core.io import load_recording
-            self.recording = load_recording(path)
+            from core.io import load_recording, detect_channels
+            n_ch = (detect_channels(path)
+                    if path.lower().endswith((".tif", ".tiff")) else 1)
+            dic_ch = fluo_ch = None
+            if n_ch > 1:
+                dic_ch, fluo_ch = channel_chooser(self, n_ch)
+                if dic_ch is None:
+                    self.logger.log(
+                        "info",
+                        f"Multichannel ({n_ch} ch): single-channel mode")
+                else:
+                    self.logger.log(
+                        "info",
+                        f"Multichannel ({n_ch} ch): DIC=ch{dic_ch}, "
+                        f"Fluo={'ch'+str(fluo_ch) if fluo_ch is not None else 'off'}")
+            self.recording = load_recording(
+                path, dic_channel=dic_ch, fluo_channel=fluo_ch)
         except Exception as e:
             QMessageBox.critical(self, "Load Error", str(e))
             return
         n = len(self.recording["frames"])
         name = self.recording.get("name", os.path.basename(path))
-        self.logger.log("info", f"Loaded {name}: {n} frames")
-        self.viewer.set_data(self.recording["frames"])
+        cy5_note = ""
+        if self.recording.get("cy5_frames") is not None:
+            cy5_note = " [+ Cy5 channel]"
+        self.logger.log("info", f"Loaded {name}: {n} frames{cy5_note}")
+        self.viewer.set_data(
+            self.recording["frames"],
+            fluo_frames=self.recording.get("cy5_frames"))
         self.detect_result = None
         self.analysis_result = None
         self.analysis.clear()
         self.pipeline.reset_all()
         self.pipeline.set_stage_status("load", "done")
         self.pipeline.enable_stage("detect", True)
-        self.status.showMessage(f"Loaded: {name} ({n} frames)")
+        self.status.showMessage(f"Loaded: {name} ({n} frames){cy5_note}")
         self.params.set_from_recording(self.recording)
+        # Enable Cy5 recovery toggle if recording has fluo channel
+        has_cy5 = self.recording.get("cy5_frames") is not None
+        if hasattr(self.params, "set_cy5_available"):
+            self.params.set_cy5_available(has_cy5)
         self.params.set_context("detect", self.mode)
+
+    # Recordings AND .cellscope project files are accepted by drag-drop.
+    _DROP_VIDEO_EXTS = (".mp4", ".avi", ".mov", ".tif", ".tiff")
+    _DROP_PROJECT_EXTS = (".cellscope",)
 
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls():
             for url in event.mimeData().urls():
                 path = url.toLocalFile().lower()
-                if path.endswith((".mp4", ".avi", ".mov",
-                                  ".tif", ".tiff")):
+                if path.endswith(self._DROP_VIDEO_EXTS
+                                 + self._DROP_PROJECT_EXTS):
                     event.acceptProposedAction()
                     return
 
     def dropEvent(self, event):
         for url in event.mimeData().urls():
             path = url.toLocalFile()
-            if path.lower().endswith((".mp4", ".avi", ".mov",
-                                      ".tif", ".tiff")):
+            low = path.lower()
+            if low.endswith(self._DROP_PROJECT_EXTS):
+                from gui_focused.project_handlers import on_load_project
+                on_load_project(self, path=path)
+                return
+            if low.endswith(self._DROP_VIDEO_EXTS):
                 self._load_path(path)
                 return
 
@@ -300,10 +435,19 @@ class FocusedMainWindow(QMainWindow):
             self.logger.log("info", f"Auto-detected modality: {modality}")
             self.statusBar().showMessage(
                 f"Modality: {modality}", 5000)
-        # Choose detect mode based on modality and single/multi
+        # Choose detect mode based on modality and single/multi.
+        # For DIC multi-cell, default to the canonical "auto" pipeline
+        # — same code path as run_pipeline_on_gt_recording.py (auto
+        # downsample + DIC↔Cy5 alignment + auto cpsam_dic-vs-cpsam
+        # selection + multi-metric Cy5 filter). User can override
+        # back to the legacy explicit modes via params if needed.
         if modality == "dic":
-            detect_mode = ("hybrid_dic" if self.mode == "single"
-                            else "hybrid_dic_multi")
+            if self.mode == "multi" and not params.get(
+                    "force_legacy_mode", False):
+                detect_mode = "auto"
+            else:
+                detect_mode = ("hybrid_dic" if self.mode == "single"
+                                else "hybrid_dic_multi")
         else:
             detect_mode = ("hybrid_cpsam" if self.mode == "single"
                             else "hybrid_cpsam_multi")
@@ -326,8 +470,16 @@ class FocusedMainWindow(QMainWindow):
 
     def _on_detect_done(self, result):
         self.detect_result = result
+        # Record which pipeline function produced this result so
+        # RUN_METADATA.md can describe it accurately on export.
+        result.setdefault("pipeline_function", self.mode)
         masks = result.get("labels") if "labels" in result else result["masks"]
         self.viewer.update_masks(masks)
+        # Push fusion source map to the viewer if available — enables
+        # the "Source" colour toggle in the viewer control row.
+        if hasattr(self.viewer, "set_source_stack"):
+            self.viewer.set_source_stack(
+                result.get("fusion_source_stack"))
         self.viewer.nav_bar.set_status(
             result["masks"], result.get("missed_frames"))
         elapsed = time.time() - getattr(self, "_detect_t0", time.time())
@@ -337,6 +489,11 @@ class FocusedMainWindow(QMainWindow):
         self.pipeline.btn_cancel.setEnabled(False)
         self.pipeline.enable_stage("edit", True)
         self.pipeline.enable_stage("analyze", True)
+        # Surface the Analysis tab now so users can configure VAMPIRE,
+        # state classification, and per-metric toggles BEFORE clicking
+        # Analyze. The tab is always visible, but auto-switching gives
+        # a workflow hint.
+        self.params.set_context("analyze", self.mode)
         self.progress_bar.setVisible(False)
         n_det = int(result["masks"].any(axis=(1, 2)).sum())
         n_total = len(result["masks"])
@@ -389,13 +546,12 @@ class FocusedMainWindow(QMainWindow):
             return
         from gui_focused.workers import FocusedAnalyzeWorker
         scale = self.params.get_scale_overrides()
-        vampire_params = {
-            "enabled": self.params.compute_vampire.isChecked(),
-            "n_clusters": self.params.vampire_clusters.value(),
-        }
+        vampire_params = self.params.get_vampire_params()
+        state_params = self.params.get_state_params()
         self._worker = FocusedAnalyzeWorker(
             self.recording, self.detect_result, self.mode,
-            scale_overrides=scale, vampire_params=vampire_params)
+            scale_overrides=scale, vampire_params=vampire_params,
+            state_params=state_params)
         self._worker.progress.connect(self._on_progress)
         self._worker.log_event.connect(
             lambda k, m: self.logger.log(k, m))
@@ -434,6 +590,14 @@ class FocusedMainWindow(QMainWindow):
             logger=self.logger,
             parent=self,
         )
+        # Stash the params used for the last detection so RUN_METADATA
+        # can record them. self.params is the live panel — values may
+        # have been edited since the run, but capturing the live state
+        # is still useful and matches what re-running would do.
+        try:
+            dlg.detect_params_used = self.params.get_detect_params()
+        except Exception:
+            dlg.detect_params_used = {}
         dlg.exec_()
         self.pipeline.set_stage_status("export", "done")
 

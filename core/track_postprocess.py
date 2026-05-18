@@ -326,25 +326,83 @@ def reject_false_positives(tracks, frames=None,
     return n_rejected
 
 
+def reject_edge_artifact_tracks(tracks, frame_shape,
+                                  edge_band_px=10,
+                                  max_artifact_area=500,
+                                  min_real_frames=3):
+    """Drop tracks whose initial detection sits on the image boundary
+    AND is small AND fails to grow into a real cell over its lifetime.
+
+    Specifically a track is removed if ALL of these are true:
+      - Its first real detection's bbox touches the image edge
+        (within `edge_band_px` of any boundary).
+      - That first detection's area is < max_artifact_area px.
+      - The track never grows past `max_artifact_area` in any frame
+        (so it's never been a real cell).
+
+    These are typically mounting-medium reflections or edge-of-FOV
+    artifacts that cpsam picks up but should not be tracked. Modifies
+    tracks in-place; returns count removed.
+    """
+    H, W = frame_shape[-2:]
+    before = len(tracks)
+    surviving = []
+    for t in tracks:
+        stack = t["stack"]
+        # Find first real detection
+        first_idx = None
+        for fi in range(len(stack)):
+            if stack[fi].any():
+                first_idx = fi
+                break
+        if first_idx is None:
+            continue
+        m0 = stack[first_idx]
+        a0 = int(m0.sum())
+        ys, xs = np.where(m0)
+        on_edge = (ys.min() < edge_band_px or ys.max() >= H - edge_band_px
+                   or xs.min() < edge_band_px or xs.max() >= W - edge_band_px)
+        if not (on_edge and a0 < max_artifact_area):
+            surviving.append(t)
+            continue
+        # Edge + small at start. Did it ever grow into a real cell?
+        max_area_seen = max(int(stack[fi].sum())
+                             for fi in range(len(stack))
+                             if stack[fi].any())
+        if max_area_seen >= max_artifact_area:
+            surviving.append(t)
+            continue
+        # Drop it
+        log.info("Dropped edge-artifact track: starts F%d at edge, "
+                 "max area %d < %d",
+                 first_idx, max_area_seen, max_artifact_area)
+    tracks[:] = surviving
+    removed = before - len(tracks)
+    return removed
+
+
 def postprocess_tracks(tracks, frames=None,
                         overlap_threshold=0.3, iou_threshold=0.05,
                         min_frames=3):
     """Full post-processing pipeline.
 
     1. Reject false positives (outlier detections)
-    2. Merge split tracks
-    3. Stabilize IDs (fix switches)
-    4. Remove empty tracks
+    2. Drop edge-artifact tracks
+    3. Remove empty tracks
 
     Modifies tracks in-place. Returns summary dict.
     """
     n_fps = reject_false_positives(tracks, frames)
 
+    n_edge = 0
+    if frames is not None and tracks:
+        n_edge = reject_edge_artifact_tracks(tracks, frames.shape)
+
     n_removed = remove_empty_tracks(tracks, min_frames)
 
     return {
         "fps_rejected": n_fps,
-        "tracks_removed": n_removed,
+        "edge_artifacts_dropped": n_edge,
         "tracks_removed": n_removed,
         "tracks_remaining": len(tracks),
     }

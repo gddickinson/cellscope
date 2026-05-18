@@ -110,7 +110,7 @@ def track_all_cells(masks, min_area_px=200, max_hop_px=150,
                     seed_frame=None, spawn_new_tracks=False,
                     min_track_length=1, frames=None,
                     w_dist=1.0, w_area=0.5, w_iou=1.0,
-                    w_intensity=0.3):
+                    w_intensity=0.3, max_gap_frames=None):
     """Return one (N, H, W) stack per cell seen in the seed frame.
 
     Uses a multi-feature cost matrix for Hungarian assignment:
@@ -158,7 +158,10 @@ def track_all_cells(masks, min_area_px=200, max_hop_px=150,
         })
 
     from scipy.optimize import linear_sum_assignment
-    MAX_GAP = 10
+    if max_gap_frames is None:
+        from core.pipeline_defaults import DEFAULTS
+        max_gap_frames = DEFAULTS.max_gap_frames
+    MAX_GAP = max_gap_frames
     LARGE = 1e9
 
     for i in range(seed_frame + 1, n):
@@ -173,12 +176,19 @@ def track_all_cells(masks, min_area_px=200, max_hop_px=150,
         prev_cents = np.array(
             [t["centroid_history"][-1] for t in alive])
         cur_cents = np.array([c[0] for c in cells])
+        # Cap the gap-scaling factor at 2× — so even a long-dormant
+        # track can never grab a detection > 2 * max_hop_px away. This
+        # prevents the previous failure mode where a small artifact at
+        # F0 swallowed the central cell at F5 because allowed=750px.
+        # Cells genuinely move <max_hop_px per frame, so 2x is plenty
+        # of slack for transient detection misses.
         gap = np.array([max(1, i - t["last_seen_frame"])
-                        for t in alive])[:, None]
+                        for t in alive])
+        gap_capped = np.minimum(gap, 2)[:, None]
 
-        # Cost matrix: centroid distance, with gap-tolerance scaling
+        # Cost matrix: centroid distance, with capped gap scaling
         raw_dists = cdist(prev_cents, cur_cents)
-        allowed = max_hop_px * gap
+        allowed = max_hop_px * gap_capped
         cost = np.where(raw_dists <= allowed, raw_dists, LARGE)
 
         # Pad to square matrix so Hungarian handles N_tracks != N_cells

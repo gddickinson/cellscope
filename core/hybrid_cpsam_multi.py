@@ -99,13 +99,25 @@ def detect_hybrid_cpsam_multi(frames, progress_fn=None,
                                use_fallback=True,
                                use_deepsea=True,
                                use_gap_fill=True,
-                               expected_cells=0):
+                               use_tta=False,
+                               expected_cells=0,
+                               cy5_frames=None,
+                               recover_with_cy5=False,
+                               use_cy5_fusion=False):
     """Multi-cell hybrid cpsam detection + tracking.
 
     Args:
         use_fallback: run cellpose fallback on cpsam-missed frames
         use_deepsea: run per-cell DeepSea refinement
         use_gap_fill: fill internal track gaps with augmented detection
+        use_tta: pass augment=True to cpsam (4-rotation TTA, ~2.5×
+            slower per frame but recovers cells the base model misses;
+            recommended for low-density / OOD recordings)
+        cy5_frames: optional (N, H, W) uint8 fluorescence stack
+        recover_with_cy5: if True (and cy5_frames provided), search
+            for Cy5+ regions not covered by any cpsam mask, then crop
+            and re-run cpsam(TTA) on that crop only to try to recover
+            the missed cell. Cheap defensive layer for false-negatives.
 
     Returns dict with keys:
         masks:         (N, H, W) bool — union of all tracked cells
@@ -113,6 +125,7 @@ def detect_hybrid_cpsam_multi(frames, progress_fn=None,
                        across frames; 0=background)
         tracks:        list of track dicts from track_all_cells
         missed_frames: list of frame indices rescued by fallback
+        n_cy5_recovered: count of cells added via Cy5 recovery
         cell_count:    max cells detected in any frame
     """
     import cellpose
@@ -129,14 +142,22 @@ def detect_hybrid_cpsam_multi(frames, progress_fn=None,
         os.path.dirname(os.path.abspath(__file__)))
     n = len(frames)
 
-    # Step 1: cpsam at defaults — keep instance labels
-    m = models.CellposeModel(gpu=True)
+    # Step 1: cpsam at defaults — keep instance labels.
+    # Honour CPSAM_PRETRAINED if set so callers can swap the model.
+    cpsam_path = os.environ.get("CPSAM_PRETRAINED")
+    if cpsam_path:
+        log.info("loading cpsam from %s", cpsam_path)
+        m = models.CellposeModel(gpu=True, pretrained_model=cpsam_path)
+    else:
+        m = models.CellposeModel(gpu=True)
     raw_labels = np.zeros(frames.shape, dtype=np.int32)
+    eval_kwargs = {"augment": True} if use_tta else {}
     for i in range(n):
         if progress_fn and (i % 10 == 0 or i == n - 1):
-            progress_fn(f"cpsam {i+1}/{n}",
+            progress_fn(f"cpsam {i+1}/{n}"
+                        + (" (TTA)" if use_tta else ""),
                         int(30 * i / max(n - 1, 1)))
-        masks_i, _, _ = m.eval(frames[i])
+        masks_i, _, _ = m.eval(frames[i], **eval_kwargs)
         raw_labels[i] = masks_i.astype(np.int32)
 
     # Step 2: debris filter
@@ -159,6 +180,61 @@ def detect_hybrid_cpsam_multi(frames, progress_fn=None,
         for j, fi in enumerate(missed):
             raw_labels[fi], cell_counts[fi] = _filter_labels(
                 fallback[j], min_area_px)
+
+    # Step 3b: Cy5-based recovery of cells missed by cpsam.
+    # For each frame, find bright Cy5 regions not covered by any
+    # cpsam label, crop around them, re-run cpsam(TTA). Newly
+    # detected cells are appended as new label IDs.
+    # k_mad=5.0 (vs default 4.0) chosen via diagnostic on Pos14_KO:
+    # at k=4 every frame triggers 2-3 candidate cpsam crops that all
+    # reject (~60s/frame waste); at k=5 candidates drop to 0 when no
+    # genuine missed cells exist. Pilot confirmed 0 recoveries at
+    # k=4 so this sacrifices nothing while restoring throughput.
+    # Step 3a: Cy5 fusion — run cpsam on Cy5 stack, merge new cells
+    # in before refinement + tracking. Separate from recover_with_cy5
+    # which is a slower fallback that re-runs cpsam on DIC crops.
+    n_cy5_fusion_added = 0
+    fusion_source_stack = None
+    if use_cy5_fusion and cy5_frames is not None:
+        from core.dic_cy5_fusion import detect_dic_cy5_fusion
+        if cy5_frames.shape != frames.shape:
+            log.warning(
+                "Cy5 fusion skipped: shape mismatch dic=%s cy5=%s",
+                frames.shape, cy5_frames.shape)
+        else:
+            if progress_fn:
+                progress_fn("Cy5 fusion: cpsam on fluorescence", 37)
+            fusion = detect_dic_cy5_fusion(
+                raw_labels, cy5_frames, project_root,
+                min_area_px=min_area_px,
+                augment_cpsam=False)
+            raw_labels = fusion["labels"]
+            fusion_source_stack = fusion["source_stack"]
+            n_cy5_fusion_added = fusion["n_added_total"]
+            cell_counts = np.array(
+                [int(raw_labels[i].max()) for i in range(n)])
+            max_cells = max(max_cells, int(cell_counts.max()))
+            log.info("After Cy5 fusion: max %d cells/frame "
+                     "(+%d cells added)",
+                     max_cells, n_cy5_fusion_added)
+
+    n_cy5_recovered = 0
+    if recover_with_cy5 and cy5_frames is not None:
+        from core.cy5_fallbacks import recover_missed_cells_via_dic_crop
+        if progress_fn:
+            progress_fn("Cy5 recovery scan", 38)
+        for i in range(n):
+            new_labels, n_added, _ = recover_missed_cells_via_dic_crop(
+                frames[i], raw_labels[i], cy5_frames[i], m,
+                use_tta=True, k_mad=5.0)
+            if n_added > 0:
+                raw_labels[i] = new_labels
+                cell_counts[i] = int(new_labels.max())
+                n_cy5_recovered += n_added
+        if n_cy5_recovered:
+            log.info("Cy5 recovery added %d cells across %d frames",
+                     n_cy5_recovered, n)
+            max_cells = max(max_cells, int(cell_counts.max()))
 
     # Step 4: per-cell DeepSea refinement
     if use_deepsea:
@@ -197,14 +273,16 @@ def detect_hybrid_cpsam_multi(frames, progress_fn=None,
         from core.track_gap_fill import fill_track_gaps
         if progress_fn:
             progress_fn("Filling track gaps", 80)
+        from core.pipeline_defaults import DEFAULTS as _PD
         n_filled = fill_track_gaps(
             tracks, frames, min_area=min_area_px,
             search_radius=150,
             project_root=project_root,
+            use_sam2_video=_PD.use_sam2_video_gap_fill,
             progress_fn=lambda msg, pct: progress_fn(
                 msg, int(80 + 15 * pct / 100)) if progress_fn else None)
         if n_filled:
-            log.info("Filled %d track gaps via cpsam(augment=True)",
+            log.info("Filled %d track gaps via gap-fill cascade",
                      n_filled)
 
     # Step 5c: post-process tracks (merge splits, fix ID switches)
@@ -223,11 +301,24 @@ def detect_hybrid_cpsam_multi(frames, progress_fn=None,
     if progress_fn:
         progress_fn("Done", 100)
 
+    if fusion_source_stack is not None:
+        from core.fusion_diagnostics import (
+            annotate_tracks_with_source, per_track_source_summary)
+        annotate_tracks_with_source(tracks, fusion_source_stack)
+        src_summary = per_track_source_summary(tracks)
+        log.info(
+            "Track sources: %d dic_only, %d both, %d cy5_only",
+            src_summary["dic_only"], src_summary["both"],
+            src_summary["cy5_only"])
+
     return {
         "masks": tracked > 0,
         "labels": tracked,
         "tracks": tracks,
         "missed_frames": missed,
+        "n_cy5_recovered": n_cy5_recovered,
+        "n_cy5_fusion_added": n_cy5_fusion_added,
+        "fusion_source_stack": fusion_source_stack,
         "cell_count": max_cells,
     }
 

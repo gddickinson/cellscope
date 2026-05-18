@@ -7,15 +7,26 @@ import numpy as np
 import cv2
 
 CELL_COLORS = [
-    (0, 255, 0),       # 1: green (default / single-cell compat)
-    (255, 80, 80),     # 2: red
-    (80, 140, 255),    # 3: blue
-    (255, 220, 50),    # 4: yellow
-    (255, 50, 220),    # 5: magenta
-    (50, 255, 255),    # 6: cyan
-    (255, 160, 50),    # 7: orange
-    (180, 100, 255),   # 8: purple
-    (100, 255, 100),   # 9: lime
+    (0, 255, 0),       # 1:  green (default / single-cell compat)
+    (255, 80, 80),     # 2:  red
+    (80, 140, 255),    # 3:  blue
+    (255, 220, 50),    # 4:  yellow
+    (255, 50, 220),    # 5:  magenta
+    (50, 255, 255),    # 6:  cyan
+    (255, 160, 50),    # 7:  orange
+    (180, 100, 255),   # 8:  purple
+    (100, 255, 100),   # 9:  lime
+    (255, 130, 180),   # 10: pink
+    (0, 200, 150),     # 11: teal
+    (200, 130, 80),    # 12: brown
+    (180, 200, 60),    # 13: olive
+    (80, 220, 220),    # 14: turquoise
+    (255, 100, 100),   # 15: salmon
+    (130, 80, 200),    # 16: indigo
+    (240, 240, 110),   # 17: pale yellow
+    (170, 250, 90),    # 18: chartreuse
+    (240, 130, 200),   # 19: rose
+    (90, 180, 240),    # 20: sky blue
 ]
 
 
@@ -27,7 +38,8 @@ def cell_color(cell_id):
 
 
 def render_label_overlay(frame, labels, opacity=0.4,
-                         active_cell=None, polygon_preview=None):
+                         active_cell=None, polygon_preview=None,
+                         show_ids=False):
     """Render a frame with colored per-cell label overlay.
 
     Args:
@@ -36,6 +48,8 @@ def render_label_overlay(frame, labels, opacity=0.4,
         opacity: overlay blend factor
         active_cell: highlight this cell's contour thicker
         polygon_preview: list of (x, y) points to draw as preview
+        show_ids: when True, draw the cell ID number at each cell's
+            centroid in white text on a translucent black background
 
     Returns:
         (H, W, 3) uint8 RGB image
@@ -67,6 +81,34 @@ def render_label_overlay(frame, labels, opacity=0.4,
     if polygon_preview and len(polygon_preview) >= 2:
         pts = np.array(polygon_preview, dtype=np.int32)
         cv2.polylines(rgb, [pts], False, (255, 255, 255), 1)
+
+    if show_ids:
+        # Pixel size scales with image — keep text readable on both
+        # small crops (256²) and full frames (2048²).
+        font_scale = max(0.5, min(2.0, min(h, w) / 600.0))
+        thickness = max(1, int(round(font_scale * 1.5)))
+        for cell_id in range(1, int(labels.max()) + 1):
+            mask = labels == cell_id
+            if not mask.any():
+                continue
+            ys, xs = np.where(mask)
+            cy, cx = int(ys.mean()), int(xs.mean())
+            label = str(cell_id)
+            (tw, th), _ = cv2.getTextSize(
+                label, cv2.FONT_HERSHEY_SIMPLEX, font_scale, thickness)
+            x0 = cx - tw // 2
+            y0 = cy + th // 2
+            # Black rounded-rect background for legibility
+            pad = max(2, int(round(font_scale * 2)))
+            cv2.rectangle(
+                rgb,
+                (x0 - pad, y0 - th - pad),
+                (x0 + tw + pad, y0 + pad),
+                (0, 0, 0), -1)
+            cv2.putText(
+                rgb, label, (x0, y0),
+                cv2.FONT_HERSHEY_SIMPLEX, font_scale,
+                (255, 255, 255), thickness, cv2.LINE_AA)
 
     return rgb
 

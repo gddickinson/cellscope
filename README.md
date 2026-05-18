@@ -191,6 +191,82 @@ All graphs come from one tracked cell in a real 97-frame phase-contrast keratino
 ![DIC multi-cell with debris filter](docs/figures/focused_phase_detected.png)
 *The DIC pipeline (cpsam_dic + min_area filter + per-cell DeepSea refinement) handles cropped DIC keratinocyte recordings. The debris filter automatically drops small false-positive blobs.*
 
+## Multi-channel recordings (DIC + actin)
+
+For recordings with both DIC and a fluorescent F-actin probe (e.g.
+SiR-actin in the Cy5 channel), CellScope provides a dedicated
+**multi-channel pipeline** that uses the actin signal as a ground-
+truth filter:
+
+* Detection runs cpsam on DIC (full instance segmentation).
+* The Cy5 channel is used to score each detected mask — masks
+  without bright Cy5 signal inside are dropped (cleanly removes
+  debris / dust DIC false positives).
+* **Three-tier fail-safe** for cells DIC misses:
+  1. Cy5+ regions without DIC mask → crop and re-run cpsam(DIC, TTA).
+  2. Track gaps with Cy5 evidence at the interpolated centroid →
+     fill via cpsam on the Cy5 crop (preserves cell morphology, not
+     just blob threshold).
+  3. Last-resort threshold-based fill (only when temporal context
+     confirms the cell exists).
+* All tiers verify cell morphology via cpsam — fluorescence artefacts
+  cannot be falsely classified as cells.
+
+See `docs/multichannel_analysis_plan.md` for the design + roadmap.
+
+### Use multichannel from the GUI
+
+Both the **focused GUI** (`main_focused.py`) and the **batch GUI**
+(`main_batch.py`) handle multichannel TIFFs:
+
+* **Focused GUI** — drop a multi-channel `.ome.tif` onto the
+  Single-Recording tab. CellScope auto-detects the channel count and
+  pops up a dialog asking which channel is DIC and which is the
+  fluorescence label (defaults: DIC=ch1, Fluo=ch0 — matches IC295).
+  After loading, two Cy5 controls in the Parameters panel become
+  enabled:
+  * **Cy5 recovery (Tier 2)** — checked by default; uses Cy5 to find
+    cells cpsam(DIC) missed.
+  * **Cy5 filter (Tier 4)** — dropdown with nine modes for dropping
+    DIC false positives based on Cy5 signal:
+      - *Off* — keep all detected tracks
+      - *Conservative* — drop only tracks with NO Cy5 signal
+        (mean<0.05 AND p95<0.10) — safest, keeps faint real cells
+      - *Conservative strict* — tighter (mean<0.10 AND p95<0.20)
+      - *Adaptive* — per-recording bimodal-aware cut
+      - *Adaptive loose* — bimodal cut requiring 4× median + 0.20 gap
+      - **Multi-metric (default)** — track is REAL if ≥2/3 cellularity
+        tests pass (z-score, inside/outside ring ratio,
+        fraction-positive coverage). Recommended on visual review.
+      - *Composite score* — continuous sum of the same 3 metrics ≥ 1.0
+      - *Consensus* — drop only if multi-metric AND composite agree
+      - *Temporal stability* — drop tracks with random-noise Cy5 over time
+      - *Threshold* — manual mean-score cut
+
+  Tune the multi-metric thresholds interactively with
+  `scripts/cy5_filter_tuner.py` (live overlay updates as you slide).
+
+* **Batch GUI** — under "Pipeline Settings", check **Multichannel** and
+  set the **DIC channel** + **Fluo channel** indices (defaults match
+  IC295). Cy5 recovery is on by default; the Cy5 filter dropdown
+  applies the same Tier-4 strategies above per recording. Per-recording
+  outputs include `n_cy5_recovered` and (when filter is on) the
+  kept/dropped track counts.
+
+### Use multichannel from the command line
+
+```bash
+# Run the full IC295 pipeline (DIC detection + Cy5 recovery +
+# per-track Cy5 annotation):
+conda run -n cellpose4 python scripts/run_ignasi_ic295_full.py \
+    --src /path/to/multichannel/recordings
+
+# After hand-labelling GT candidates, benchmark vs DIC-only baseline:
+conda run -n cellpose4 python scripts/bench_multichannel.py \
+    --candidates data/ic295_gt/candidates \
+    --out-dir results/ic295_eval
+```
+
 ## Tracking & Comparison GUI
 
 ![Tracking GUI](docs/figures/gui_tracking.png)
@@ -308,7 +384,3 @@ CellScope builds on:
 - [DeepSea](https://github.com/abzargar/DeepSea) (Zargari et al., Cell Reports Methods 2022)
 - [MedSAM](https://github.com/bowang-lab/MedSAM) (Ma et al., Nature Communications 2024)
 - [VAMPIRE](https://github.com/kukionfr/VAMPIRE_analysis) (Lam et al., Nature Protocols 2021)
-
-
----
-*Built with AI assistance from [Claude (Anthropic)](https://claude.com/).*

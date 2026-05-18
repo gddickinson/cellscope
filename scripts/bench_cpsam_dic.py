@@ -117,6 +117,8 @@ def main():
     ap.add_argument("--name-glob", default="*",
                     help="filter filenames in PNG mode "
                          "(e.g. 'our_*_gt' for our full-frame GT)")
+    ap.add_argument("--augment", action="store_true",
+                    help="enable cpsam test-time augmentation (4 rotations)")
     args = ap.parse_args()
 
     print(f"[bench] loading test pairs from {args.test_dir} "
@@ -135,8 +137,9 @@ def main():
 
     rows = []
     t0 = time.time()
+    print(f"[bench] augment={args.augment}")
     for i, (img, gt, name, geno) in enumerate(pairs):
-        out = model.eval(img)
+        out = model.eval(img, augment=args.augment)
         # cellpose returns either (masks,flows,styles) or
         # (masks,flows,styles,diams) depending on version
         masks = out[0]

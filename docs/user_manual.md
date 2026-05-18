@@ -175,6 +175,17 @@ Cell Summary Table
 Select "All Cells" in the Cell dropdown to see overlaid traces
 for all tracked cells.
 
+**Gap fill** — beside the Cell dropdown, the "Gap fill" combo
+linearly interpolates short NaN runs in the timeseries plots
+(Speed vs Time, Area vs Time, Shape Panel, Boundary Confidence,
+Consecutive IoU, multi-cell Speed/Area Comparison). Off by
+default; pick ≤1, ≤2, ≤3 or ≤5 to bridge brief detection
+misses. Interpolated samples are drawn dotted in the same
+colour, so you always see which points are measured and which
+are synthetic. Edge gaps and runs longer than the threshold
+are left as breaks — we never invent data outside what we
+actually saw.
+
 ![Trajectory graph](figures/graph_trajectory.png)
 *Trajectory plot colored by frame number, showing cell migration path. Green circle = start, red square = end.*
 
@@ -293,6 +304,30 @@ my_training_data/
 5. Trained model saved to `data/models/<your_name>`
 
 The new model appears automatically in detection mode dropdowns.
+
+---
+
+## Working with results in Fiji / ImageJ
+
+If you prefer Fiji for visualisation or downstream analysis, CellScope
+ships a one-shot exporter:
+
+```bash
+python scripts/cellscope_export_fiji.py path/to/cache.npz \
+    --out-dir fiji_export/
+```
+
+Produces two multipage TIFFs:
+- `<stem>_image.tif` — source recording
+- `<stem>_labels.tif` — tracked cell IDs (consistent across frames)
+
+In Fiji, run `Plugins → Macros → Run…` and pick
+`scripts/cellscope_load.ijm`. The macro opens the image + labels stacks,
+applies the Glasbey LUT for distinct cell colours, and synchronises the
+time sliders.
+
+The label TIFF feeds straight into Fiji's ROI manager, particle
+analysis, or any colocalisation / intensity measurement plugin.
 
 ---
 

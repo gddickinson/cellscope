@@ -12,6 +12,45 @@ from matplotlib.figure import Figure
 from gui_focused.analysis_plots import GRAPH_REGISTRY
 
 
+def _to_jsonable(value):
+    """Recursively convert numpy types + nested arrays into JSON-
+    friendly Python types. Returns the same value if already primitive.
+
+    Handles: numpy scalars → Python int/float; ndarray → list (NaN
+    becomes None so it survives a JSON round-trip); dict / list / tuple
+    recurse; everything else passes through.
+    """
+    # Fast path for plain Python primitives
+    if value is None or isinstance(value, (bool, int, float, str)):
+        return value
+    # Numpy scalar
+    if isinstance(value, np.generic):
+        v = value.item()
+        # NaN / infinite floats aren't valid JSON — emit None
+        if isinstance(v, float) and not np.isfinite(v):
+            return None
+        return v
+    # Numpy array
+    if isinstance(value, np.ndarray):
+        # Convert NaN → None for JSON validity. tolist() handles dtype.
+        if value.dtype.kind == "f":
+            cleaned = np.where(np.isfinite(value), value, np.nan)
+            return [None if (isinstance(x, float) and np.isnan(x)) else x
+                    for x in cleaned.tolist()] if value.ndim == 1 else [
+                        _to_jsonable(v) for v in value]
+        return value.tolist()
+    # Container types
+    if isinstance(value, dict):
+        return {k: _to_jsonable(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_to_jsonable(v) for v in value]
+    # Fallback: try to coerce, else string
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return str(value)
+
+
 class ExportDialog(QDialog):
     """Modal dialog for configuring and executing export."""
 
@@ -162,8 +201,7 @@ class ExportDialog(QDialog):
             if self.chk_metrics.isChecked():
                 r = self.result or {}
                 with open(os.path.join(out_dir, "metrics.json"), "w") as f:
-                    json.dump(self._build_metrics(r), f, indent=2,
-                              default=str)
+                    json.dump(self._build_metrics(r), f, indent=2)
                 if self.multi_results:
                     for mr in self.multi_results:
                         cid = mr.get("cell_id", 0)
@@ -201,6 +239,64 @@ class ExportDialog(QDialog):
                         "Plot '%s' failed: %s", name, e)
                 steps += 1; self.progress.setValue(steps)
 
+            # RUN_METADATA — always written, regardless of which checkboxes
+            # are ticked. This is required by the project: every
+            # analysis output directory MUST carry a metadata record
+            # describing how it was produced. Cheap (<1s), small (<10 KB).
+            try:
+                from core.run_metadata import write_run_metadata
+                # Best-effort: pull pipeline name + mode from the result
+                pipeline_fn = self.detect_result.get(
+                    "pipeline_function", "unknown")
+                mode = ("multi"
+                        if isinstance(self.multi_results, list)
+                        else "single")
+                rerun_cmd = (
+                    f"# GUI export of {self.recording.get('name','')}\n"
+                    f"# open main_focused.py and re-run with the same\n"
+                    f"# parameters set in the Detection panel.")
+                params_used = getattr(self, "detect_params_used", {})
+                write_run_metadata(
+                    out_dir,
+                    self.recording,
+                    params_used,
+                    self.detect_result,
+                    analysis_results=(self.multi_results
+                                       or [self.result]),
+                    pipeline_function=pipeline_fn,
+                    mode=mode,
+                    rerun_command=rerun_cmd,
+                    project_root=os.path.dirname(
+                        os.path.dirname(
+                            os.path.abspath(__file__))))
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(
+                    "RUN_METADATA write failed: %s", e)
+
+            # If detection used Cy5 fusion, always emit a per-channel
+            # source-contour diagnostic figure. Tiny and cheap.
+            if (self.detect_result.get("fusion_source_stack")
+                    is not None
+                    and self.recording.get("cy5_frames") is not None):
+                try:
+                    from core.fusion_diagnostics import (
+                        render_fusion_diagnostic)
+                    out_path = os.path.join(
+                        out_dir, "fusion_diagnostic.png")
+                    render_fusion_diagnostic(
+                        self.recording["frames"],
+                        self.recording["cy5_frames"],
+                        self.detect_result["fusion_source_stack"],
+                        self.detect_result["labels"],
+                        out_path,
+                        n_sample_frames=6,
+                        tracks=self.detect_result.get("tracks"))
+                except Exception as e:
+                    import logging
+                    logging.getLogger(__name__).warning(
+                        "Fusion diagnostic failed: %s", e)
+
             if self.chk_overlay_tif.isChecked():
                 self._save_overlay_tif(out_dir)
                 steps += 1; self.progress.setValue(steps)
@@ -227,17 +323,39 @@ class ExportDialog(QDialog):
                 raise
 
     def _build_metrics(self, r):
+        """Pack a result dict into a JSON-friendly metrics dict.
+
+        Converts numpy scalars/arrays recursively so JSON gets real
+        numbers (not strings via `default=str`). Includes VAMPIRE +
+        per-state results when present.
+        """
         out = {}
+        # Top-level scalars
         for k in ["name", "n_frames", "um_per_px", "time_interval_min",
                    "mean_speed", "total_distance", "net_displacement",
                    "persistence", "mean_boundary_confidence", "cell_id"]:
             if k in r:
-                v = r[k]
-                out[k] = float(v) if isinstance(v, (np.floating,)) else v
+                out[k] = _to_jsonable(r[k])
+        # Nested summary dicts (may contain numpy values)
         for k in ["shape_summary", "edge_summary", "area_stability",
                    "track_info"]:
             if k in r:
-                out[k] = r[k]
+                out[k] = _to_jsonable(r[k])
+        # VAMPIRE results — contours, PCA, cluster assignments,
+        # heterogeneity entropy. Previously dropped entirely.
+        if "vampire" in r and r["vampire"]:
+            out["vampire"] = _to_jsonable(r["vampire"])
+        # Cell-state classification (balled vs attached) — fractions
+        # plus per-state motility (speed, persistence, MSD, …).
+        for k in ["state_frac_balled", "state_frac_attached",
+                   "state_frac_transitional"]:
+            if k in r:
+                out[k] = _to_jsonable(r[k])
+        # Per-state motility keys are prefixed `balled_…` and
+        # `attached_…` — copy them all.
+        for k, v in r.items():
+            if k.startswith(("balled_", "attached_")):
+                out[k] = _to_jsonable(v)
         return out
 
     def _save_overlay_tif(self, out_dir):

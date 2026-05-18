@@ -1,0 +1,12 @@
+{
+  "name": "multichannel_DIC_Cy5_WT",
+  "um_per_px": 2.6092,
+  "time_interval_min": 10.0,
+  "condition": "control",
+  "n_channels": 2,
+  "channels": {
+    "0": "Cy5 (F-actin)",
+    "1": "DIC"
+  },
+  "cell_type": "keratinocyte (SiR-actin labelled)"
+}

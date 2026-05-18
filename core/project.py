@@ -48,6 +48,11 @@ def save_project(path, recording, detect_result, analysis_result,
         labels = detect_result.get("labels")
         if labels is not None:
             save_dict["labels"] = labels
+        # Save the fusion source stack so the viewer can colour cells
+        # by source after re-opening the project.
+        src = detect_result.get("fusion_source_stack")
+        if src is not None:
+            save_dict["fusion_source_stack"] = src.astype(np.uint8)
         np.savez_compressed(masks_path, **save_dict)
         proj["masks_file"] = os.path.basename(masks_path)
 
@@ -74,7 +79,12 @@ def load_project(path):
 
     Returns:
         dict with keys: recording_info, mode, params, masks, labels,
-        analysis, roi_mask
+        tracks, analysis, roi_mask
+
+    The `tracks` list is reconstructed from the labels stack — without
+    it, the multi-cell analysis worker would see zero cells (because
+    it iterates `detect_result["tracks"]`, not the labels stack
+    directly).
     """
     with open(path) as f:
         proj = json.load(f)
@@ -86,7 +96,9 @@ def load_project(path):
         "analysis": proj.get("analysis"),
         "masks": None,
         "labels": None,
+        "tracks": [],
         "roi_mask": None,
+        "fusion_source_stack": None,
     }
 
     proj_dir = os.path.dirname(os.path.abspath(path))
@@ -98,6 +110,15 @@ def load_project(path):
             data = np.load(masks_path)
             result["masks"] = data.get("masks")
             result["labels"] = data.get("labels")
+            # Optional fusion-source stack (when detection used Cy5
+            # fusion). None if not present in the .npz.
+            if "fusion_source_stack" in data.files:
+                result["fusion_source_stack"] = data["fusion_source_stack"]
+            # Reconstruct tracks list from the labels stack so that
+            # downstream code (analysis worker, exporters) can iterate
+            # per-cell without re-running detection.
+            if result["labels"] is not None:
+                result["tracks"] = _tracks_from_labels(result["labels"])
 
     roi_file = proj.get("roi_file")
     if roi_file:
@@ -106,6 +127,36 @@ def load_project(path):
             result["roi_mask"] = np.load(roi_path)["roi"]
 
     return result
+
+
+def _tracks_from_labels(labels):
+    """Rebuild a list of per-cell track dicts from an (N, H, W) int
+    label stack.
+
+    Each track has the same shape the detection pipeline produces:
+        {"stack": (N, H, W) bool, "first_frame": int, "parent_id": None}
+
+    `parent_id` is unrecoverable from labels alone (no lineage info
+    in the saved file) — it's set to None for all tracks. The
+    `first_frame` is the index of the first frame in which the cell
+    appears.
+    """
+    if labels is None:
+        return []
+    tracks = []
+    cell_ids = sorted(int(c) for c in np.unique(labels) if c != 0)
+    for cid in cell_ids:
+        stack = (labels == cid)
+        per_frame_present = stack.any(axis=(1, 2))
+        if not per_frame_present.any():
+            continue
+        first = int(np.argmax(per_frame_present))
+        tracks.append({
+            "stack": stack,
+            "first_frame": first,
+            "parent_id": None,
+        })
+    return tracks
 
 
 def _extract_scalars(result):

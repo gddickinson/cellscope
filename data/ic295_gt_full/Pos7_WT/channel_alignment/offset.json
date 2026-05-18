@@ -1,0 +1,60 @@
+{
+  "recording": "/Users/george/claude_test/cellscope/data/ic295_gt_full/Pos7_WT/IC295__1_MMStack_Pos7-WT.ome.tif",
+  "median_dy_px": 0.0,
+  "median_dx_px": 0.0,
+  "sd_dy_px": 264.5535888671875,
+  "sd_dx_px": 359.6240539550781,
+  "per_frame_offsets": [
+    {
+      "frame": 0,
+      "dy": 0.0,
+      "dx": 741.75
+    },
+    {
+      "frame": 10,
+      "dy": 0.0,
+      "dx": 0.0
+    },
+    {
+      "frame": 21,
+      "dy": 88.25,
+      "dx": 0.0
+    },
+    {
+      "frame": 32,
+      "dy": -647.25,
+      "dx": 0.0
+    },
+    {
+      "frame": 42,
+      "dy": 0.0,
+      "dx": 673.25
+    },
+    {
+      "frame": 53,
+      "dy": 0.0,
+      "dx": 0.0
+    },
+    {
+      "frame": 64,
+      "dy": 0.0,
+      "dx": 0.0
+    },
+    {
+      "frame": 74,
+      "dy": 0.0,
+      "dx": -597.25
+    },
+    {
+      "frame": 85,
+      "dy": 0.0,
+      "dx": 0.0
+    },
+    {
+      "frame": 96,
+      "dy": -647.0,
+      "dx": 0.0
+    }
+  ],
+  "recommendation": "per_frame_correction"
+}

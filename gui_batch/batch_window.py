@@ -1,4 +1,9 @@
-"""Batch analysis window — process multiple recordings with hybrid_cpsam."""
+"""Batch analysis window — process multiple recordings with hybrid_cpsam.
+
+All initial widget values come from core.pipeline_defaults.DEFAULTS so the
+batch GUI stays in lockstep with the focused GUI and the pipeline
+functions. Edit DEFAULTS, not the .setValue / .setChecked calls here.
+"""
 import os
 from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import (
@@ -9,6 +14,8 @@ from PyQt5.QtWidgets import (
 )
 from gui.run_log import RunLogger, RunLogWidget
 from gui_batch.batch_worker import BatchAnalysisWorker
+from core.pipeline_defaults import DEFAULTS as _PD
+from core.cell_state import DEFAULT_THRESHOLDS as _STATE_TH
 
 
 class BatchWindow(QMainWindow):
@@ -87,24 +94,111 @@ class BatchWindow(QMainWindow):
         form.addRow("Mode:", self.mode_combo)
         self.min_area = QSpinBox()
         self.min_area.setRange(50, 10000)
-        self.min_area.setValue(500)
+        self.min_area.setValue(_PD.min_area_px)
         form.addRow("Min area (px):", self.min_area)
         self.use_deepsea = QCheckBox()
-        self.use_deepsea.setChecked(True)
+        self.use_deepsea.setChecked(_PD.use_deepsea)
         form.addRow("DeepSea refinement:", self.use_deepsea)
         self.use_fallback = QCheckBox()
-        self.use_fallback.setChecked(True)
+        self.use_fallback.setChecked(_PD.use_fallback)
         form.addRow("Fallback detection:", self.use_fallback)
         self.use_gap_fill = QCheckBox()
-        self.use_gap_fill.setChecked(True)
+        self.use_gap_fill.setChecked(_PD.use_gap_fill)
         form.addRow("Gap fill:", self.use_gap_fill)
         self.use_vampire = QCheckBox()
-        self.use_vampire.setChecked(False)
+        self.use_vampire.setChecked(_PD.compute_vampire)
         self.use_vampire.setToolTip("VAMPIRE shape mode analysis")
         form.addRow("VAMPIRE analysis:", self.use_vampire)
+        # --- Multichannel group ---
+        self.multichannel = QCheckBox()
+        self.multichannel.setChecked(False)
+        self.multichannel.setToolTip(
+            "For multichannel TIFFs (e.g. DIC + SiR-actin Cy5):\n"
+            "load DIC for detection and fluorescence for Cy5 recovery\n"
+            "and per-cell scoring. Multi-cell mode only.\n"
+            "Channel indices are 0-based.")
+        form.addRow("Multichannel:", self.multichannel)
+        self.dic_channel = QSpinBox()
+        self.dic_channel.setRange(0, 7); self.dic_channel.setValue(1)
+        self.dic_channel.setToolTip("DIC channel index (default 1 for IC295)")
+        form.addRow("  DIC channel:", self.dic_channel)
+        self.fluo_channel = QSpinBox()
+        self.fluo_channel.setRange(0, 7); self.fluo_channel.setValue(0)
+        self.fluo_channel.setToolTip("Fluorescence channel index (default 0 for IC295)")
+        form.addRow("  Fluo channel:", self.fluo_channel)
+        self.use_cy5_recovery = QCheckBox()
+        # Default to ON in the batch GUI even though DEFAULTS.use_cy5_recovery
+        # is False — batch users typically have multichannel data and this
+        # is harmless without it. DEFAULTS.with_cy5_available(True) is the
+        # canonical "Cy5-on" state.
+        self.use_cy5_recovery.setChecked(
+            _PD.with_cy5_available(True).use_cy5_recovery)
+        self.use_cy5_recovery.setToolTip(
+            "Use Cy5 to recover cells cpsam(DIC) missed.\n"
+            "Free if no missed cells exist.")
+        form.addRow("  Cy5 recovery:", self.use_cy5_recovery)
+        self.cy5_filter_mode = QComboBox()
+        self.cy5_filter_mode.addItems([
+            "Off", "Conservative", "Conservative_strict",
+            "Adaptive", "Adaptive_loose",
+            "Multi_metric", "Composite_score", "Consensus",
+            "Temporal_stability", "Threshold"])
+        # Map DEFAULTS.cy5_filter_mode ("multi_metric") to its first-
+        # cap variant in this dropdown ("Multi_metric").
+        self.cy5_filter_mode.setCurrentText(
+            _PD.cy5_filter_mode[:1].upper() + _PD.cy5_filter_mode[1:])
+        self.cy5_filter_mode.setToolTip(
+            "Tier-4 false-positive filter (post-detection):\n"
+            "  Off: keep all detected tracks\n"
+            "  Conservative: drop tracks with NO Cy5 (mean<0.05 AND p95<0.10)\n"
+            "  Adaptive: per-recording bimodal cut\n"
+            "  Threshold: cut at the value below")
+        form.addRow("  Cy5 filter:", self.cy5_filter_mode)
+        self.cy5_filter_threshold = QDoubleSpinBox()
+        self.cy5_filter_threshold.setRange(0.0, 1.0)
+        self.cy5_filter_threshold.setDecimals(3)
+        self.cy5_filter_threshold.setSingleStep(0.05)
+        self.cy5_filter_threshold.setValue(_PD.cy5_filter_threshold)
+        self.cy5_filter_threshold.setToolTip(
+            "Manual threshold (only used when filter mode is Threshold).\n"
+            "Pilot data: real cells score 0.25-0.59, debris 0.05-0.15.")
+        # --- Cell state classification ---
+        self.compute_states = QCheckBox()
+        self.compute_states.setChecked(_PD.compute_state_classification)
+        self.compute_states.setToolTip(
+            "Per cell-frame: classify balled (mitotic, rounded) vs\n"
+            "attached (spread). Stratify motility (speed, MSD,\n"
+            "persistence) by state to remove the dividing-cell\n"
+            "composition confound.")
+        form.addRow("State classification:", self.compute_states)
+        self.state_balled_circ = QDoubleSpinBox()
+        self.state_balled_circ.setRange(0.5, 1.0)
+        self.state_balled_circ.setSingleStep(0.05)
+        self.state_balled_circ.setDecimals(2)
+        self.state_balled_circ.setValue(_STATE_TH["balled_circ"])
+        form.addRow("  Balled circ ≥:", self.state_balled_circ)
+        self.state_balled_solid = QDoubleSpinBox()
+        self.state_balled_solid.setRange(0.5, 1.0)
+        self.state_balled_solid.setSingleStep(0.02)
+        self.state_balled_solid.setDecimals(2)
+        self.state_balled_solid.setValue(_STATE_TH["balled_solid"])
+        form.addRow("  Balled solid ≥:", self.state_balled_solid)
+        self.state_attached_circ = QDoubleSpinBox()
+        self.state_attached_circ.setRange(0.0, 1.0)
+        self.state_attached_circ.setSingleStep(0.05)
+        self.state_attached_circ.setDecimals(2)
+        self.state_attached_circ.setValue(_STATE_TH["attached_circ"])
+        form.addRow("  Attached circ ≤:", self.state_attached_circ)
+        self.state_attached_solid = QDoubleSpinBox()
+        self.state_attached_solid.setRange(0.0, 1.0)
+        self.state_attached_solid.setSingleStep(0.02)
+        self.state_attached_solid.setDecimals(2)
+        self.state_attached_solid.setValue(_STATE_TH["attached_solid"])
+        form.addRow("  Attached solid ≤:", self.state_attached_solid)
+        form.addRow("  Filter threshold:", self.cy5_filter_threshold)
         self.vampire_clusters = QSpinBox()
         self.vampire_clusters.setRange(2, 15)
-        self.vampire_clusters.setValue(5)
+        self.vampire_clusters.setValue(_PD.vampire_n_clusters)
         form.addRow("Shape clusters:", self.vampire_clusters)
         sf.addWidget(sg)
 
@@ -189,6 +283,19 @@ class BatchWindow(QMainWindow):
             "use_deepsea": self.use_deepsea.isChecked(),
             "use_fallback": self.use_fallback.isChecked(),
             "use_gap_fill": self.use_gap_fill.isChecked(),
+            "multichannel": self.multichannel.isChecked(),
+            "dic_channel": self.dic_channel.value(),
+            "fluo_channel": self.fluo_channel.value(),
+            "use_cy5_recovery": self.use_cy5_recovery.isChecked(),
+            "cy5_filter_mode": self.cy5_filter_mode.currentText().lower(),
+            "cy5_filter_threshold": self.cy5_filter_threshold.value(),
+            "compute_states": self.compute_states.isChecked(),
+            "state_thresholds": {
+                "balled_circ": self.state_balled_circ.value(),
+                "balled_solid": self.state_balled_solid.value(),
+                "attached_circ": self.state_attached_circ.value(),
+                "attached_solid": self.state_attached_solid.value(),
+            },
             "vampire": {
                 "enabled": self.use_vampire.isChecked(),
                 "n_clusters": self.vampire_clusters.value(),

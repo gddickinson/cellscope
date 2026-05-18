@@ -1,12 +1,72 @@
-/__pycache__
-/core/__pycache__
-/data/models/deepsea/__pycache__
-/gui/__pycache__
-/gui_batch/__pycache__
-/gui_editor/__pycache__
-/gui_focused/__pycache__
-/gui_tracking/__pycache__
-/gui_training/__pycache__
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+*.egg
+dist/
+build/
+
+# Models (large, download via setup wizard) — anything not in the
+# small CP3 fine-tunes that ship with the repo.
+data/models/*.pkl
+data/models/*.pth
+data/models/cellpose_*
+data/models/rf_*
+data/models/sam/
+data/models/sam2/
+data/models/deepsea/segmentation.pth
+data/models/deepsea/tracker.pth
+data/models/medsam_*
+# The cpsam_dic ViT fine-tune is ~1.1 GB — exceeds GitHub's 100 MB
+# file limit. Users download it separately via `download_models.py`.
+data/models/cpsam_dic
+data/models/cpsam_dic_*
+
+# Example recordings (large, user-provided)
+data/examples/**/*.tif
+data/examples/**/*.tiff
+data/examples/**/*.mp4
+data/examples/**/*.avi
+
+# Generated analysis output in example folders (mirrors top-level
+# results/ exclusion). Keep the recording + sidecar JSON + .cellscope
+# project file, drop computed masks/metrics/diagnostics.
+data/examples/**/results/
+
+# Results (generated) — exclude everything UNDER results/ except
+# the demo / smoke-test outputs that ship with the repo (small
+# PNGs/JSONs used by docs and the README). We don't blanket-exclude
+# results/ itself because git can't re-include children of an
+# excluded directory.
+results/*
+!results/gui_smoke/
+!results/best_detections/
+!results/dic_model_eval/
+# figure_pipelines/ contains 25-60 MB .npz arrays — exclude even
+# though it ships with the repo. Users can regenerate via scripts.
+results/figure_pipelines/*.npz
+
+# GT tarball backups (redundant — live GT is in data/ic295_gt_full/)
+data/gt_backups/
+
+# OS files
 .DS_Store
-/data
-/scripts/__pycache__
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Conda/venv
+.conda/
+.venv/
+venv/
+
+# Claude Code
+.claude/
+
+# Distribution
+*.zip
+cellscope_*.tar.gz

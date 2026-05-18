@@ -1,0 +1,5 @@
+Pipeline run on ignasi_control_full (single-channel)
+  tracks: 1
+  cells/frame: min=0 max=1 mean=0.8
+  runtime: 95s
+  output: /Users/george/claude_test/cellscope/data/legacy_gt/ignasi_control_full/pipeline_results

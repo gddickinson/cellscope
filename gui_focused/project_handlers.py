@@ -26,12 +26,15 @@ def on_save_project(win):
     win.status.showMessage(f"Project saved: {os.path.basename(path)}")
 
 
-def on_load_project(win):
-    path, _ = QFileDialog.getOpenFileName(
-        win, "Open Project", "",
-        "CellScope Project (*.cellscope)")
-    if not path:
-        return
+def on_load_project(win, path=None):
+    """Load a .cellscope project. If `path` is None, prompt via file
+    dialog; otherwise load the given file directly (used by drag-drop)."""
+    if path is None:
+        path, _ = QFileDialog.getOpenFileName(
+            win, "Open Project", "",
+            "CellScope Project (*.cellscope)")
+        if not path:
+            return
     from core.project import load_project
     proj = load_project(path)
     info = proj["recording_info"]
@@ -42,9 +45,20 @@ def on_load_project(win):
         win.detect_result = {"masks": proj["masks"]}
         if proj["labels"] is not None:
             win.detect_result["labels"] = proj["labels"]
+        # Restore the per-cell tracks list (rebuilt by load_project from
+        # the labels stack). Without this the multi-cell analysis worker
+        # iterates an empty list and reports "0 cells".
+        if proj.get("tracks"):
+            win.detect_result["tracks"] = proj["tracks"]
+        if proj.get("fusion_source_stack") is not None:
+            win.detect_result["fusion_source_stack"] = (
+                proj["fusion_source_stack"])
         masks = proj["labels"] if proj["labels"] is not None \
             else proj["masks"]
         win.viewer.update_masks(masks)
+        if (hasattr(win.viewer, "set_source_stack")
+                and proj.get("fusion_source_stack") is not None):
+            win.viewer.set_source_stack(proj["fusion_source_stack"])
         win.viewer.nav_bar.set_status(proj["masks"])
         win.pipeline.set_stage_status("detect", "done")
         win.pipeline.enable_stage("edit", True)
