@@ -43,6 +43,13 @@ PALETTE = [
 # TIFF page reader (robust to tifffile + numpy 2.0 quirks)
 # ---------------------------------------------------------------------
 def _read_page_raw(page):
+    """Raw-bytes fallback when page.asarray() fails (specifically for
+    big-endian uint16 data under numpy 2.0: tifffile internally calls
+    ndarray.newbyteorder() which was removed in numpy 2.0).
+
+    Since this path is ONLY taken when page.asarray() raised
+    AttributeError on newbyteorder — which happens for big-endian
+    data — we byteswap unconditionally."""
     fh = page.parent.filehandle
     dtype = page.dtype
     h, w = page.shape[-2:]
@@ -56,9 +63,9 @@ def _read_page_raw(page):
         buf.extend(fh.read(n))
     base = np.dtype(dtype.kind + str(dtype.itemsize))
     arr = np.frombuffer(bytes(buf), dtype=base).reshape(h, w)
-    if dtype.byteorder == ">":
-        arr = arr.byteswap()
-    return arr.copy()
+    # The asarray() fallback path was triggered by big-endian
+    # storage, so byteswap unconditionally.
+    return arr.byteswap().copy()
 
 
 def _load_frame(tif_path, frame_idx, channel=None):
