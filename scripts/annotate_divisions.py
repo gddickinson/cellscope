@@ -166,16 +166,30 @@ def render_candidate_strip(rec_dir, candidate, tracks, tif_path,
                               facecolor="#ff7f0e", alpha=0.9,
                               edgecolor="none"))
 
+    # Status banner — PASS (real candidate) or REJECTED with reason
+    reason = candidate.get("rejection_reason")
+    if reason:
+        status = f"✗ REJECTED: {reason.replace('_', ' ')}"
+        status_color = "#a85a00"
+    else:
+        status = "✓ PASS — division candidate"
+        status_color = "#2e8b2e"
+
+    daughter_id = candidate.get("daughter_track", "—")
+    score_txt = (f"score {candidate['score']:.2f}"
+                 if "score" in candidate else "(no daughter)")
     fig.suptitle(
-        f"{candidate.get('_recording', '')}  ·  "
-        f"T{parent} (red) → T{daughter} (cyan)  at F{f}  "
-        f"(peak F{peak_frame}, score {candidate['score']:.2f})\n"
+        f"{candidate.get('_recording', '')}  ·  T{parent} (red) → "
+        f"T{daughter_id} (cyan)  at F{f}  "
+        f"(peak F{peak_frame})  ·  {score_txt}\n"
+        f"{status}\n"
         f"swell {candidate.get('swelling_ratio', 1):.2f}× · "
-        f"mass {candidate['mass_ratio']:.2f} · "
-        f"daughter persists {candidate['daughter_persistence_frames']} fr · "
+        f"mass {candidate.get('mass_ratio', float('nan')):.2f} · "
+        f"daughter persists "
+        f"{candidate.get('daughter_persistence_frames', 0)} fr · "
         f"pre-balled {candidate['pre_split_balled_frac']:.0%} · "
-        f"dist {candidate['distance_px']:.0f}px",
-        fontsize=10, y=1.06)
+        f"dist {candidate.get('distance_px', float('nan')):.0f}px",
+        fontsize=10, y=1.09, color=status_color)
     fig.tight_layout()
     fig.savefig(out_path, bbox_inches="tight", dpi=130)
     plt.close(fig)
@@ -201,15 +215,24 @@ def render_track_area_timeseries(name, tracks, candidates, out_path):
         ax.scatter(balled_frames, balled_areas, color=col, s=20,
                     edgecolor="black", linewidth=0.4, zorder=5)
     for c in candidates:
-        ax.axvline(c["frame"], color="red", ls="--", alpha=0.4, lw=0.8)
-        ax.annotate(
-            f"T{c['parent_track']}→T{c['daughter_track']}\nscore "
-            f"{c['score']:.2f}",
-            xy=(c["frame"], c.get("area_peak", c.get("area_parent_at_split", 0))),
-            xytext=(c["frame"] + 1,
-                    c.get("area_peak", 1) * 1.05),
-            fontsize=8, color="red",
-            arrowprops=dict(arrowstyle="->", color="red", lw=0.8))
+        # Skip annotation for the noisy rejected events (timeseries
+        # gets unreadable). Just mark candidates and substantial
+        # rejects with a light vline.
+        reason = c.get("rejection_reason")
+        is_pass = not reason
+        if is_pass:
+            ax.axvline(c["frame"], color="red", ls="--",
+                        alpha=0.55, lw=1.0)
+            d_id = c.get("daughter_track", "?")
+            ax.annotate(
+                f"T{c['parent_track']}→T{d_id}\nscore "
+                f"{c['score']:.2f}",
+                xy=(c["frame"], c.get("area_peak",
+                                      c.get("area_parent_at_split", 0))),
+                xytext=(c["frame"] + 1,
+                        c.get("area_peak", 1) * 1.05),
+                fontsize=8, color="red",
+                arrowprops=dict(arrowstyle="->", color="red", lw=0.8))
     ax.set_xlabel("Frame")
     ax.set_ylabel("Track area (px)")
     ax.set_title(
@@ -257,8 +280,10 @@ def process_recording(rec_dir):
 
     print(f"\n[{name}] labels={labels.shape} n_tracks="
           f"{int(labels.max())} um_per_px={um_per_px}")
-    candidates, tracks = find_candidates(labels, um_per_px=um_per_px)
-    print(f"  → {len(candidates)} division candidate(s)")
+    candidates, rejected, tracks = find_candidates(
+        labels, um_per_px=um_per_px, include_rejected=True)
+    print(f"  → {len(candidates)} division candidate(s), "
+          f"{len(rejected)} rejected area-drop event(s)")
 
     out_dir = os.path.join(OUT_ROOT, name)
     os.makedirs(out_dir, exist_ok=True)
@@ -266,28 +291,54 @@ def process_recording(rec_dir):
         json.dump({
             "recording": name,
             "n_candidates": len(candidates),
+            "n_rejected": len(rejected),
             "candidates": candidates,
+            "rejected": rejected,
         }, jf, indent=2)
 
     render_track_area_timeseries(
-        name, tracks, candidates,
+        name, tracks, candidates + rejected,
         os.path.join(out_dir, "track_areas.png"))
 
-    if tif and candidates:
+    if tif:
         for i, cand in enumerate(candidates[:12]):
             cand["_recording"] = name
             png = os.path.join(out_dir, f"candidate_{i:02d}.png")
             try:
                 render_candidate_strip(rec_dir, cand, tracks, tif, png)
                 print(
-                    f"    rendered {i:02d}: T{cand['parent_track']}→"
+                    f"    PASS {i:02d}: T{cand['parent_track']}→"
                     f"T{cand['daughter_track']} F{cand['frame']} "
                     f"score={cand['score']:.2f}")
             except Exception as e:
-                print(f"    skipped {i}: {e}")
+                print(f"    skipped PASS {i}: {e}")
+        # Render up to 6 most-substantial rejected events
+        # (substantial = parent had a real area-halving, regardless
+        # of why we filtered).
+        rejected_sorted = sorted(
+            rejected,
+            key=lambda r: -r.get("area_peak", 0))[:6]
+        for i, rej in enumerate(rejected_sorted):
+            rej["_recording"] = name
+            png = os.path.join(out_dir, f"rejected_{i:02d}.png")
+            try:
+                # Synthesise a daughter_track for the rendering code
+                # — use parent_track if no real daughter was found
+                if "daughter_track" not in rej:
+                    rej["daughter_track"] = rej["parent_track"]
+                    rej["daughter_first_frame"] = rej["frame"]
+                    rej["daughter_centroid"] = rej["parent_centroid"]
+                render_candidate_strip(rec_dir, rej, tracks, tif, png)
+                print(
+                    f"    REJ  {i:02d}: T{rej['parent_track']} F{rej['frame']} "
+                    f"reason={rej['rejection_reason']}")
+            except Exception as e:
+                print(f"    skipped REJ {i}: {e}")
 
     return {"name": name, "n_candidates": len(candidates),
-            "candidates": candidates}
+            "n_rejected": len(rejected),
+            "candidates": candidates,
+            "rejected": rejected}
 
 
 def write_summary(summary):
@@ -298,22 +349,33 @@ def write_summary(summary):
         "",
         "## Recordings",
         "",
-        "| Recording | Candidates | Top score |",
-        "|---|---:|---:|",
+        "| Recording | Passed | Rejected | Top score |",
+        "|---|---:|---:|---:|",
     ]
     for rec in summary:
         top = max((c["score"] for c in rec["candidates"]), default=0)
         lines.append(
-            f"| {rec['name']} | {rec['n_candidates']} | {top:.2f} |")
+            f"| {rec['name']} | {rec['n_candidates']} | "
+            f"{rec.get('n_rejected', 0)} | {top:.2f} |")
     lines.append("")
-    lines.append("## Per-candidate review")
+    lines.append(
+        "## Per-recording review (passes + rejected near-misses)")
     lines.append("")
     for rec in summary:
         lines.append(f"### {rec['name']}")
         lines.append("")
+        lines.append(
+            f"**track_areas.png** — area over time for every track, "
+            f"with division candidates marked.")
+        lines.append("")
+        lines.append(f"![track_areas]({rec['name']}/track_areas.png)")
+        lines.append("")
+        if rec["candidates"]:
+            lines.append("#### ✓ Passed candidates")
+            lines.append("")
         for i, c in enumerate(rec["candidates"][:12]):
             lines.append(
-                f"**Candidate {i}** — T{c['parent_track']} → "
+                f"**PASS {i}** — T{c['parent_track']} → "
                 f"T{c['daughter_track']} at F{c['frame']} "
                 f"(peak F{c.get('peak_frame', '?')}) · "
                 f"score {c['score']:.2f} · "
@@ -323,6 +385,42 @@ def write_summary(summary):
                 f"pre-balled {c['pre_split_balled_frac']:.0%} · "
                 f"dist {c['distance_px']:.0f}px")
             png_rel = f"{rec['name']}/candidate_{i:02d}.png"
+            png_abs = os.path.join(OUT_ROOT, png_rel)
+            if os.path.exists(png_abs):
+                lines.append("")
+                lines.append(f"![{png_rel}]({png_rel})")
+            lines.append("")
+        rejected_sorted = sorted(
+            rec.get("rejected", []),
+            key=lambda r: -r.get("area_peak", 0))[:6]
+        if rejected_sorted:
+            lines.append("#### ✗ Rejected near-misses")
+            lines.append("")
+            lines.append(
+                "_Events where the parent's mask substantially halved "
+                "but at least one downstream filter failed. Useful "
+                "for verifying the filters are doing the right thing._")
+            lines.append("")
+        for i, r in enumerate(rejected_sorted):
+            d_id = r.get("daughter_track")
+            d_txt = (f" → T{d_id}" if d_id and d_id != r["parent_track"]
+                     else "")
+            mass_txt = (f"mass {r['mass_ratio']:.2f}"
+                        if "mass_ratio" in r else "n/a")
+            persist_txt = (
+                f"persists {r['daughter_persistence_frames']} fr"
+                if "daughter_persistence_frames" in r else "n/a")
+            dist_txt = (f"dist {r['distance_px']:.0f}px"
+                        if "distance_px" in r else "n/a")
+            lines.append(
+                f"**REJ {i}** — T{r['parent_track']}{d_txt} at F{r['frame']} "
+                f"· **{r['rejection_reason']}** · "
+                f"peak {r['area_peak']}px (F{r['peak_frame']}) · "
+                f"parent-after {r['area_parent_post_peak']}px · "
+                f"swell {r['swelling_ratio']:.2f}× · "
+                f"pre-balled {r['pre_split_balled_frac']:.0%} · "
+                f"{mass_txt} · {persist_txt} · {dist_txt}")
+            png_rel = f"{rec['name']}/rejected_{i:02d}.png"
             png_abs = os.path.join(OUT_ROOT, png_rel)
             if os.path.exists(png_abs):
                 lines.append("")

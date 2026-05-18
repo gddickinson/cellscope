@@ -131,20 +131,90 @@ def _max_area_in_window(track, frames_list):
 # ---------------------------------------------------------------------
 # Main candidate finder
 # ---------------------------------------------------------------------
-def find_candidates(labels, um_per_px=1.0):
-    """Return (candidates, tracks). `candidates` is sorted by score
-    descending. `tracks` is the per-track summary table."""
+def find_candidates(labels, um_per_px=1.0, include_rejected=False):
+    """Return (candidates, tracks) — or (candidates, rejected, tracks)
+    if include_rejected=True.
+
+    candidates: list of dicts that passed all filters, sorted by
+    score descending.
+
+    rejected: list of dicts for area-halving events where the
+    parent's mask sufficiently halved (so they're real "area-drop
+    events" in the data) but at least one downstream filter failed.
+    Each has `rejection_reason` ∈ {
+      no_pre_balled, parent_not_substantial,
+      no_nearby_new_track, daughter_not_substantial,
+      daughter_transient
+    }. Useful for verifying the filters are doing the right thing.
+    """
     tracks = build_track_table(labels)
     if not tracks:
+        if include_rejected:
+            return [], [], tracks
         return [], tracks
 
     max_pair_px = MAX_PAIR_DISTANCE_UM / max(um_per_px, 0.01)
     candidates = []
+    rejected = []
 
-    # Which tracks first-appear at each frame?
     first_at_frame = {}
     for tid, t in tracks.items():
         first_at_frame.setdefault(t["first_frame"], []).append(tid)
+
+    def _make_event(tid, t, f, peak_area, peak_frame,
+                     swelling_ratio, baseline_area,
+                     pre_states, pre_balled_frac,
+                     parent_post_peak, daughter_info=None,
+                     reason=None):
+        """Build an event dict (passed or rejected)."""
+        a_now = t["area"][f]
+        cx, cy = t["centroid"][f]
+        d = {
+            "frame": int(f),
+            "peak_frame": int(peak_frame),
+            "parent_track": int(tid),
+            "area_peak": int(peak_area),
+            "area_parent_at_split": int(a_now),
+            "area_parent_post_peak": int(parent_post_peak),
+            "area_baseline": int(baseline_area),
+            "swelling_ratio": float(swelling_ratio),
+            "pre_split_states": pre_states,
+            "pre_split_balled_frac": float(pre_balled_frac),
+            "parent_centroid": (cx, cy),
+        }
+        if daughter_info:
+            nt, f_new, dist_px, daughter_peak, persist = daughter_info
+            a_daughter_first = nt["area"][f_new]
+            mass_ratio = (parent_post_peak + daughter_peak) / peak_area
+            prox = 1.0 / (1.0 + dist_px / max_pair_px)
+            mass_score = (1.0 if 0.7 <= mass_ratio <= 1.3 else
+                          max(0.0, 1.0 - abs(mass_ratio - 1.0)))
+            persist_score = min(1.0, persist / 5.0)
+            balled_score = 0.5 + 0.5 * pre_balled_frac
+            swelling_score = min(
+                1.0, max(0.0, swelling_ratio - 1.0) / 0.5)
+            score = (prox * mass_score * persist_score *
+                      balled_score * (0.5 + 0.5 * swelling_score))
+            nx, ny = nt["centroid"][f_new]
+            d.update({
+                "daughter_track": int(_track_id_of(tracks, nt)),
+                "daughter_first_frame": int(f_new),
+                "daughter_persistence_frames": int(persist),
+                "distance_px": dist_px,
+                "area_daughter_first": int(a_daughter_first),
+                "area_daughter_post_peak": int(daughter_peak),
+                "mass_ratio": float(mass_ratio),
+                "mass_score": float(mass_score),
+                "persist_score": float(persist_score),
+                "balled_score": float(balled_score),
+                "swelling_score": float(swelling_score),
+                "prox_score": float(prox),
+                "score": float(score),
+                "daughter_centroid": (nx, ny),
+            })
+        if reason:
+            d["rejection_reason"] = reason
+        return d
 
     for tid, t in tracks.items():
         if len(t["frames_present"]) < MIN_TRACK_LENGTH:
@@ -159,8 +229,9 @@ def find_candidates(labels, um_per_px=1.0):
                 continue
             if a_now / peak_area > AREA_RATIO_HALF:
                 continue
+            # Real area-halving event. Now apply downstream filters,
+            # tracking the rejection reason for diagnostics.
 
-            # Pre-swelling magnitude
             peak_idx = present.index(peak_frame)
             baseline_window = present[max(0, peak_idx
                                           - SWELLING_BASELINE_LOOKBACK):peak_idx]
@@ -171,23 +242,37 @@ def find_candidates(labels, um_per_px=1.0):
                 baseline_area = float(peak_area)
             swelling_ratio = peak_area / max(baseline_area, 1.0)
 
-            # Pre-split state filter
             pre_states = [t["state"][fp]
                           for fp in present[max(0, i - PRE_STATE_LOOKBACK):i]]
             balled = sum(1 for s in pre_states
                          if s in (STATE_BALLED, STATE_TRANSITIONAL))
             pre_balled_frac = balled / max(len(pre_states), 1)
-            if pre_balled_frac < MIN_PRE_BALLED_FRAC:
-                continue
 
-            # Parent must remain substantial after split
             min_sub = SUBSTANTIAL_FRAC * peak_area
             post_window = present[i:i + POST_GROWTH_WINDOW + 1]
             parent_post_peak, _ = _max_area_in_window(t, post_window)
+
+            base_kwargs = dict(
+                tid=tid, t=t, f=f,
+                peak_area=peak_area, peak_frame=peak_frame,
+                swelling_ratio=swelling_ratio, baseline_area=baseline_area,
+                pre_states=pre_states, pre_balled_frac=pre_balled_frac,
+                parent_post_peak=parent_post_peak)
+
+            if pre_balled_frac < MIN_PRE_BALLED_FRAC:
+                if include_rejected:
+                    rejected.append(_make_event(
+                        **base_kwargs, reason="no_pre_balled"))
+                continue
             if parent_post_peak < min_sub:
+                if include_rejected:
+                    rejected.append(_make_event(
+                        **base_kwargs, reason="parent_not_substantial"))
                 continue
 
             cx, cy = t["centroid"][f]
+            best_daughter = None
+            no_daughter_at_all = True
 
             for f_new in range(max(0, f - DAUGHTER_PRE_WINDOW),
                                 f + DAUGHTER_FRAME_WINDOW + 1):
@@ -203,66 +288,91 @@ def find_candidates(labels, um_per_px=1.0):
                     dist_px = float(np.hypot(nx - cx, ny - cy))
                     if dist_px > max_pair_px:
                         continue
+                    no_daughter_at_all = False
 
-                    # Daughter must grow into something substantial
                     d_window = nt["frames_present"][:POST_GROWTH_WINDOW + 1]
                     daughter_peak, _ = _max_area_in_window(nt, d_window)
-                    if daughter_peak < min_sub:
-                        continue
-
-                    # Daughter must persist consecutively
                     persist = _consecutive_persistence(
                         nt["frames_present"], nt["first_frame"])
+
+                    if daughter_peak < min_sub:
+                        if include_rejected and best_daughter is None:
+                            best_daughter = (nt, f_new, dist_px,
+                                             daughter_peak, persist,
+                                             "daughter_not_substantial")
+                        continue
                     if persist < MIN_PERSIST_FRAMES:
+                        if include_rejected and (
+                                best_daughter is None or
+                                best_daughter[5] !=
+                                "daughter_not_substantial"):
+                            best_daughter = (nt, f_new, dist_px,
+                                             daughter_peak, persist,
+                                             "daughter_transient")
                         continue
 
-                    # Mass conservation against PRE-SPLIT PEAK
-                    a_daughter_first = nt["area"][f_new]
-                    mass_ratio = (parent_post_peak + daughter_peak) / peak_area
+                    # All criteria passed!
+                    cand = _make_event(
+                        **base_kwargs,
+                        daughter_info=(nt, f_new, dist_px,
+                                       daughter_peak, persist))
+                    candidates.append(cand)
 
-                    prox = 1.0 / (1.0 + dist_px / max_pair_px)
-                    mass_score = (
-                        1.0 if 0.7 <= mass_ratio <= 1.3 else
-                        max(0.0, 1.0 - abs(mass_ratio - 1.0)))
-                    persist_score = min(1.0, persist / 5.0)
-                    balled_score = 0.5 + 0.5 * pre_balled_frac
-                    swelling_score = min(
-                        1.0, max(0.0, swelling_ratio - 1.0) / 0.5)
-                    score = (prox * mass_score * persist_score *
-                              balled_score * (0.5 + 0.5 * swelling_score))
+            if include_rejected and not any(
+                    c["parent_track"] == int(tid) and c["frame"] == int(f)
+                    for c in candidates):
+                if no_daughter_at_all:
+                    rejected.append(_make_event(
+                        **base_kwargs, reason="no_nearby_new_track"))
+                elif best_daughter is not None:
+                    nt, f_new, dist_px, daughter_peak, persist, reason = (
+                        best_daughter)
+                    rejected.append(_make_event(
+                        **base_kwargs,
+                        daughter_info=(nt, f_new, dist_px,
+                                        daughter_peak, persist),
+                        reason=reason))
 
-                    candidates.append({
-                        "frame": int(f),
-                        "peak_frame": int(peak_frame),
-                        "parent_track": int(tid),
-                        "daughter_track": int(new_tid),
-                        "daughter_first_frame": int(f_new),
-                        "daughter_persistence_frames": int(persist),
-                        "distance_px": dist_px,
-                        "area_peak": int(peak_area),
-                        "area_parent_at_split": int(a_now),
-                        "area_parent_post_peak": int(parent_post_peak),
-                        "area_daughter_first": int(a_daughter_first),
-                        "area_daughter_post_peak": int(daughter_peak),
-                        "area_baseline": int(baseline_area),
-                        "swelling_ratio": float(swelling_ratio),
-                        "mass_ratio": float(mass_ratio),
-                        "pre_split_states": pre_states,
-                        "pre_split_balled_frac": float(pre_balled_frac),
-                        "mass_score": float(mass_score),
-                        "persist_score": float(persist_score),
-                        "balled_score": float(balled_score),
-                        "swelling_score": float(swelling_score),
-                        "prox_score": float(prox),
-                        "score": float(score),
-                        "parent_centroid": (cx, cy),
-                        "daughter_centroid": (nx, ny),
-                    })
-
-    # Deduplicate per (parent, daughter)
+    # Deduplicate candidates per (parent, daughter)
     seen = {}
     for c in candidates:
         key = (c["parent_track"], c["daughter_track"])
         if key not in seen or c["score"] > seen[key]["score"]:
             seen[key] = c
-    return sorted(seen.values(), key=lambda c: -c["score"]), tracks
+    sorted_cands = sorted(seen.values(), key=lambda c: -c["score"])
+
+    if include_rejected:
+        # Temporal dedup: a track with multiple halvings within
+        # REJECT_CLUSTER_FRAMES of each other is treated as one
+        # event (keep the one with the largest peak area). Filter
+        # out small/trivial halvings (parent peak below
+        # SUBSTANTIAL_AREA_PX) — they're noise, not "near-misses".
+        SUBSTANTIAL_AREA_PX = 500
+        REJECT_CLUSTER_FRAMES = 5
+        substantial = [r for r in rejected
+                       if r.get("area_peak", 0) >= SUBSTANTIAL_AREA_PX]
+        # Sort by parent then frame
+        substantial.sort(
+            key=lambda r: (r["parent_track"], r["frame"]))
+        clustered = []
+        for r in substantial:
+            if (clustered and
+                clustered[-1]["parent_track"] == r["parent_track"] and
+                r["frame"] - clustered[-1]["frame"] <=
+                REJECT_CLUSTER_FRAMES):
+                # Keep whichever has larger area_peak
+                if r["area_peak"] > clustered[-1]["area_peak"]:
+                    clustered[-1] = r
+            else:
+                clustered.append(r)
+        clustered.sort(key=lambda r: -r.get("area_peak", 0))
+        return sorted_cands, clustered, tracks
+    return sorted_cands, tracks
+
+
+def _track_id_of(tracks, track_dict):
+    """Reverse-lookup the track ID given a track dict (linear scan)."""
+    for tid, t in tracks.items():
+        if t is track_dict:
+            return tid
+    return -1
