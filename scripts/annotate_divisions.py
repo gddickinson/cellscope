@@ -103,12 +103,21 @@ def render_candidate_strip(rec_dir, candidate, tracks, tif_path,
     x0 = max(0, int(cx0 - win))
     x1 = min(W, int(cx0 + win))
 
-    # 9 frames: enough to show pre-swelling → peak → split → growth
-    f_start = max(0, min(peak_frame - 1, f - 3))
-    f_end = min(n_frames - 1, f + 5)
-    if f_end - f_start + 1 > 9:
-        f_end = f_start + 8
+    # Window: must span pre-mitotic context → split → daughter's
+    # actual appearance + a few frames where both cells are clearly
+    # separated. Daughters often stay in contact for several frames
+    # after the parent's mask halves (the tracker sees them as one
+    # blob), so we MUST extend past `daughter_first_frame + 3` to
+    # show two distinct cells.
+    daughter_first = candidate.get("daughter_first_frame", f)
+    f_start = max(0, f - 2)
+    # End at max(split + 4, daughter_first + 3) — whichever is later
+    f_end = max(f + 4, daughter_first + 3)
+    f_end = min(n_frames - 1, f_end)
     show_frames = list(range(f_start, f_end + 1))
+    # Cap at 12 panels — drop pre-split frames first
+    if len(show_frames) > 12:
+        show_frames = show_frames[-12:]
 
     fig, axes = plt.subplots(1, len(show_frames),
                               figsize=(2.4 * len(show_frames), 3.4),
