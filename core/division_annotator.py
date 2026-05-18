@@ -349,9 +349,14 @@ def find_candidates(labels, um_per_px=1.0, include_rejected=False):
         # SUBSTANTIAL_AREA_PX) — they're noise, not "near-misses".
         SUBSTANTIAL_AREA_PX = 500
         REJECT_CLUSTER_FRAMES = 5
+        PASS_OVERLAP_FRAMES = 3   # also suppress rejected events
+                                   # within ±this many frames of a
+                                   # PASS in the same parent track —
+                                   # they're the same biological
+                                   # event flagged at a different
+                                   # threshold crossing
         substantial = [r for r in rejected
                        if r.get("area_peak", 0) >= SUBSTANTIAL_AREA_PX]
-        # Sort by parent then frame
         substantial.sort(
             key=lambda r: (r["parent_track"], r["frame"]))
         clustered = []
@@ -360,13 +365,27 @@ def find_candidates(labels, um_per_px=1.0, include_rejected=False):
                 clustered[-1]["parent_track"] == r["parent_track"] and
                 r["frame"] - clustered[-1]["frame"] <=
                 REJECT_CLUSTER_FRAMES):
-                # Keep whichever has larger area_peak
                 if r["area_peak"] > clustered[-1]["area_peak"]:
                     clustered[-1] = r
             else:
                 clustered.append(r)
-        clustered.sort(key=lambda r: -r.get("area_peak", 0))
-        return sorted_cands, clustered, tracks
+        # Drop rejected events that overlap a PASS (same parent,
+        # frame within ±PASS_OVERLAP_FRAMES). Those are noise from
+        # the same biological event being flagged at multiple
+        # threshold crossings.
+        pass_index = {}
+        for c in sorted_cands:
+            pass_index.setdefault(c["parent_track"], []).append(
+                c["frame"])
+        deduped = []
+        for r in clustered:
+            pass_frames = pass_index.get(r["parent_track"], [])
+            if any(abs(r["frame"] - pf) <= PASS_OVERLAP_FRAMES
+                   for pf in pass_frames):
+                continue
+            deduped.append(r)
+        deduped.sort(key=lambda r: -r.get("area_peak", 0))
+        return sorted_cands, deduped, tracks
     return sorted_cands, tracks
 
 
