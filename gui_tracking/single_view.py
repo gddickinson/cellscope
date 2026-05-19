@@ -236,9 +236,23 @@ class SingleTrackingView(QWidget):
                 self.track_table.setItem(
                     i, 4, QTableWidgetItem(
                         f"{ar.get('mean_speed', 0):.3f}"))
+            # Parent column: display as 1-based track ID (parent_id
+            # is stored as a 0-based list index). Show split frame +
+            # score in the tooltip.
             parent = t.get("parent_id")
-            self.track_table.setItem(
-                i, 5, QTableWidgetItem(str(parent) if parent else "-"))
+            if parent is None:
+                pcell = QTableWidgetItem("-")
+            else:
+                pcell = QTableWidgetItem(str(parent + 1))
+                d_frame = t.get("division_frame")
+                d_score = t.get("division_score")
+                if d_frame is not None:
+                    tip = f"Daughter of Track {parent + 1}"
+                    tip += f" — split at F{d_frame}"
+                    if d_score is not None:
+                        tip += f" (score {d_score:.2f})"
+                    pcell.setToolTip(tip)
+            self.track_table.setItem(i, 5, pcell)
             color = QColor(*quality_color(q["label"]))
             for c in range(self.track_table.columnCount()):
                 cell = self.track_table.item(i, c)

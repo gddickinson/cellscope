@@ -72,18 +72,18 @@
 - **analysis_view.py** — Summary/Graphs/Log tabs
 - **analysis_plots.py** — 16 plot functions + GRAPH_REGISTRY (timeseries plots accept `gap_interp_max` kwarg for short-gap interpolation)
 - **vampire_plots.py** — 4 VAMPIRE plots (Shape Modes scatter, Mode Distribution histogram, Mode Over Time, Eigenshape variations); split out so analysis_plots stays under the 500-line limit
-- **export_dialog.py** — Export configuration dialog
-- **workers.py** — FocusedDetectWorker, FocusedAnalyzeWorker
+- **export_dialog.py** — Export configuration dialog. When "Save masks" is ticked, also writes a `divisions.json` sidecar next to `masks.npz` (always present — empty `candidates` list if no divisions detected). Sidecar contains both the raw candidates from `core.division_annotator` and a compact `track_lineage` table mapping daughter-track-index → parent-track-index.
+- **workers.py** — FocusedDetectWorker, FocusedAnalyzeWorker. `FocusedAnalyzeWorker` propagates each track's `parent_id`/`division_frame`/`division_score` into the per-cell `track_info` dict so the analysis view can display lineage.
 - **roi_selector.py** — Rectangle/ellipse/polygon ROI
 - **dialogs.py** — System info, shortcuts, about
 
 ## `gui_batch/` — Batch Processing GUI
 - **batch_window.py** — Directory scan, recording tree, settings, progress
-- **batch_worker.py** — QThread batch processing
+- **batch_worker.py** — QThread batch processing. Per recording writes the standard `output.results.write_recording_results` outputs (masks.npz, metrics.json, figures) PLUS a `divisions.json` sidecar with the same schema as the focused export.
 
 ## `gui_tracking/` — Tracking & Comparison GUI
 - **tracking_window.py** — Main window with Single/Batch tabs
-- **single_view.py** — Load masks, track, per-track analysis + plots
+- **single_view.py** — Load masks, track, per-track analysis + plots. Track table's "Parent" column displays each daughter track's parent as a 1-based Track ID (with division frame + score in the tooltip).
 - **batch_view.py** — Batch analysis + group statistical comparison
 - **stats_plots.py** — Box/violin plots with significance brackets
 - **batch_worker.py** — Batch tracking worker

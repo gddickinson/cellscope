@@ -167,15 +167,32 @@ class AnalysisView(QWidget):
         self.summary_text.setPlainText("\n".join(lines))
 
     def _populate_summary_multi(self, results):
-        lines = [f"Multi-cell analysis: {len(results)} cells\n"]
+        n_divisions = sum(1 for r in results
+                          if r.get("track_info", {}).get("parent_id")
+                          is not None)
+        div_txt = (f", {n_divisions} division(s) detected"
+                   if n_divisions else "")
+        lines = [f"Multi-cell analysis: {len(results)} cells"
+                  f"{div_txt}\n"]
         for r in results:
             cid = r.get("cell_id", "?")
             ti = r.get("track_info", {})
             lines.append(f"--- Cell {cid} ---")
             lines.append(f"  Frames tracked: {ti.get('frames_tracked', '?')}")
             lines.append(f"  First frame: {ti.get('first_frame', '?')}")
-            if ti.get("parent_id"):
-                lines.append(f"  Parent: Cell {ti['parent_id']} (division)")
+            if ti.get("parent_id") is not None:
+                # parent_id is 0-based list index; daughter labels are
+                # 1-based — show parent as Cell (parent_id + 1)
+                pid = ti["parent_id"]
+                div_frame = ti.get("division_frame")
+                div_score = ti.get("division_score")
+                extra = ""
+                if div_frame is not None:
+                    extra = f" @F{div_frame}"
+                    if div_score is not None:
+                        extra += f", score {div_score:.2f}"
+                lines.append(
+                    f"  Parent: Cell {pid + 1} (division{extra})")
             if "mean_speed" in r:
                 lines.append(f"  Speed: {r['mean_speed']:.3f} um/min")
             ss = r.get("shape_summary", {})

@@ -307,20 +307,21 @@ python scripts/evaluate_against_gt.py data/ic295_gt_full/Pos20_KO
 #   per-GT-cell tracking
 ```
 
-**Current GT aggregate** (7 recordings, 217 annotated frames, see `data/gt_evaluation_summary.md`):
+**Current GT aggregate** (8 recordings, 227 annotated frames, see `data/gt_evaluation_summary.md`):
 
-| Recording | Genotype | Frames | Mean IoU | F1@.5 | ID consistency |
-|---|---|---:|---:|---:|---:|
-| Pos7_WT | WT (multichannel) | 10 | 0.844 | 0.82 | 100% |
-| Pos20_KO | KO (multichannel) | 10 | 0.839 | 0.85 | 95% |
-| Pos30_GOF | GOF (multichannel) | 10 | 0.848 | 0.84 | 92% |
-| Pos39_OT | OT (multichannel) | 10 | 0.855 | 0.95 | 97.78% |
-| ignasi_3_cells_control_IC293_Pos3 | ctrl | 97 | 0.820 | 0.87 | 93% |
-| ignasi_control | ctrl | 15 | 0.890 | 0.80 | 100% |
-| ignasi_control_full | ctrl | 65 | 0.897 | 0.92 | 100% |
-| **Aggregate** | — | **217** | **0.856** | **0.86** | **96.83%** |
+| Recording | Genotype | Frames | Mean IoU | F1@.5 | ID cons. | GT divisions caught |
+|---|---|---:|---:|---:|---:|---:|
+| Pos7_WT | WT | 10 | 0.844 | 0.82 | 100% | — |
+| Pos20_KO | KO | 10 | 0.839 | 0.85 | 95% | — |
+| Pos30_GOF | GOF | 10 | 0.848 | 0.84 | 92% | — |
+| Pos39_OT | OT | 10 | 0.855 | 0.95 | 97.78% | 1 / 1 ✓ |
+| Pos51_Y1 | Y1 | 10 | 0.753 | 0.90 | 83.33% | 1 / 1 ✓ |
+| ignasi_3_cells_control | ctrl | 97 | 0.820 | 0.87 | 93% | — |
+| ignasi_control | ctrl | 15 | 0.890 | 0.80 | 100% | — |
+| ignasi_control_full | ctrl | 65 | 0.897 | 0.92 | 100% | — |
+| **Aggregate** | — | **227** | **0.843** | **0.87** | **95.14%** | **2 / 2 ✓** |
 
-All four IC295 genotypes (WT/KO/GOF/OT) deliver consistent ~0.84 boundary quality with the unified multichannel pipeline.
+All five IC295 genotypes (WT/KO/GOF/OT/Y1) covered. The division annotator catches **2 of 2 GT-evident divisions** with 0 false positives across the 8 recordings.
 
 **Phase-contrast Ignasi GT (separate 65-frame benchmark)**: mean IoU **0.932**, 65/65 frames > 0.85, min 0.867 (cpsam + DeepSea union).
 

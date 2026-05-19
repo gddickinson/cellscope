@@ -196,6 +196,25 @@ class ExportDialog(QDialog):
                     save_dict["labels"] = labels
                 np.savez_compressed(os.path.join(out_dir, "masks.npz"),
                                     **save_dict)
+                # divisions.json sidecar — written whenever the
+                # pipeline returned divisions (always present from
+                # core.hybrid_cpsam_multi / core.hybrid_dic; may be
+                # an empty list)
+                divisions = self.detect_result.get("divisions", []) or []
+                tracks = self.detect_result.get("tracks", []) or []
+                lineage = [{
+                    "track_index": i,
+                    "parent_track_index": t.get("parent_id"),
+                    "division_frame": t.get("division_frame"),
+                    "division_score": t.get("division_score"),
+                } for i, t in enumerate(tracks)
+                  if t.get("parent_id") is not None]
+                with open(os.path.join(out_dir, "divisions.json"),
+                          "w") as jf:
+                    json.dump({"n_candidates": len(divisions),
+                               "candidates": divisions,
+                               "track_lineage": lineage},
+                              jf, indent=2)
                 steps += 1; self.progress.setValue(steps)
 
             if self.chk_metrics.isChecked():

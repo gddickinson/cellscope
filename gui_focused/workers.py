@@ -481,6 +481,8 @@ class FocusedAnalyzeWorker(QThread):
                         "frames_tracked": int(
                             cell_masks.any(axis=(1, 2)).sum()),
                         "parent_id": track.get("parent_id"),
+                        "division_frame": track.get("division_frame"),
+                        "division_score": track.get("division_score"),
                     }
                     per_cell.append(result)
                 self.log_event.emit(

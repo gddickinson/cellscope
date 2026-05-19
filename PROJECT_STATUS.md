@@ -74,8 +74,12 @@ cpsam/cellpose → debris filter → DeepSea per-cell → Hungarian tracker
 - Division detection (mother→daughter tracking) — biology-aware
   annotator (`core/division_annotator.py`) sets `parent_id` +
   `division_score` + `division_frame` on daughter tracks; writes
-  `divisions.json` sidecar next to `masks.npz`. 1 PASS + 0 FPs on
-  7 GT recordings.
+  `divisions.json` sidecar next to `masks.npz`. **2 / 2 GT divisions
+  caught with 0 FPs across 8 GT recordings** (Pos39_OT + Pos51_Y1).
+  Filter relaxation 2026-05-17: pre-mitotic-balled check now spans
+  [pre, post]-split window (PRE_STATE_LOOKBACK=3 + POST_STATE_WINDOW=3)
+  and daughter persistence tolerates a 2-frame gap during the contact
+  phase (`MAX_DAUGHTER_GAP_FRAMES=2`).
 - 100% gap fill rate (41/41 gaps on tested recordings)
 - TRA 0.929 on CTC DIC-C2DH-HeLa benchmark
 
@@ -219,8 +223,8 @@ from 4 experiments (85, 100, 126, 135, 240).
 ## What's Working Well
 
 - **Phase-contrast detection**: 0.932 IoU, 100% detection — production ready
-- **Multi-cell tracking**: TRA 0.929 on CTC benchmark; biology-aware division annotator (`core/division_annotator.py`) detects pre-mitotic-swelling → balled → split → grown-daughter pattern with 1 PASS / 0 FPs across 7 IC295 GT recordings
-- **Multichannel GT aggregate**: 4 IC295 genotypes (WT/KO/GOF/OT) at mean per-cell IoU 0.856, F1@.5 0.86, ID consistency 96.83% (217 frames across 7 recordings)
+- **Multi-cell tracking**: TRA 0.929 on CTC benchmark; biology-aware division annotator (`core/division_annotator.py`) detects pre-mitotic-swelling → balled → split → grown-daughter pattern, catching **2 / 2 GT divisions with 0 FPs across 8 IC295 GT recordings**
+- **Multichannel GT aggregate**: 5 IC295 genotypes (WT/KO/GOF/OT/Y1) at mean per-cell IoU 0.843, F1@.5 0.87, ID consistency 95.14% (227 frames across 8 recordings)
 - **Analysis suite**: 20 graph types, VAMPIRE shape modes, statistical comparison
 - **GUI**: 5 specialized apps covering the full workflow
 - **Robustness**: cellpose_robust_v2 wins 9/11 perturbation tests

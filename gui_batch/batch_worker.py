@@ -263,6 +263,29 @@ class BatchAnalysisWorker(QThread):
                     os.makedirs(rec_dir, exist_ok=True)
                     write_recording_results(result, rec_dir)
 
+                    # Division-lineage sidecar (cheap, always write)
+                    divisions = det.get("divisions", []) or []
+                    tracks = det.get("tracks", []) or []
+                    lineage = [{
+                        "track_index": i,
+                        "parent_track_index": t.get("parent_id"),
+                        "division_frame": t.get("division_frame"),
+                        "division_score": t.get("division_score"),
+                    } for i, t in enumerate(tracks)
+                      if t.get("parent_id") is not None]
+                    import json as _json
+                    with open(os.path.join(rec_dir,
+                                            "divisions.json"), "w") as jf:
+                        _json.dump({"n_candidates": len(divisions),
+                                    "candidates": divisions,
+                                    "track_lineage": lineage},
+                                   jf, indent=2)
+                    if divisions:
+                        self.log_event.emit(
+                            "info",
+                            f"  Divisions: {len(divisions)} "
+                            f"detected, {len(lineage)} lineage links")
+
                     state_summary = {}
                     if compute_states and "tracks" in det:
                         state_summary = self._write_state_csv(
