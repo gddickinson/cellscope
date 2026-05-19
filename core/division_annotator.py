@@ -66,9 +66,19 @@ MAX_PAIR_DISTANCE_UM = 50       # daughter centroid ↔ parent centroid
 MIN_TRACK_LENGTH = 5            # parent + daughter must each have at
                                  # least this many total frames
 PRE_STATE_LOOKBACK = 3          # frames before split to inspect state
-MIN_PRE_BALLED_FRAC = 0.30      # parent must have been balled/
-                                 # transitional in at least this
-                                 # fraction of pre-split frames
+POST_STATE_WINDOW = 3           # frames AFTER split to also inspect —
+                                 # cell may not be balled until cyto-
+                                 # kinesis completes (see Pos51_Y1
+                                 # where parent rounded F68-F70 with
+                                 # split at F66)
+MIN_PRE_BALLED_FRAC = 0.30      # parent must have been in balled/
+                                 # transitional state in at least
+                                 # this fraction of [pre, post]-split
+                                 # frames combined
+MAX_DAUGHTER_GAP_FRAMES = 2     # daughter may have track gaps of up
+                                 # to this many frames in its first
+                                 # POST_GROWTH_WINDOW (contact phase
+                                 # often hides one daughter briefly)
 
 
 # ---------------------------------------------------------------------
@@ -107,13 +117,19 @@ def build_track_table(labels):
     return out
 
 
-def _consecutive_persistence(frames_present, start_frame):
+def _consecutive_persistence(frames_present, start_frame,
+                              max_gap=0):
+    """Count frames in `frames_present` starting from `start_frame`,
+    tolerating gaps of up to `max_gap` frames (a 1-frame gap is
+    common during the contact phase where the tracker temporarily
+    loses a daughter to the merged-pair mask)."""
     if start_frame not in frames_present:
         return 0
     idx = frames_present.index(start_frame)
     persist = 1
     for j in range(idx + 1, len(frames_present)):
-        if frames_present[j] == frames_present[j - 1] + 1:
+        gap = frames_present[j] - frames_present[j - 1] - 1
+        if gap <= max_gap:
             persist += 1
         else:
             break
@@ -242,11 +258,18 @@ def find_candidates(labels, um_per_px=1.0, include_rejected=False):
                 baseline_area = float(peak_area)
             swelling_ratio = peak_area / max(baseline_area, 1.0)
 
+            # Peri-split state check — look both BEFORE (mitotic
+            # prophase) and AT/AFTER the split (cytokinesis rounding).
+            # Many divisions don't show pre-balling — the cell goes
+            # from spread directly into halving + balling.
             pre_states = [t["state"][fp]
                           for fp in present[max(0, i - PRE_STATE_LOOKBACK):i]]
-            balled = sum(1 for s in pre_states
+            post_states = [t["state"][fp]
+                           for fp in present[i:i + POST_STATE_WINDOW + 1]]
+            peri_states = pre_states + post_states
+            balled = sum(1 for s in peri_states
                          if s in (STATE_BALLED, STATE_TRANSITIONAL))
-            pre_balled_frac = balled / max(len(pre_states), 1)
+            pre_balled_frac = balled / max(len(peri_states), 1)
 
             min_sub = SUBSTANTIAL_FRAC * peak_area
             post_window = present[i:i + POST_GROWTH_WINDOW + 1]
@@ -293,7 +316,8 @@ def find_candidates(labels, um_per_px=1.0, include_rejected=False):
                     d_window = nt["frames_present"][:POST_GROWTH_WINDOW + 1]
                     daughter_peak, _ = _max_area_in_window(nt, d_window)
                     persist = _consecutive_persistence(
-                        nt["frames_present"], nt["first_frame"])
+                        nt["frames_present"], nt["first_frame"],
+                        max_gap=MAX_DAUGHTER_GAP_FRAMES)
 
                     if daughter_peak < min_sub:
                         if include_rejected and best_daughter is None:
