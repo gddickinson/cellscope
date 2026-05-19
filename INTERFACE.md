@@ -17,7 +17,7 @@
 - **make_dist.py** — maintainer tool: zip the project for sharing
 - **setup_wizard.py** — legacy tkinter installer (kept as alternative; `install.{bat,sh}` is now canonical)
 
-## `core/` — Analysis Pipeline (34 modules)
+## `core/` — Analysis Pipeline (35+ modules)
 
 - **io.py** — `load_video`, `load_recording`, `find_recordings`
 - **pipeline.py** — `detect()`, `refine()`, `analyze_recording()`
@@ -33,6 +33,7 @@
 - **medsam_refine.py** — MedSAM bbox-prompt refinement
 - **multi_cell.py** — `track_all_cells()` — Hungarian tracker
 - **track_gap_fill.py** — Post-tracking gap fill with augmented re-detection
+- **division_annotator.py** — post-hoc cell-division event detection. `find_candidates(labels, um_per_px)` scans a labels stack for the biology-aware division signature (pre-mitotic swelling → balled state → mask halves relative to peak → both daughters grow substantial → daughter persists ≥4 consecutive frames). `annotate_track_lineage(tracks, labels, um_per_px)` sets `parent_id`/`division_score`/`division_frame` on daughter tracks in the pipeline's track list. Called automatically by `hybrid_cpsam_multi` and `hybrid_dic` after postprocess; result dict gains `divisions: [...]` and `scripts/run_pipeline_on_gt_recording.py` writes a `divisions.json` sidecar.
 - **tracking.py** — Speed, MSD, persistence, direction autocorrelation
 - **morphology.py** — Area, perimeter, circularity, solidity, AR, eccentricity
 - **edge_dynamics.py** — Edge velocity kymograph, protrusion/retraction
@@ -120,6 +121,17 @@
 - **train_*.py / prepare_*.py** — model training + data prep scripts
   (dev only; require `BENCHMARK_DATA_ROOT` to point at the sibling
   `piezo1_analysis` project).
+- **annotate_divisions.py** — runner for the `core.division_annotator`.
+  Scans `pipeline_results/masks.npz` for division candidates and
+  rejected near-misses across a set of recordings. Writes
+  `divisions.json` + 9-frame strip PNGs (parent contour red,
+  daughter contour cyan, peak frame and split frame marked) + a
+  per-track area-over-time timeseries diagnostic per recording.
+  Rejected events get colour-coded headers showing the rejection
+  reason (`no_pre_balled`, `parent_not_substantial`,
+  `no_nearby_new_track`, `daughter_not_substantial`,
+  `daughter_transient`) so the user can audit whether the filters
+  are correct. Composite summary at `results/divisions/summary.md`.
 - **test_defaults_consistency.py** — Defaults-drift regression
   test. Verifies every GUI's initial widget values match
   `core.pipeline_defaults.DEFAULTS` and `core.cell_state.

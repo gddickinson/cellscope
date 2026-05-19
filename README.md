@@ -87,6 +87,13 @@ Recording (.tif / .mp4)              ← single- or multi-channel
               │
               ▼
 ┌─────────────────────────────────────────────────────┐
+│ DIVISION ANNOTATION (post-hoc)                      │
+│  swelling → ball → halve → 2 daughters grow         │
+│  Sets parent_id on daughters; writes divisions.json │
+└─────────────┬───────────────────────────────────────┘
+              │
+              ▼
+┌─────────────────────────────────────────────────────┐
 │ ANALYSIS (per cell)                                 │
 │  Migration:  speed, MSD (D, α fit), persistence,    │
 │              direction autocorrelation              │
@@ -292,27 +299,28 @@ CellScope ships with a registry of hand-labelled GT recordings in `data/ic295_gt
 ```bash
 conda run -n cellpose4 python scripts/run_pipeline_on_gt_recording.py \
     data/ic295_gt_full/Pos20_KO
-# → produces masks.npz, fusion_diagnostic.png, RUN_METADATA.{md,json},
-#   run_summary.txt under pipeline_results/
+# → produces masks.npz, divisions.json, fusion_diagnostic.png,
+#   RUN_METADATA.{md,json}, run_summary.txt under pipeline_results/
 
 python scripts/evaluate_against_gt.py data/ic295_gt_full/Pos20_KO
 # → evaluation/report.md with per-frame F1, mean IoU, ID consistency,
 #   per-GT-cell tracking
 ```
 
-**Current GT aggregate** (6 recordings, 207 annotated frames, see `data/gt_evaluation_summary.md`):
+**Current GT aggregate** (7 recordings, 217 annotated frames, see `data/gt_evaluation_summary.md`):
 
 | Recording | Genotype | Frames | Mean IoU | F1@.5 | ID consistency |
 |---|---|---:|---:|---:|---:|
 | Pos7_WT | WT (multichannel) | 10 | 0.844 | 0.82 | 100% |
 | Pos20_KO | KO (multichannel) | 10 | 0.839 | 0.85 | 95% |
 | Pos30_GOF | GOF (multichannel) | 10 | 0.848 | 0.84 | 92% |
+| Pos39_OT | OT (multichannel) | 10 | 0.855 | 0.95 | 97.78% |
 | ignasi_3_cells_control_IC293_Pos3 | ctrl | 97 | 0.820 | 0.87 | 93% |
 | ignasi_control | ctrl | 15 | 0.890 | 0.80 | 100% |
 | ignasi_control_full | ctrl | 65 | 0.897 | 0.92 | 100% |
-| **Aggregate** | — | **207** | **0.856** | **0.85** | **96.67%** |
+| **Aggregate** | — | **217** | **0.856** | **0.86** | **96.83%** |
 
-All three IC295 genotypes (WT/KO/GOF) deliver consistent ~0.84 boundary quality with the unified multichannel pipeline.
+All four IC295 genotypes (WT/KO/GOF/OT) deliver consistent ~0.84 boundary quality with the unified multichannel pipeline.
 
 **Phase-contrast Ignasi GT (separate 65-frame benchmark)**: mean IoU **0.932**, 65/65 frames > 0.85, min 0.867 (cpsam + DeepSea union).
 
@@ -326,6 +334,14 @@ All three IC295 genotypes (WT/KO/GOF) deliver consistent ~0.84 boundary quality 
 Each cell-frame is classified as **balled** (mitotic / rounded), **attached** (spread), or **transitional** based on circularity + solidity thresholds. The defaults (`circ≥0.80 ∧ solidity≥0.92` for balled, `circ≤0.55 ∨ solidity≤0.85` for attached) are validated on IC295 and live in `core/cell_state.py::DEFAULT_THRESHOLDS`.
 
 Per-state motility metrics are written to the export — stratifies migration speed, MSD, persistence by state to **remove the dividing-cell composition confound**. Particularly important when comparing genotypes that differ in mitotic fraction.
+
+## Cell-division annotation
+
+CellScope detects mitotic divisions post-hoc from the tracked label stack using a **biology-aware signal**: pre-mitotic swelling (peak area in a lookback window) → mitotic rounding (balled / transitional state) → parent mask halves vs peak → **both daughters grow ≥30% of peak within 5 frames** → daughter persists ≥4 consecutive frames → mass conservation against pre-split peak. Multiple filters must all pass (no single high-scoring weak link).
+
+Daughters often **stay in contact for several frames** after the parent's mask halves (the tracker sees one merged blob until they separate), so the daughter's first-track-spawn frame is typically 3–6 frames after the algorithm's "split" frame. Both are recorded.
+
+The annotator sets `parent_id`, `division_score`, `division_frame` on daughter tracks, and writes a `divisions.json` sidecar next to `masks.npz` containing candidates + a `track_lineage` table. Standalone audit tool: `scripts/annotate_divisions.py <recording_dir> [...]` also renders 9-frame strip PNGs per candidate (parent red, daughter cyan, peak + split frames labelled) + a per-track area-over-time timeseries + classifiable rejected near-misses, all under `results/divisions/<recording>/`.
 
 ## Group analysis (batch mode)
 
