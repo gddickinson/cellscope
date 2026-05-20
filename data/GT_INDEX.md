@@ -12,9 +12,10 @@ Multichannel IC295 (DIC+Cy5), full-recording GT labelled in the current workflow
 | `Pos30_GOF` | 10 | 2048x2048 | 6/7 | ✓ | ✓ | ✓ | ✓ | — |
 | `Pos39_OT` | 10 | 2048x2048 | 7/9 | ✓ | ✓ | ✓ | ✓ | — |
 | `Pos51_Y1` | 10 | 2048x2048 | 1/2 | ✓ | ✓ | ✓ | ✓ | — |
+| `Pos68_DMSO` | 11 | 2048x2048 | 1/21 | ✓ | ✓ | ✓ | ✓ | — |
 | `Pos7_WT` | 10 | 2048x2048 | 10/11 | ✓ | ✓ | ✓ | ✓ | — |
 
-_Placeholder folders awaiting labelling: `Pos10_WT`, `Pos21_KO`, `Pos31_GOF`, `Pos44_OT`, `Pos53_Y1`, `Pos68_DMSO`, `Pos69_DMSO`_
+_Placeholder folders awaiting labelling: `Pos10_WT`, `Pos21_KO`, `Pos31_GOF`, `Pos44_OT`, `Pos53_Y1`, `Pos69_DMSO`_
 
 ## `data/legacy_gt/`
 
@@ -28,8 +29,8 @@ Single-channel cropped DIC GT carried over from the piezo1 project on GeorgeDriv
 
 ## Totals
 
-- **8 recordings** with at least one labelled frame
-- **227 labelled mask files** total
+- **9 recordings** with at least one labelled frame
+- **238 labelled mask files** total
 - All mask PNGs are stored as **real files** in the repo, not symlinks — safe even when the external drive is unplugged.
 - Source recordings (the `.ome.tif` next to each `gt_masks/` folder) are **symlinks**; some point through `piezo1_analysis/data/ignasi/` to `/Volumes/GeorgeDrive/cellscope_data/...`. Pipeline runs and re-evaluation need the drive mounted.
 

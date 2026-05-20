@@ -307,7 +307,7 @@ python scripts/evaluate_against_gt.py data/ic295_gt_full/Pos20_KO
 #   per-GT-cell tracking
 ```
 
-**Current GT aggregate** (8 recordings, 227 annotated frames, see `data/gt_evaluation_summary.md`):
+**Current GT aggregate** (9 recordings, 238 annotated frames, see `data/gt_evaluation_summary.md`):
 
 | Recording | Genotype | Frames | Mean IoU | F1@.5 | ID cons. | GT divisions caught |
 |---|---|---:|---:|---:|---:|---:|
@@ -316,12 +316,13 @@ python scripts/evaluate_against_gt.py data/ic295_gt_full/Pos20_KO
 | Pos30_GOF | GOF | 10 | 0.848 | 0.84 | 92% | — |
 | Pos39_OT | OT | 10 | 0.855 | 0.95 | 97.78% | 1 / 1 ✓ |
 | Pos51_Y1 | Y1 | 10 | 0.753 | 0.90 | 83.33% | 1 / 1 ✓ |
+| Pos68_DMSO | DMSO | 11 | 0.653 | 0.46 | 93.08% | — |
 | ignasi_3_cells_control | ctrl | 97 | 0.820 | 0.87 | 93% | — |
 | ignasi_control | ctrl | 15 | 0.890 | 0.80 | 100% | — |
 | ignasi_control_full | ctrl | 65 | 0.897 | 0.92 | 100% | — |
-| **Aggregate** | — | **227** | **0.843** | **0.87** | **95.14%** | **2 / 2 ✓** |
+| **Aggregate** | — | **238** | **0.822** | **0.82** | **94.91%** | **2 / 2 ✓** |
 
-All five IC295 genotypes (WT/KO/GOF/OT/Y1) covered. The division annotator catches **2 of 2 GT-evident divisions** with 0 false positives across the 8 recordings.
+All six IC295 conditions (WT/KO/GOF/OT/Y1/DMSO) covered. The division annotator catches **2 of 2 GT-evident divisions** with 0 false positives across the 9 recordings. Pos68_DMSO is a denser field (9–14 cells/frame) where the auto-selected `cpsam_dic` single-cell pipeline under-detects (mean FN 11.2/frame); per-cell boundaries on the cells it does find are still solid (IoU 0.653, 10/13 perfectly-tracked GT identities).
 
 **Phase-contrast Ignasi GT (separate 65-frame benchmark)**: mean IoU **0.932**, 65/65 frames > 0.85, min 0.867 (cpsam + DeepSea union).
 
