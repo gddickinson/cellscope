@@ -79,6 +79,13 @@ MAX_DAUGHTER_GAP_FRAMES = 2     # daughter may have track gaps of up
                                  # to this many frames in its first
                                  # POST_GROWTH_WINDOW (contact phase
                                  # often hides one daughter briefly)
+MIN_SCORE_TO_REPORT = 0.05      # drop candidates whose composite score
+                                 # is essentially zero — one of
+                                 # {prox, mass, persist, balled,
+                                 # swelling} fully zeroed the product,
+                                 # so the division invariant was
+                                 # violated. Surfaces real divisions
+                                 # only.
 
 
 # ---------------------------------------------------------------------
@@ -142,6 +149,47 @@ def _max_area_in_window(track, frames_list):
     pairs = [(track["area"].get(f, 0), f) for f in frames_list]
     a, f = max(pairs, key=lambda p: p[0])
     return a, f
+
+
+def _first_frame_near_centroid(track, cx, cy, max_dist_px,
+                                frame_range):
+    """Earliest frame in `frame_range` (start, stop) where this track's
+    centroid is within `max_dist_px` of (cx, cy). Returns None if no
+    frame matches.
+
+    Used to find daughter cells in the multi-track case. cpsam +
+    Hungarian tracking often reassigns an existing track ID to a
+    daughter at division (the daughter is "born" mid-recording rather
+    than getting a fresh ID), so checking `track['first_frame']`
+    alone misses these. We look at where the track ACTUALLY ENDS UP
+    in the search window instead.
+    """
+    start, stop = frame_range
+    for f in track["frames_present"]:
+        if f < start or f >= stop:
+            continue
+        cxf, cyf = track["centroid"][f]
+        if (cxf - cx) ** 2 + (cyf - cy) ** 2 <= max_dist_px ** 2:
+            return f
+    return None
+
+
+def _was_near_centroid_before(track, cx, cy, max_dist_px,
+                               before_frame):
+    """True if this track ever had a centroid within `max_dist_px` of
+    (cx, cy) at any frame strictly before `before_frame`.
+
+    Used to disqualify already-nearby existing cells from being
+    mistaken for daughters: a real daughter wasn't anywhere near the
+    parent until the split frame.
+    """
+    for f in track["frames_present"]:
+        if f >= before_frame:
+            return False
+        cxf, cyf = track["centroid"][f]
+        if (cxf - cx) ** 2 + (cyf - cy) ** 2 <= max_dist_px ** 2:
+            return True
+    return False
 
 
 # ---------------------------------------------------------------------
@@ -297,50 +345,73 @@ def find_candidates(labels, um_per_px=1.0, include_rejected=False):
             best_daughter = None
             no_daughter_at_all = True
 
-            for f_new in range(max(0, f - DAUGHTER_PRE_WINDOW),
-                                f + DAUGHTER_FRAME_WINDOW + 1):
-                for new_tid in first_at_frame.get(f_new, []):
-                    if new_tid == tid:
-                        continue
-                    nt = tracks[new_tid]
-                    if len(nt["frames_present"]) < MIN_TRACK_LENGTH:
-                        continue
-                    if f_new not in nt["centroid"]:
-                        continue
-                    nx, ny = nt["centroid"][f_new]
-                    dist_px = float(np.hypot(nx - cx, ny - cy))
-                    if dist_px > max_pair_px:
-                        continue
-                    no_daughter_at_all = False
+            # Search every other track for one that first appears
+            # NEAR the parent's split centroid inside the daughter
+            # window. This handles two cases:
+            #   (a) brand-new tracks spawned at the split (the
+            #       single-cell legacy case)
+            #   (b) existing tracks that the Hungarian tracker
+            #       reassigned to a daughter at the split (the
+            #       multi-track cpsam case — track ID has a long
+            #       prior life elsewhere in the field but only
+            #       comes near the parent at the division)
+            window_start = max(0, f - DAUGHTER_PRE_WINDOW)
+            window_stop = f + DAUGHTER_FRAME_WINDOW + 1
+            for new_tid, nt in tracks.items():
+                if new_tid == tid:
+                    continue
+                if len(nt["frames_present"]) < MIN_TRACK_LENGTH:
+                    continue
+                f_new = _first_frame_near_centroid(
+                    nt, cx, cy, max_pair_px,
+                    frame_range=(window_start, window_stop))
+                if f_new is None:
+                    continue
+                # Disqualify pre-existing nearby cells (they're not
+                # daughters, just neighbours). A real daughter wasn't
+                # near the parent before the split frame.
+                if _was_near_centroid_before(
+                        nt, cx, cy, max_pair_px,
+                        before_frame=window_start):
+                    continue
 
-                    d_window = nt["frames_present"][:POST_GROWTH_WINDOW + 1]
-                    daughter_peak, _ = _max_area_in_window(nt, d_window)
-                    persist = _consecutive_persistence(
-                        nt["frames_present"], nt["first_frame"],
-                        max_gap=MAX_DAUGHTER_GAP_FRAMES)
+                nx, ny = nt["centroid"][f_new]
+                dist_px = float(np.hypot(nx - cx, ny - cy))
+                no_daughter_at_all = False
 
-                    if daughter_peak < min_sub:
-                        if include_rejected and best_daughter is None:
-                            best_daughter = (nt, f_new, dist_px,
-                                             daughter_peak, persist,
-                                             "daughter_not_substantial")
-                        continue
-                    if persist < MIN_PERSIST_FRAMES:
-                        if include_rejected and (
-                                best_daughter is None or
-                                best_daughter[5] !=
-                                "daughter_not_substantial"):
-                            best_daughter = (nt, f_new, dist_px,
-                                             daughter_peak, persist,
-                                             "daughter_transient")
-                        continue
+                # Daughter's first POST_GROWTH_WINDOW frames
+                # (measured from f_new, not from the track's own
+                # first_frame — for reassigned tracks those differ).
+                d_window = [fp for fp in nt["frames_present"]
+                            if f_new <= fp <= f_new
+                            + POST_GROWTH_WINDOW]
+                daughter_peak, _ = _max_area_in_window(nt, d_window)
+                persist = _consecutive_persistence(
+                    nt["frames_present"], f_new,
+                    max_gap=MAX_DAUGHTER_GAP_FRAMES)
 
-                    # All criteria passed!
-                    cand = _make_event(
-                        **base_kwargs,
-                        daughter_info=(nt, f_new, dist_px,
-                                       daughter_peak, persist))
-                    candidates.append(cand)
+                if daughter_peak < min_sub:
+                    if include_rejected and best_daughter is None:
+                        best_daughter = (nt, f_new, dist_px,
+                                         daughter_peak, persist,
+                                         "daughter_not_substantial")
+                    continue
+                if persist < MIN_PERSIST_FRAMES:
+                    if include_rejected and (
+                            best_daughter is None or
+                            best_daughter[5] !=
+                            "daughter_not_substantial"):
+                        best_daughter = (nt, f_new, dist_px,
+                                         daughter_peak, persist,
+                                         "daughter_transient")
+                    continue
+
+                # All criteria passed!
+                cand = _make_event(
+                    **base_kwargs,
+                    daughter_info=(nt, f_new, dist_px,
+                                   daughter_peak, persist))
+                candidates.append(cand)
 
             if include_rejected and not any(
                     c["parent_track"] == int(tid) and c["frame"] == int(f)
@@ -357,9 +428,14 @@ def find_candidates(labels, um_per_px=1.0, include_rejected=False):
                                         daughter_peak, persist),
                         reason=reason))
 
-    # Deduplicate candidates per (parent, daughter)
+    # Deduplicate candidates per (parent, daughter) and drop
+    # essentially-zero-score events (one of the invariants was
+    # violated, e.g. mass_ratio way out of [0.7, 1.3] zeroed
+    # mass_score).
     seen = {}
     for c in candidates:
+        if c["score"] < MIN_SCORE_TO_REPORT:
+            continue
         key = (c["parent_track"], c["daughter_track"])
         if key not in seen or c["score"] > seen[key]["score"]:
             seen[key] = c

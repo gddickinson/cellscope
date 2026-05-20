@@ -74,17 +74,23 @@ cpsam/cellpose → debris filter → DeepSea per-cell → Hungarian tracker
 - Division detection (mother→daughter tracking) — biology-aware
   annotator (`core/division_annotator.py`) sets `parent_id` +
   `division_score` + `division_frame` on daughter tracks; writes
-  `divisions.json` sidecar next to `masks.npz`. **1 / 2 GT divisions
-  caught across 9 GT recordings** (Pos39_OT). Pos51_Y1's split was
-  caught under the legacy single-track output but lost after the
-  2026-05-20 auto-select probe upgrade routed it to raw cpsam (3
-  tracks now where 1 used to be — the annotator's pre-mitotic-
-  swelling pattern was tuned against single-track lineages and needs
-  to be updated for multi-track resolves).
+  `divisions.json` sidecar next to `masks.npz`. **2 / 2 GT divisions
+  caught across 9 GT recordings** (Pos39_OT + Pos51_Y1) + 1
+  unvalidated candidate on Pos20_KO at F3 (score 0.36).
+  Multi-track daughter detection (2026-05-20): replaced the literal
+  "track first-spawned this frame" check with "track first comes
+  near the parent's split centroid this frame, having not been near
+  it before". Handles Hungarian-tracked daughters that inherit an
+  existing track ID at the split — a common pattern under raw cpsam
+  multi-cell output that the legacy first-frame-only check missed.
+  Restored Pos51_Y1's GT-evident division catch (lost after the
+  cpsam_dic → cpsam routing change earlier the same day).
   Filter relaxation 2026-05-17: pre-mitotic-balled check spans the
   [pre, post]-split window (PRE_STATE_LOOKBACK=3 + POST_STATE_WINDOW=3)
   and daughter persistence tolerates a 2-frame gap during the contact
-  phase (`MAX_DAUGHTER_GAP_FRAMES=2`).
+  phase (`MAX_DAUGHTER_GAP_FRAMES=2`). Score-zero noise (mass-ratio
+  violations zeroing the composite) now filtered via
+  `MIN_SCORE_TO_REPORT = 0.05`.
 - 100% gap fill rate (41/41 gaps on tested recordings)
 - TRA 0.929 on CTC DIC-C2DH-HeLa benchmark
 
@@ -228,7 +234,7 @@ from 4 experiments (85, 100, 126, 135, 240).
 ## What's Working Well
 
 - **Phase-contrast detection**: 0.932 IoU, 100% detection — production ready
-- **Multi-cell tracking**: TRA 0.929 on CTC benchmark; biology-aware division annotator (`core/division_annotator.py`) detects pre-mitotic-swelling → balled → split → grown-daughter pattern. **1 / 2 GT divisions caught across 9 IC295 GT recordings** (Pos39_OT). Pos51_Y1's split was caught under the legacy cpsam_dic single-track output; lost on the 2026-05-20 auto-select rework that routes it to multi-track raw cpsam (annotator needs to handle multi-track resolves).
+- **Multi-cell tracking**: TRA 0.929 on CTC benchmark; biology-aware division annotator (`core/division_annotator.py`) detects pre-mitotic-swelling → balled → split → grown-daughter pattern, catching **2 / 2 GT divisions across 9 IC295 GT recordings** (Pos39_OT, Pos51_Y1) + 1 unvalidated candidate on Pos20_KO at F3. 2026-05-20 annotator rework: handles multi-track resolves (Hungarian-reassigned daughter IDs at cytokinesis).
 - **Multichannel GT aggregate**: 6 IC295 conditions (WT/KO/GOF/OT/Y1/DMSO) at mean per-cell IoU **0.846**, F1@.5 **0.83**, ID consistency **95.92%** (238 frames across 9 recordings). Improved from 0.822 / 0.82 / 94.91% on 2026-05-20 by switching the auto-select probe to raw cpsam (no cell-merging bias); Pos51_Y1 and Pos68_DMSO both gained ~+0.10 IoU on the re-run, Pos51_Y1 went 83% → 100% ID consistency.
 - **Analysis suite**: 20 graph types, VAMPIRE shape modes, statistical comparison
 - **GUI**: 5 specialized apps covering the full workflow
