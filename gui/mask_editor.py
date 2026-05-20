@@ -1187,6 +1187,8 @@ class MaskEditor(QMainWindow):
             # Mark this frame as having unsaved edits
             self._dirty_frames.add(idx)
         self._stroke_snapshot = None
+        # Stroke finished — bring contours (and cell-ID text) back.
+        self._redraw()
 
     def paint_at(self, x, y, tool):
         if self.masks is None:
@@ -1213,7 +1215,10 @@ class MaskEditor(QMainWindow):
             m[y0:y1, x0:x1] = np.where(patch, self.active_cell, m[y0:y1, x0:x1])
         else:  # eraser
             m[y0:y1, x0:x1] = np.where(patch, 0, m[y0:y1, x0:x1])
-        self._redraw()
+        # Mid-stroke: skip per-cell contour traces (and ID text) to keep
+        # the brush responsive on frames with many labels. end_stroke
+        # triggers a full redraw with contours on mouse release.
+        self._redraw(draft=True)
 
     def draw_polygon_preview(self, points):
         """Draw a preview line along clicked polygon points."""
@@ -1333,7 +1338,7 @@ class MaskEditor(QMainWindow):
             f"color: rgb({r},{g},{b}); font-size: 18px; font-weight: bold;")
         self.cell_color_label.setText(f" ● Cell {self.active_cell}")
 
-    def _redraw(self, polygon_preview=None):
+    def _redraw(self, polygon_preview=None, draft=False):
         if self.frames is None:
             return
         idx = self.current_frame
@@ -1345,7 +1350,8 @@ class MaskEditor(QMainWindow):
                 img, self.masks[idx], opacity=self.mask_opacity,
                 active_cell=self.active_cell,
                 polygon_preview=polygon_preview,
-                show_ids=self.show_ids)
+                show_ids=self.show_ids,
+                draw_contours=not draft)
         else:
             rgb = np.stack([img, img, img], axis=-1).copy()
             if polygon_preview and len(polygon_preview) >= 2:

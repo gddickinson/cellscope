@@ -39,10 +39,14 @@ def cell_color(cell_id):
 
 def render_label_overlay(frame, labels, opacity=0.4,
                          active_cell=None, polygon_preview=None,
-                         show_ids=False):
+                         show_ids=False, draw_contours=True):
     """Render a frame with colored per-cell label overlay.
 
     Args:
+        draw_contours: when False, skip per-cell contour traces (and
+            cell-ID text). Used mid-stroke so the mouse stays
+            responsive on frames with many labels; release the mouse
+            and the next redraw brings the contours back.
         frame: (H, W) uint8 grayscale
         labels: (H, W) int32, 0=bg, 1,2,...=cell IDs
         opacity: overlay blend factor
@@ -57,40 +61,50 @@ def render_label_overlay(frame, labels, opacity=0.4,
     h, w = frame.shape
     rgb = np.stack([frame, frame, frame], axis=-1).astype(np.float32)
 
-    for cell_id in range(1, int(labels.max()) + 1):
-        mask = labels == cell_id
-        if not mask.any():
-            continue
-        color = np.array(cell_color(cell_id), dtype=np.float32)
-        rgb[mask] = rgb[mask] * (1 - opacity) + color * opacity
+    # Single-pass color-LUT blend. Replaces an O(N_cells) loop of
+    # full-frame `labels == cell_id` boolean comparisons + per-cell
+    # blends with a constant-cost lookup + masked blend, so renderer
+    # cost stays flat as the user adds more labelled cells.
+    max_id = int(labels.max()) if labels.size else 0
+    if max_id > 0:
+        lut = np.zeros((max_id + 1, 3), dtype=np.float32)
+        present = np.unique(labels)
+        present = present[present > 0]
+        for cid in present:
+            lut[cid] = cell_color(int(cid))
+        is_cell = labels > 0
+        if is_cell.any():
+            colors_per_pixel = lut[labels]
+            rgb[is_cell] = (rgb[is_cell] * (1 - opacity)
+                            + colors_per_pixel[is_cell] * opacity)
 
     rgb = np.clip(rgb, 0, 255).astype(np.uint8)
 
-    # Draw contours per cell
-    for cell_id in range(1, int(labels.max()) + 1):
-        mask = labels == cell_id
-        if not mask.any():
-            continue
-        contours, _ = cv2.findContours(
-            mask.astype(np.uint8), cv2.RETR_EXTERNAL,
-            cv2.CHAIN_APPROX_NONE)
-        color = cell_color(cell_id)
-        thickness = 2 if cell_id == active_cell else 1
-        cv2.drawContours(rgb, contours, -1, color, thickness)
+    # Draw contours only for cell IDs actually present in the frame.
+    # Skipping deleted IDs avoids wasted full-frame `==` scans.
+    if max_id > 0 and draw_contours:
+        for cid in present:
+            cell_id = int(cid)
+            mask = labels == cell_id
+            contours, _ = cv2.findContours(
+                mask.astype(np.uint8), cv2.RETR_EXTERNAL,
+                cv2.CHAIN_APPROX_NONE)
+            color = cell_color(cell_id)
+            thickness = 2 if cell_id == active_cell else 1
+            cv2.drawContours(rgb, contours, -1, color, thickness)
 
     if polygon_preview and len(polygon_preview) >= 2:
         pts = np.array(polygon_preview, dtype=np.int32)
         cv2.polylines(rgb, [pts], False, (255, 255, 255), 1)
 
-    if show_ids:
+    if show_ids and max_id > 0 and draw_contours:
         # Pixel size scales with image — keep text readable on both
         # small crops (256²) and full frames (2048²).
         font_scale = max(0.5, min(2.0, min(h, w) / 600.0))
         thickness = max(1, int(round(font_scale * 1.5)))
-        for cell_id in range(1, int(labels.max()) + 1):
+        for cid in present:
+            cell_id = int(cid)
             mask = labels == cell_id
-            if not mask.any():
-                continue
             ys, xs = np.where(mask)
             cy, cx = int(ys.mean()), int(xs.mean())
             label = str(cell_id)
