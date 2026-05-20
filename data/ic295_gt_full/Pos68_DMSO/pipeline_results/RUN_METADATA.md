@@ -1,10 +1,10 @@
 # RUN_METADATA — Pos68_DMSO
 
 **Schema version**: 1.0.0
-**Started**: 2026-05-20T13:18:06
-**Finished**: 2026-05-20T13:18:06
-**Runtime**: 6641 s
-**Pipeline**: `hybrid_dic_multi` (mode = multi)
+**Started**: 2026-05-20T17:44:16
+**Finished**: 2026-05-20T17:44:16
+**Runtime**: 6672 s
+**Pipeline**: `hybrid_cpsam_multi` (mode = multi)
 
 ## Source recording
 
@@ -17,18 +17,18 @@
 
 ## Results
 
-- **n_tracks**: 14
-- **n_cy5_fusion_added** (pre-tracking): 644
+- **n_tracks**: 15
+- **n_cy5_fusion_added** (pre-tracking): 17
 - **n_analysis_cells**: 0
-  - fusion source breakdown: cy5_only = 12, dic_only = 2
+  - fusion source breakdown: both = 12, dic_only = 3
 
 ## Parameters deviating from defaults
 
-  - **auto_selected_pipeline**: `cpsam_dic` (not in defaults)
+  - **auto_selected_pipeline**: `cpsam` (not in defaults)
   - **downsample**: `2` (not in defaults)
   - **downsample_reason**: `auto: max dim 2048 ≥ 1500; ds=2 gives ~5× speedup with minimal accuracy loss` (not in defaults)
   - **downsample_spec**: `auto` (not in defaults)
-  - **model_path**: `data/models/cpsam_dic` (not in defaults)
+  - **model_path**: `None` (not in defaults)
   - **use_cy5_recovery**: `False` (default `True`)
 
 ## Environment
@@ -45,7 +45,7 @@
 
 ## Reproducibility
 
-- **git commit**: `8723713a5d6d`
+- **git commit**: `5e7b718aaea2`
 - **rerun command**:
 
 ```bash

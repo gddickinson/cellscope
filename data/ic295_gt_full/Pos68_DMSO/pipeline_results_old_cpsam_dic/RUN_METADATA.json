@@ -1,9 +1,9 @@
 {
   "schema_version": "1.0.0",
-  "started_at": "2026-05-20T17:44:16",
-  "finished_at": "2026-05-20T17:44:16",
-  "runtime_seconds": 6671.701209068298,
-  "pipeline_function": "hybrid_cpsam_multi",
+  "started_at": "2026-05-20T13:18:06",
+  "finished_at": "2026-05-20T13:18:06",
+  "runtime_seconds": 6641.177448987961,
+  "pipeline_function": "hybrid_dic_multi",
   "mode": "multi",
   "source_recording": {
     "name": "Pos68_DMSO",
@@ -50,8 +50,8 @@
     "compute_vampire": false,
     "vampire_n_clusters": 5,
     "compute_state_classification": false,
-    "model_path": null,
-    "auto_selected_pipeline": "cpsam",
+    "model_path": "data/models/cpsam_dic",
+    "auto_selected_pipeline": "cpsam_dic",
     "downsample": 2,
     "downsample_reason": "auto: max dim 2048 \u2265 1500; ds=2 gives ~5\u00d7 speedup with minimal accuracy loss",
     "downsample_spec": "auto"
@@ -61,8 +61,8 @@
       "used": false,
       "default": true
     },
-    "model_path": null,
-    "auto_selected_pipeline": "cpsam",
+    "model_path": "data/models/cpsam_dic",
+    "auto_selected_pipeline": "cpsam_dic",
     "downsample": 2,
     "downsample_reason": "auto: max dim 2048 \u2265 1500; ds=2 gives ~5\u00d7 speedup with minimal accuracy loss",
     "downsample_spec": "auto"
@@ -106,11 +106,11 @@
   },
   "results_summary": {
     "n_frames_processed": 97,
-    "n_tracks": 15,
-    "n_cy5_fusion_added": 17,
+    "n_tracks": 14,
+    "n_cy5_fusion_added": 644,
     "fusion_source_breakdown": {
-      "dic_only": 3,
-      "both": 12
+      "cy5_only": 12,
+      "dic_only": 2
     },
     "n_analysis_cells": 0
   },
@@ -126,26 +126,20 @@
     "skimage": "0.25.2",
     "torch": "2.7.0"
   },
-  "git_commit": "5e7b718aaea2",
+  "git_commit": "8723713a5d6d",
   "rerun_command": "conda run -n cellpose4 python scripts/run_pipeline_on_gt_recording.py data/ic295_gt_full/Pos68_DMSO",
   "out_dir": "/Users/george/claude_test/cellscope/data/ic295_gt_full/Pos68_DMSO/pipeline_results",
   "extra": {
-    "model_path": null,
-    "n_tracks": 15,
+    "model_path": "data/models/cpsam_dic",
+    "n_tracks": 14,
     "auto_select": {
-      "reason": "p75 19.0 cells/frame \u2265 1.5: multi-cell scene, switching to raw cpsam (cpsam_dic merges touching cells)",
+      "reason": "median 1.0 cells/frame < 1.5: single-cell scene, using cpsam_dic (tighter boundaries on isolated cells)",
       "cell_counts_at_sample": [
-        17,
-        16,
-        13,
-        19,
-        20,
-        18,
-        22,
-        18,
-        19,
-        18,
-        18
+        1,
+        1,
+        0,
+        1,
+        0
       ]
     },
     "channel_alignment": {
@@ -164,8 +158,8 @@
       "cell_diameter_px": 23
     },
     "unified_detection_path": true,
-    "n_cy5_fusion_added": 17,
-    "n_tracks_raw": 30,
-    "cy5_filter_kept": 15
+    "n_cy5_fusion_added": 644,
+    "n_tracks_raw": 16,
+    "cy5_filter_kept": 14
   }
 }

@@ -1,51 +1,6 @@
 {
   "recording": "Pos51_Y1",
-  "n_candidates": 1,
-  "candidates": [
-    {
-      "frame": 68,
-      "peak_frame": 63,
-      "parent_track": 1,
-      "area_peak": 11508,
-      "area_parent_at_split": 1148,
-      "area_parent_post_peak": 10964,
-      "area_baseline": 10794,
-      "swelling_ratio": 1.0661083524790633,
-      "pre_split_states": [
-        "attached",
-        "attached",
-        "transitional"
-      ],
-      "pre_split_balled_frac": 0.7142857142857143,
-      "parent_centroid": [
-        960.883275261324,
-        720.493031358885
-      ],
-      "daughter_track": 2,
-      "daughter_first_frame": 70,
-      "daughter_persistence_frames": 13,
-      "distance_px": 15.916855782470003,
-      "area_daughter_first": 468,
-      "area_daughter_post_peak": 5472,
-      "mass_ratio": 1.4282238442822384,
-      "mass_score": 0.5717761557177616,
-      "persist_score": 1.0,
-      "balled_score": 0.8571428571428572,
-      "swelling_score": 0.13221670495812665,
-      "prox_score": 0.8280535942406732,
-      "score": 0.2297403402710934,
-      "daughter_centroid": [
-        976.5854700854701,
-        723.0982905982906
-      ]
-    }
-  ],
-  "track_lineage": [
-    {
-      "track_index": 1,
-      "parent_track_index": 0,
-      "division_frame": 68,
-      "division_score": 0.2297403402710934
-    }
-  ]
+  "n_candidates": 0,
+  "candidates": [],
+  "track_lineage": []
 }

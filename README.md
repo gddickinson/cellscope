@@ -315,14 +315,14 @@ python scripts/evaluate_against_gt.py data/ic295_gt_full/Pos20_KO
 | Pos20_KO | KO | 10 | 0.839 | 0.85 | 95% | — |
 | Pos30_GOF | GOF | 10 | 0.848 | 0.84 | 92% | — |
 | Pos39_OT | OT | 10 | 0.855 | 0.95 | 97.78% | 1 / 1 ✓ |
-| Pos51_Y1 | Y1 | 10 | 0.753 | 0.90 | 83.33% | 1 / 1 ✓ |
-| Pos68_DMSO | DMSO | 11 | 0.653 | 0.46 | 93.08% | — |
+| Pos51_Y1 | Y1 | 10 | 0.864 | 0.90 | 100% | 0 / 1 ✗ |
+| Pos68_DMSO | DMSO | 11 | 0.753 | 0.49 | 85.48% | — |
 | ignasi_3_cells_control | ctrl | 97 | 0.820 | 0.87 | 93% | — |
 | ignasi_control | ctrl | 15 | 0.890 | 0.80 | 100% | — |
 | ignasi_control_full | ctrl | 65 | 0.897 | 0.92 | 100% | — |
-| **Aggregate** | — | **238** | **0.822** | **0.82** | **94.91%** | **2 / 2 ✓** |
+| **Aggregate** | — | **238** | **0.846** | **0.83** | **95.92%** | **1 / 2** |
 
-All six IC295 conditions (WT/KO/GOF/OT/Y1/DMSO) covered. The division annotator catches **2 of 2 GT-evident divisions** with 0 false positives across the 9 recordings. Pos68_DMSO is a denser field (9–14 cells/frame) where the auto-selected `cpsam_dic` single-cell pipeline under-detects (mean FN 11.2/frame); per-cell boundaries on the cells it does find are still solid (IoU 0.653, 10/13 perfectly-tracked GT identities).
+All six IC295 conditions (WT/KO/GOF/OT/Y1/DMSO) covered. Pos51_Y1 + Pos68_DMSO were re-run on 2026-05-20 with a smarter auto-select probe (raw `cpsam` for density estimation instead of cpsam_dic, which merges touching cells); both gained ~+0.10 IoU and Pos51_Y1 went from 83% → 100% ID consistency. The richer track sets cost one GT division catch on Pos51_Y1 — the division annotator's pre-mitotic-swelling pattern was tuned against the single-track legacy output and needs an update to handle the new multi-track Y1 lineages.
 
 **Phase-contrast Ignasi GT (separate 65-frame benchmark)**: mean IoU **0.932**, 65/65 frames > 0.85, min 0.867 (cpsam + DeepSea union).
 
