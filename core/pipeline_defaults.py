@@ -155,7 +155,14 @@ data = np.load("{input_path}", allow_pickle=True)
 frames = data["frames"]
 indices = data["indices"]
 min_area_px = int({min_area_px})
-m = models.CellposeModel(gpu=True, pretrained_model="{model_path}")
+model_path = "{model_path}"
+if model_path:
+    m = models.CellposeModel(gpu=True, pretrained_model=model_path)
+else:
+    # Raw cpsam (CP4 ViT default). Used by the auto-select probe so
+    # the density estimate isn't biased by cpsam_dic's single-cell
+    # fine-tune (which merges touching cells and undercounts).
+    m = models.CellposeModel(gpu=True)
 counts = []
 for fi in indices:
     labels = m.eval(frames[int(fi)], augment=False)[0]
@@ -168,8 +175,12 @@ print("PROBE_OK", json.dumps(counts))
 
 def _run_probe_subprocess(frames, indices, model_path, min_area_px,
                            env_name="cellpose4", project_root=None):
-    """Run the cell-count probe in `env_name` via subprocess so we can
-    use a CP4 model (cpsam_dic) from a CP3-only context."""
+    """Run the cell-count probe in `env_name` via subprocess.
+
+    `env_name` defaults to cellpose4 so the probe can use the CP4 ViT
+    backbone (either a fine-tune like cpsam_dic, or raw cpsam when
+    `model_path` is empty).
+    """
     import subprocess
     import tempfile
     import numpy as np
@@ -206,20 +217,29 @@ def select_pipeline_for_recording(
         verbose=False):
     """Pick the right detection pipeline + model for a recording.
 
-    Probes a few frames with cpsam_dic, counts cells per frame, and
-    returns either ('cpsam_dic', model_path) or ('cpsam', None) based
-    on whether the recording looks multi-cell.
+    Probes a few frames with **raw cpsam** (CP4 ViT default — not the
+    cpsam_dic fine-tune), counts cells per frame, and returns either
+    ('cpsam_dic', model_path) or ('cpsam', None) based on whether the
+    recording looks multi-cell.
 
-    Why this exists: cpsam_dic was fine-tuned on single-cell VAMPIRE
-    crops and tends to MERGE touching cells in multi-cell scenes
-    (proved on IC293 Pos3 — F1 0.65 → 0.90 by switching to raw cpsam).
-    Raw cpsam is the better default for crowded recordings; cpsam_dic
-    gives slightly tighter boundaries on isolated single cells. This
-    function lets the runner pick automatically.
+    Why probe with raw cpsam rather than cpsam_dic: cpsam_dic was
+    fine-tuned on single-cell VAMPIRE crops and tends to MERGE
+    touching cells in multi-cell scenes, **so using it to estimate
+    density biases the count downward**. Pos68_DMSO showed this — 11
+    probed frames at downsampled 1024² returned `[1,0,0,1,1,0,0,1,1,
+    0,0]` from cpsam_dic while the recording actually has 9–14
+    cells/frame (visible once Cy5 fusion adds 644 cells). Switching
+    the probe model to raw cpsam removes that bias: raw cpsam doesn't
+    merge touching cells and gives an honest density estimate.
 
-    The probe runs in the cellpose4 env via subprocess so cpsam_dic
-    (a CP4 ViT fine-tune) loads correctly even when the calling
-    process is in the cellpose (CP3) env.
+    The downstream pipeline still chooses cpsam_dic (tighter
+    boundaries on isolated cells) when raw cpsam reports a sparse
+    field; raw cpsam wins when the field is multi-cell (cpsam_dic
+    merges hurt more than the looser boundaries cost).
+
+    The probe runs in the cellpose4 env via subprocess so CP4 ViT
+    weights load correctly even when the calling process is in the
+    cellpose (CP3) env.
 
     Args:
       frames: (N, H, W) uint8 stack
@@ -241,13 +261,14 @@ def select_pipeline_for_recording(
 
     indices = list(np.linspace(0, n_frames - 1, min(sample_n, n_frames),
                                 dtype=int))
-    cpsam_dic_path = resolve_dic_model_path()
+    # Empty model_path → probe script loads raw cpsam (CP4 ViT default).
+    probe_model_path = ""
     if verbose:
         print(f"[auto-select] probing {len(indices)} frames "
-              f"with cpsam_dic ({cpsam_dic_path}, via cellpose4 "
+              f"with raw cpsam (CP4 ViT default, via cellpose4 "
               f"subprocess) …")
     counts = _run_probe_subprocess(
-        frames, indices, cpsam_dic_path, min_area_px)
+        frames, indices, probe_model_path, min_area_px)
 
     # Use the 75th-percentile sample count rather than the median so a
     # few sparse frames (cells entering/leaving the FoV, early-time
@@ -259,6 +280,7 @@ def select_pipeline_for_recording(
     decision_count = float(np.percentile(
         counts_arr, PROBE_AGGREGATOR_PERCENTILE))
     info = {
+        "probe_model": "cpsam",
         "sampled_frames": [int(i) for i in indices],
         "cell_counts_at_sample": counts,
         "median_count": median_count,
@@ -285,7 +307,7 @@ def select_pipeline_for_recording(
         f"using cpsam_dic (tighter boundaries on isolated cells)")
     if verbose:
         print(f"[auto-select] {info['reason']}")
-    return "cpsam_dic", cpsam_dic_path, info
+    return "cpsam_dic", resolve_dic_model_path(), info
 
 
 # ------------------------------------------------------------------
