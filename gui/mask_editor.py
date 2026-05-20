@@ -299,12 +299,13 @@ class MaskEditor(QMainWindow):
         tools.addWidget(btn_fit)
         tools.addWidget(QLabel("  Cell:"))
         self.cell_spin = QSpinBox()
-        self.cell_spin.setRange(1, 20)
+        self.cell_spin.setRange(1, 30)
         self.cell_spin.setValue(1)
         self.cell_spin.setToolTip(
-            "Active cell ID (1-20). Paint with this ID.\n"
+            "Active cell ID (1-30). Paint with this ID.\n"
             "Keyboard: 1-9 select cells 1-9, 0 selects cell 10,\n"
-            "Shift+1..Shift+9 select cells 11-19, Shift+0 selects 20.")
+            "Shift+1..Shift+9 select cells 11-19, Shift+0 selects 20.\n"
+            "Cells 21-30 are picked via the spinbox or New Cell.")
         self.cell_spin.valueChanged.connect(self._on_cell_id)
         tools.addWidget(self.cell_spin)
         self.cell_color_label = QLabel("  ●")
@@ -1328,8 +1329,8 @@ class MaskEditor(QMainWindow):
         if self.masks is None:
             return
         new_id = next_cell_id(self.masks[self.current_frame])
-        if new_id > 9:
-            new_id = 9
+        if new_id > 30:
+            new_id = 30
         self.cell_spin.setValue(new_id)
 
     def _update_cell_color_label(self):
