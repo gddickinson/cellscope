@@ -75,10 +75,21 @@ def resolve_dic_model_path(project_root: Optional[str] = None) -> str:
 
 # Cell-density threshold for the auto-switch between cpsam_dic
 # (single-cell-biased) and raw cpsam (handles touching cells).
-# 1.5 picks raw cpsam when MEDIAN cell count across sampled frames is
-# ≥2 (rounded). Single-cell sequences stay on cpsam_dic.
+# 1.5 picks raw cpsam when the 75th-percentile cell count across
+# sampled frames is ≥2 (rounded). Single-cell sequences stay on
+# cpsam_dic.
+#
+# The probe is 11 frames + p75 (not median) so a few sparse frames
+# at the start/end of a recording (e.g. cells migrating into the
+# field of view) can't drag the median down and route a dense field
+# to single-cell mode. Pos68_DMSO surfaced this: a 5-frame median-1.0
+# probe routed a 9–14-cells/frame recording to cpsam_dic, causing
+# 11.2 mean FN/frame in evaluation. With p75 across 11 samples the
+# few sparse frames are tolerated without losing the multi-cell
+# signal in the rest of the recording.
 MULTICELL_THRESHOLD = 1.5
-N_SAMPLE_FRAMES_FOR_AUTO = 5
+N_SAMPLE_FRAMES_FOR_AUTO = 11
+PROBE_AGGREGATOR_PERCENTILE = 75
 
 
 # ------------------------------------------------------------------
@@ -238,29 +249,40 @@ def select_pipeline_for_recording(
     counts = _run_probe_subprocess(
         frames, indices, cpsam_dic_path, min_area_px)
 
-    median_count = float(np.median(counts))
+    # Use the 75th-percentile sample count rather than the median so a
+    # few sparse frames (cells entering/leaving the FoV, early-time
+    # recordings before cells migrate in) can't drag the decision down
+    # in an otherwise dense field. The median is kept in the info dict
+    # for diagnostic comparability.
+    counts_arr = np.asarray(counts, dtype=float)
+    median_count = float(np.median(counts_arr))
+    decision_count = float(np.percentile(
+        counts_arr, PROBE_AGGREGATOR_PERCENTILE))
     info = {
         "sampled_frames": [int(i) for i in indices],
         "cell_counts_at_sample": counts,
         "median_count": median_count,
+        "p75_count": decision_count,
+        "decision_count": decision_count,
+        "aggregator": f"p{PROBE_AGGREGATOR_PERCENTILE}",
         "threshold": MULTICELL_THRESHOLD,
     }
 
-    if median_count >= MULTICELL_THRESHOLD:
+    if decision_count >= MULTICELL_THRESHOLD:
         info["choice"] = "cpsam"
         info["reason"] = (
-            f"median {median_count:.1f} cells/frame ≥ "
-            f"{MULTICELL_THRESHOLD}: multi-cell scene, switching to "
-            f"raw cpsam (cpsam_dic merges touching cells)")
+            f"p{PROBE_AGGREGATOR_PERCENTILE} {decision_count:.1f} "
+            f"cells/frame ≥ {MULTICELL_THRESHOLD}: multi-cell scene, "
+            f"switching to raw cpsam (cpsam_dic merges touching cells)")
         if verbose:
             print(f"[auto-select] {info['reason']}")
         return "cpsam", None, info
 
     info["choice"] = "cpsam_dic"
     info["reason"] = (
-        f"median {median_count:.1f} cells/frame < "
-        f"{MULTICELL_THRESHOLD}: single-cell scene, using cpsam_dic "
-        f"(tighter boundaries on isolated cells)")
+        f"p{PROBE_AGGREGATOR_PERCENTILE} {decision_count:.1f} "
+        f"cells/frame < {MULTICELL_THRESHOLD}: single-cell scene, "
+        f"using cpsam_dic (tighter boundaries on isolated cells)")
     if verbose:
         print(f"[auto-select] {info['reason']}")
     return "cpsam_dic", cpsam_dic_path, info
