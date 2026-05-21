@@ -1,0 +1,51 @@
+{
+  "recording": "Pos10_WT",
+  "n_candidates": 1,
+  "candidates": [
+    {
+      "frame": 75,
+      "peak_frame": 72,
+      "parent_track": 3,
+      "area_peak": 1668,
+      "area_parent_at_split": 988,
+      "area_parent_post_peak": 1660,
+      "area_baseline": 799,
+      "swelling_ratio": 2.0870870870870872,
+      "pre_split_states": [
+        "transitional",
+        "attached",
+        "transitional"
+      ],
+      "pre_split_balled_frac": 0.42857142857142855,
+      "parent_centroid": [
+        1380.7105263157894,
+        1203.091093117409
+      ],
+      "daughter_track": 4,
+      "daughter_first_frame": 77,
+      "daughter_persistence_frames": 20,
+      "distance_px": 34.4802979683657,
+      "area_daughter_first": 1276,
+      "area_daughter_post_peak": 1376,
+      "mass_ratio": 1.8201438848920863,
+      "mass_score": 0.17985611510791366,
+      "persist_score": 1.0,
+      "balled_score": 0.7142857142857143,
+      "swelling_score": 1.0,
+      "prox_score": 0.689736053577048,
+      "score": 0.08860946217587976,
+      "daughter_centroid": [
+        1378.2617554858934,
+        1237.4843260188088
+      ]
+    }
+  ],
+  "track_lineage": [
+    {
+      "track_index": 3,
+      "parent_track_index": 2,
+      "division_frame": 75,
+      "division_score": 0.08860946217587976
+    }
+  ]
+}

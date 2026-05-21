@@ -307,22 +307,28 @@ python scripts/evaluate_against_gt.py data/ic295_gt_full/Pos20_KO
 #   per-GT-cell tracking
 ```
 
-**Current GT aggregate** (9 recordings, 238 annotated frames, see `data/gt_evaluation_summary.md`):
+**Current GT aggregate** (13 recordings, 278 annotated frames, see `data/gt_evaluation_summary.md`):
 
 | Recording | Genotype | Frames | Mean IoU | F1@.5 | F1 focused | ID cons. | GT divisions caught |
 |---|---|---:|---:|---:|---:|---:|---:|
-| Pos7_WT | WT | 10 | 0.851 | 0.77 | **0.85** | 92.22% | — |
+| Pos7_WT | WT | 10 | 0.851 | 0.77 | 0.85 | 92.22% | — |
+| Pos10_WT | WT | 10 | 0.863 | 0.84 | **0.97** | 93.33% | — |
 | Pos20_KO | KO | 10 | 0.842 | 0.88 | 0.90 | 92.28% | — |
+| Pos21_KO | KO | 10 | 0.799 | 0.61 | 0.61 | 91.33% | — |
 | Pos30_GOF | GOF | 10 | 0.860 | 0.86 | 0.86 | 100% | — |
+| Pos31_GOF | GOF | 10 | 0.873 | 0.52 | 0.52 | 100% | — |
 | Pos39_OT | OT | 10 | 0.855 | 0.95 | 0.96 | 97.78% | 1 / 1 ✓ |
+| Pos44_OT | OT | 10 | 0.881 | 0.74 | 0.79 | 98.00% | — |
 | Pos51_Y1 | Y1 | 10 | 0.866 | **1.00** | 1.00 | 100% | 1 / 1 ✓ |
 | Pos68_DMSO | DMSO | 11 | 0.762 | 0.56 | 0.58 | 88.37% | — |
 | ignasi_3_cells_control | ctrl | 97 | 0.820 | 0.87 | 0.87 | 93.01% | — |
 | ignasi_control | ctrl | 15 | 0.924 | 0.63 | **1.00** | 100% | — |
 | ignasi_control_full | ctrl | 65 | 0.932 | 0.66 | **1.00** | 100% | — |
-| **Aggregate** | — | **238** | **0.857** | 0.80 | **0.89** | **95.96%** | **2 / 2 ✓** |
+| **Aggregate** | — | **278** | **0.856** | 0.76 | **0.84** | **95.87%** | **2 / 2 ✓** |
 
-`F1 focused` excludes predictions that have zero IoU with *any* GT cell from the FP count — these are real cells in the field that the GT just didn't annotate (the standard F1 penalizes them as FPs). Right metric when GT covers only part of the field (single-cell ignasi recordings) or when the pipeline finds extras the GT didn't label (Pos7_WT). Recording-level: same answer (or better) than raw F1 on all 9; per-recording the gap is largest for ignasi (0.63 → 1.00) where GT explicitly only annotates the 1 cell of interest. **Aggregate F1 focused 0.89 vs raw 0.80** — the +0.09 gap is the cost of the GT coverage gap, not pipeline quality.
+`F1 focused` excludes predictions that have zero IoU with *any* GT cell from the FP count — these are real cells in the field that the GT just didn't annotate (the standard F1 penalizes them as FPs). Right metric when GT covers only part of the field (single-cell ignasi recordings) or when the pipeline finds extras the GT didn't label. **Pos10_WT goes 0.84 → 0.97 focused**; ignasi recordings go 0.63 → 1.00.
+
+**Three under-detection cases** stand out: **Pos21_KO** (F1 0.61, FN 3.5/frame), **Pos31_GOF** (F1 0.52 but IoU 0.873 — boundaries are excellent on what it finds), and **Pos68_DMSO** (F1 0.56, FN 8.8/frame). All three have raw cpsam missing roughly half the cells per frame. Next investigation: click-prompted SAM and Cy5-peak auto-prompts to seed detection at known cell locations (see plan in commits).
 
 **Detection upgrade 2026-05-21** — added mirror-padding (`use_mirror_pad="auto"`): cpsam input is padded with 50 px reflection before each frame's `eval()`. Auto-enabled when min detection dim ≥ 1000 px (catches all IC295 at ds=2, skipped for small cropped ignasi). Validated on 9 GT recordings via detection-only sweep on GT-labelled frames (`scripts/investigate_pos68_detection.py`); pipeline re-ran end-to-end with the new policy. **Aggregate IoU 0.847 → 0.858 (+0.011).** Per-recording IoU improved on all 6 IC295 + all 3 legacy. **Big F1 wins on the previously worst recordings**: Pos51_Y1 0.90 → 1.00, Pos68_DMSO 0.50 → 0.56. F1 dipped on ignasi recordings (0.80→0.63, 0.92→0.66) because raw cpsam now finds 3 cells/frame on those small fields where GT only annotates 1 — boundary quality on the GT-annotated cell improved (IoU +0.03) but the extra real-cell detections are scored as FPs by the single-cell-GT metric.
 

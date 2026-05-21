@@ -6,20 +6,33 @@
         "name": "Pos10_WT",
         "folder": "data/ic295_gt_full/Pos10_WT",
         "gt_masks_dir": "data/ic295_gt_full/Pos10_WT/gt_masks",
-        "n_masks": 0,
-        "frames_annotated": [],
-        "image_shape": null,
-        "n_cells_min": null,
-        "n_cells_max": null,
-        "n_unique_cell_ids": 0,
-        "tracks_identity_preserved": null,
-        "source_recording": null,
-        "source_accessible": false,
-        "has_pipeline_results": false,
-        "has_evaluation": false,
-        "issues": [
-          "placeholder (no labelled masks)"
-        ]
+        "n_masks": 10,
+        "frames_annotated": [
+          0,
+          10,
+          20,
+          30,
+          40,
+          50,
+          60,
+          70,
+          80,
+          90
+        ],
+        "image_shape": [
+          2048,
+          2048
+        ],
+        "n_cells_min": 3,
+        "n_cells_max": 3,
+        "n_unique_cell_ids": 3,
+        "tracks_identity_preserved": true,
+        "source_recording": "data/ic295_gt_full/Pos10_WT/IC295__1_MMStack_Pos10-WT.ome.tif",
+        "source_accessible": true,
+        "has_pipeline_results": true,
+        "has_evaluation": true,
+        "issues": [],
+        "source_real_path": "/Volumes/GeorgeDrive/ignasi/IC295_batch2/IC295__1_MMStack_Pos10-WT.ome.tif"
       },
       {
         "name": "Pos20_KO",
@@ -57,20 +70,33 @@
         "name": "Pos21_KO",
         "folder": "data/ic295_gt_full/Pos21_KO",
         "gt_masks_dir": "data/ic295_gt_full/Pos21_KO/gt_masks",
-        "n_masks": 0,
-        "frames_annotated": [],
-        "image_shape": null,
-        "n_cells_min": null,
-        "n_cells_max": null,
-        "n_unique_cell_ids": 0,
-        "tracks_identity_preserved": null,
-        "source_recording": null,
-        "source_accessible": false,
-        "has_pipeline_results": false,
-        "has_evaluation": false,
-        "issues": [
-          "placeholder (no labelled masks)"
-        ]
+        "n_masks": 10,
+        "frames_annotated": [
+          0,
+          10,
+          20,
+          30,
+          40,
+          50,
+          60,
+          70,
+          80,
+          90
+        ],
+        "image_shape": [
+          2048,
+          2048
+        ],
+        "n_cells_min": 4,
+        "n_cells_max": 8,
+        "n_unique_cell_ids": 9,
+        "tracks_identity_preserved": true,
+        "source_recording": "data/ic295_gt_full/Pos21_KO/IC295__1_MMStack_Pos21-KO.ome.tif",
+        "source_accessible": true,
+        "has_pipeline_results": true,
+        "has_evaluation": true,
+        "issues": [],
+        "source_real_path": "/Volumes/GeorgeDrive/ignasi/IC295_batch2/IC295__1_MMStack_Pos21-KO.ome.tif"
       },
       {
         "name": "Pos30_GOF",
@@ -108,20 +134,33 @@
         "name": "Pos31_GOF",
         "folder": "data/ic295_gt_full/Pos31_GOF",
         "gt_masks_dir": "data/ic295_gt_full/Pos31_GOF/gt_masks",
-        "n_masks": 0,
-        "frames_annotated": [],
-        "image_shape": null,
-        "n_cells_min": null,
-        "n_cells_max": null,
-        "n_unique_cell_ids": 0,
-        "tracks_identity_preserved": null,
-        "source_recording": null,
-        "source_accessible": false,
-        "has_pipeline_results": false,
-        "has_evaluation": false,
-        "issues": [
-          "placeholder (no labelled masks)"
-        ]
+        "n_masks": 10,
+        "frames_annotated": [
+          0,
+          10,
+          20,
+          30,
+          40,
+          50,
+          60,
+          70,
+          80,
+          90
+        ],
+        "image_shape": [
+          2048,
+          2048
+        ],
+        "n_cells_min": 2,
+        "n_cells_max": 5,
+        "n_unique_cell_ids": 5,
+        "tracks_identity_preserved": true,
+        "source_recording": "data/ic295_gt_full/Pos31_GOF/IC295__1_MMStack_Pos31-GOF.ome.tif",
+        "source_accessible": true,
+        "has_pipeline_results": true,
+        "has_evaluation": true,
+        "issues": [],
+        "source_real_path": "/Volumes/GeorgeDrive/ignasi/IC295_batch2/IC295__1_MMStack_Pos31-GOF.ome.tif"
       },
       {
         "name": "Pos39_OT",
@@ -159,20 +198,33 @@
         "name": "Pos44_OT",
         "folder": "data/ic295_gt_full/Pos44_OT",
         "gt_masks_dir": "data/ic295_gt_full/Pos44_OT/gt_masks",
-        "n_masks": 0,
-        "frames_annotated": [],
-        "image_shape": null,
-        "n_cells_min": null,
-        "n_cells_max": null,
-        "n_unique_cell_ids": 0,
-        "tracks_identity_preserved": null,
-        "source_recording": null,
-        "source_accessible": false,
-        "has_pipeline_results": false,
-        "has_evaluation": false,
-        "issues": [
-          "placeholder (no labelled masks)"
-        ]
+        "n_masks": 10,
+        "frames_annotated": [
+          0,
+          10,
+          20,
+          30,
+          40,
+          50,
+          60,
+          70,
+          80,
+          90
+        ],
+        "image_shape": [
+          2048,
+          2048
+        ],
+        "n_cells_min": 4,
+        "n_cells_max": 7,
+        "n_unique_cell_ids": 8,
+        "tracks_identity_preserved": true,
+        "source_recording": "data/ic295_gt_full/Pos44_OT/IC295__1_MMStack_Pos44-OT.ome.tif",
+        "source_accessible": true,
+        "has_pipeline_results": true,
+        "has_evaluation": true,
+        "issues": [],
+        "source_real_path": "/Volumes/GeorgeDrive/ignasi/IC295_batch2/IC295__1_MMStack_Pos44-OT.ome.tif"
       },
       {
         "name": "Pos51_Y1",
