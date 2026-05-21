@@ -181,9 +181,34 @@ def evaluate_recording(folder, iou_thresholds=(0.3, 0.5, 0.7)):
             if g is not None and p is not None and m_iou > 0:
                 gt_to_pred_freq[g][p] += 1
 
+        # Per-prediction max IoU across all GT cells. Used to flag
+        # predictions that have ZERO overlap with any GT cell —
+        # those are "out-of-scope" detections (real cells the GT
+        # didn't annotate, or genuine FPs). The standard F1 above
+        # counts them as FPs; the *_focused metrics exclude them so
+        # the recording's GT-coverage doesn't penalize valid
+        # detections in unannotated areas. Important for single-cell
+        # GT recordings (ignasi) and for recordings where GT only
+        # partially covers the field.
+        pred_max_iou_any = {}
+        for p_id, p_mask in pred_cells:
+            best = 0.0
+            for _, g_mask in gt_cells:
+                inter = int(np.logical_and(p_mask, g_mask).sum())
+                if inter == 0:
+                    continue
+                ui = int(np.logical_or(p_mask, g_mask).sum())
+                cand = inter / ui if ui > 0 else 0.0
+                if cand > best:
+                    best = cand
+            pred_max_iou_any[p_id] = best
+        out_of_scope = sum(
+            1 for v in pred_max_iou_any.values() if v == 0)
+
         # Per-frame TP/FP/FN at each IoU threshold
         row = {"frame": fi, "n_gt": len(gt_cells),
-               "n_pred": len(pred_cells)}
+               "n_pred": len(pred_cells),
+               "n_pred_out_of_scope": out_of_scope}
         for thr in iou_thresholds:
             tp = sum(1 for g, p, i in matches
                      if g is not None and p is not None and i >= thr)
@@ -193,12 +218,21 @@ def evaluate_recording(folder, iou_thresholds=(0.3, 0.5, 0.7)):
             rec = tp / max(tp + fn, 1)
             f1 = (2 * prec * rec / max(prec + rec, 1e-9)
                   if (prec + rec) > 0 else 0.0)
+            # GT-focused variants: exclude out-of-scope predictions
+            fp_focused = max(0, fp - out_of_scope)
+            prec_focused = tp / max(tp + fp_focused, 1)
+            f1_focused = (
+                2 * prec_focused * rec / max(prec_focused + rec, 1e-9)
+                if (prec_focused + rec) > 0 else 0.0)
             row[f"TP_{thr}"] = tp
             row[f"FP_{thr}"] = fp
             row[f"FN_{thr}"] = fn
             row[f"prec_{thr}"] = round(prec, 3)
             row[f"rec_{thr}"] = round(rec, 3)
             row[f"F1_{thr}"] = round(f1, 3)
+            row[f"FP_focused_{thr}"] = fp_focused
+            row[f"prec_focused_{thr}"] = round(prec_focused, 3)
+            row[f"F1_focused_{thr}"] = round(f1_focused, 3)
         per_frame.append(row)
 
     # Tracking identity preservation
@@ -258,6 +292,22 @@ def evaluate_recording(folder, iou_thresholds=(0.3, 0.5, 0.7)):
             f"@{thr}": float(np.mean([r[f"F1_{thr}"]
                                        for r in per_frame]))
             for thr in iou_thresholds},
+        # GT-focused variants (exclude predictions with 0 IoU against
+        # all GT cells from the FP count). These match what users
+        # actually care about when GT only partially annotates the
+        # field — single-cell GT recordings, or any recording where
+        # the pipeline finds extra real cells the GT didn't label.
+        "mean_FP_focused_per_frame": {
+            f"@{thr}": float(np.mean([r[f"FP_focused_{thr}"]
+                                       for r in per_frame]))
+            for thr in iou_thresholds},
+        "mean_F1_focused": {
+            f"@{thr}": float(np.mean([r[f"F1_focused_{thr}"]
+                                       for r in per_frame]))
+            for thr in iou_thresholds},
+        "mean_out_of_scope_pred_per_frame":
+            float(np.mean([r["n_pred_out_of_scope"]
+                           for r in per_frame])),
         "mean_iou_of_matched_cells":
             float(np.mean(matched_ious)) if matched_ious else 0.0,
         "median_iou_of_matched_cells":
@@ -346,14 +396,19 @@ def evaluate_recording(folder, iou_thresholds=(0.3, 0.5, 0.7)):
 
 def _format_report_md(summary, per_frame, id_consistency):
     iou_thresholds = summary["iou_thresholds"]
-    rows = ["| Threshold | TP/frame | FN/frame | FP/frame | F1 |",
-            "|---:|---:|---:|---:|---:|"]
+    rows = ["| Threshold | TP/frame | FN/frame | FP/frame | F1 | F1_focused |",
+            "|---:|---:|---:|---:|---:|---:|"]
     for thr in iou_thresholds:
+        f1_focused = (summary
+                      .get("mean_F1_focused", {})
+                      .get(f"@{thr}",
+                           summary['mean_F1'][f'@{thr}']))
         rows.append(f"| IoU≥{thr} | "
                      f"{summary['mean_TP_per_frame'][f'@{thr}']:.1f} | "
                      f"{summary['mean_FN_per_frame'][f'@{thr}']:.1f} | "
                      f"{summary['mean_FP_per_frame'][f'@{thr}']:.1f} | "
-                     f"{summary['mean_F1'][f'@{thr}']:.2f} |")
+                     f"{summary['mean_F1'][f'@{thr}']:.2f} | "
+                     f"{f1_focused:.2f} |")
 
     pf_table = ["| Frame | n_GT | n_pred | TP@.5 | FP | FN | F1 |",
                 "|---:|---:|---:|---:|---:|---:|---:|"]
@@ -384,6 +439,12 @@ def _format_report_md(summary, per_frame, id_consistency):
 
 - **Mean per-cell IoU (matched)**: {summary['mean_iou_of_matched_cells']:.3f}
 - **Median per-cell IoU (matched)**: {summary['median_iou_of_matched_cells']:.3f}
+- **Out-of-scope predictions/frame**: {summary.get('mean_out_of_scope_pred_per_frame', 0.0):.1f}
+
+`F1_focused` excludes predictions with zero IoU vs *any* GT cell from
+the FP count — they're real cells in the field the GT just didn't
+annotate. Use it when GT only partially covers the field (e.g.
+ignasi recordings have 1 GT cell per frame but the field shows 3).
 
 ## Tracking identity preservation
 

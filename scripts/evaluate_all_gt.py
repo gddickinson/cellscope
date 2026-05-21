@@ -87,19 +87,24 @@ def main():
                 f"generated {os.popen('date').read().strip()}_")
     rows.append("")
     rows.append(
-        "| Recording | GT frames | Mean IoU | F1@.5 | "
-        "Mean TP/frame | Mean FN | Mean FP | ID consistency |"
-        " Perfect tracks |")
-    rows.append("|---|---:|---:|---:|---:|---:|---:|---:|---:|")
+        "| Recording | GT frames | Mean IoU | F1@.5 | F1@.5 focused | "
+        "Mean TP/frame | Mean FN | Mean FP | OOS pred | "
+        "ID consistency | Perfect tracks |")
+    rows.append("|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|")
     for folder, s in summaries:
         name = os.path.basename(folder)
+        f1_focused = s.get("mean_F1_focused", {}).get(
+            "@0.5", s["mean_F1"]["@0.5"])
+        oos = s.get("mean_out_of_scope_pred_per_frame", 0.0)
         rows.append(
             f"| {name} | {s['n_gt_frames']} | "
             f"{s['mean_iou_of_matched_cells']:.3f} | "
             f"{s['mean_F1']['@0.5']:.2f} | "
+            f"{f1_focused:.2f} | "
             f"{s['mean_TP_per_frame']['@0.5']:.1f} | "
             f"{s['mean_FN_per_frame']['@0.5']:.1f} | "
             f"{s['mean_FP_per_frame']['@0.5']:.1f} | "
+            f"{oos:.1f} | "
             f"{s['mean_id_consistency']:.2%} | "
             f"{s['n_perfect_id_consistency']}/"
             f"{s['n_gt_cells_total']} |")
@@ -117,6 +122,9 @@ def main():
     if summaries:
         all_iou = [s["mean_iou_of_matched_cells"] for _, s in summaries]
         all_f1 = [s["mean_F1"]["@0.5"] for _, s in summaries]
+        all_f1_focused = [
+            s.get("mean_F1_focused", {}).get("@0.5", s["mean_F1"]["@0.5"])
+            for _, s in summaries]
         all_consist = [s["mean_id_consistency"] for _, s in summaries]
         rows.append("")
         rows.append("## Aggregate (across recordings)")
@@ -127,6 +135,9 @@ def main():
                     f"annotated frames)")
         rows.append(f"- Mean F1 @ IoU≥0.5: **"
                     f"{np.mean(all_f1):.2f}**")
+        rows.append(f"- Mean F1 @ IoU≥0.5 focused: **"
+                    f"{np.mean(all_f1_focused):.2f}** "
+                    f"(excludes predictions with no GT overlap from FP count)")
         rows.append(f"- Mean ID consistency: **"
                     f"{np.mean(all_consist):.2%}**")
 

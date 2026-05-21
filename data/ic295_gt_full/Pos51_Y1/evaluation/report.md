@@ -6,14 +6,20 @@
 
 ## Detection accuracy
 
-| Threshold | TP/frame | FN/frame | FP/frame | F1 |
-|---:|---:|---:|---:|---:|
-| IoU≥0.3 | 1.3 | 0.0 | 0.0 | 1.00 |
-| IoU≥0.5 | 1.3 | 0.0 | 0.0 | 1.00 |
-| IoU≥0.7 | 1.3 | 0.0 | 0.0 | 1.00 |
+| Threshold | TP/frame | FN/frame | FP/frame | F1 | F1_focused |
+|---:|---:|---:|---:|---:|---:|
+| IoU≥0.3 | 1.3 | 0.0 | 0.0 | 1.00 | 1.00 |
+| IoU≥0.5 | 1.3 | 0.0 | 0.0 | 1.00 | 1.00 |
+| IoU≥0.7 | 1.3 | 0.0 | 0.0 | 1.00 | 1.00 |
 
 - **Mean per-cell IoU (matched)**: 0.866
 - **Median per-cell IoU (matched)**: 0.872
+- **Out-of-scope predictions/frame**: 0.0
+
+`F1_focused` excludes predictions with zero IoU vs *any* GT cell from
+the FP count — they're real cells in the field the GT just didn't
+annotate. Use it when GT only partially covers the field (e.g.
+ignasi recordings have 1 GT cell per frame but the field shows 3).
 
 ## Tracking identity preservation
 
