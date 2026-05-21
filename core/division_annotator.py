@@ -86,6 +86,24 @@ MIN_SCORE_TO_REPORT = 0.05      # drop candidates whose composite score
                                  # so the division invariant was
                                  # violated. Surfaces real divisions
                                  # only.
+MIN_PARENT_FRAMES_BEFORE_PEAK = 5  # the parent track must have at
+                                    # least this many frames present
+                                    # STRICTLY BEFORE the peak frame.
+                                    # Otherwise there's no real history
+                                    # to call a "peak" against — a
+                                    # cell that appears with substantial
+                                    # area on frame 1 and shrinks by
+                                    # frame 3 looks like a halving event
+                                    # but is usually just a noise blob
+                                    # or an early-recording tracker
+                                    # transient (caught Pos20_KO F3 FP).
+MIN_BASELINE_AREA_PX = 500       # baseline area in the swelling window
+                                 # must be at least this many pixels.
+                                 # Without it, a noise spike with
+                                 # baseline ≈ 0 produces meaningless
+                                 # swelling ratios in the tens
+                                 # (caught Pos68_DMSO T11→T10 FP with
+                                 # baseline=20 px, swelling=48×).
 
 
 # ---------------------------------------------------------------------
@@ -297,6 +315,11 @@ def find_candidates(labels, um_per_px=1.0, include_rejected=False):
             # tracking the rejection reason for diagnostics.
 
             peak_idx = present.index(peak_frame)
+            # Reject if the parent has too little history before the
+            # peak — early-recording tracker transients otherwise
+            # surface as fake "peak then halve" events.
+            if peak_idx < MIN_PARENT_FRAMES_BEFORE_PEAK:
+                continue
             baseline_window = present[max(0, peak_idx
                                           - SWELLING_BASELINE_LOOKBACK):peak_idx]
             if baseline_window:
@@ -304,6 +327,10 @@ def find_candidates(labels, um_per_px=1.0, include_rejected=False):
                     [t["area"][fp] for fp in baseline_window], 30))
             else:
                 baseline_area = float(peak_area)
+            # Reject if the baseline is essentially noise — without
+            # a real reference area the swelling ratio is meaningless.
+            if baseline_area < MIN_BASELINE_AREA_PX:
+                continue
             swelling_ratio = peak_area / max(baseline_area, 1.0)
 
             # Peri-split state check — look both BEFORE (mitotic

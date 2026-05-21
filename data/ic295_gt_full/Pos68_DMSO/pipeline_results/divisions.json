@@ -1,6 +1,6 @@
 {
   "recording": "Pos68_DMSO",
-  "n_candidates": 4,
+  "n_candidates": 3,
   "candidates": [
     {
       "frame": 31,
@@ -77,43 +77,6 @@
       ]
     },
     {
-      "frame": 56,
-      "peak_frame": 55,
-      "parent_track": 11,
-      "area_peak": 996,
-      "area_parent_at_split": 32,
-      "area_parent_post_peak": 980,
-      "area_baseline": 20,
-      "swelling_ratio": 48.82352941176471,
-      "pre_split_states": [
-        "unknown",
-        "unknown",
-        "transitional"
-      ],
-      "pre_split_balled_frac": 0.42857142857142855,
-      "parent_centroid": [
-        359.0,
-        1382.75
-      ],
-      "daughter_track": 10,
-      "daughter_first_frame": 60,
-      "daughter_persistence_frames": 36,
-      "distance_px": 4.995247741604022,
-      "area_daughter_first": 20,
-      "area_daughter_post_peak": 796,
-      "mass_ratio": 1.783132530120482,
-      "mass_score": 0.2168674698795181,
-      "persist_score": 1.0,
-      "balled_score": 0.7142857142857143,
-      "swelling_score": 1.0,
-      "prox_score": 0.9388190389569133,
-      "score": 0.14542807832379037,
-      "daughter_centroid": [
-        355.7,
-        1386.5
-      ]
-    },
-    {
       "frame": 50,
       "peak_frame": 45,
       "parent_track": 11,
@@ -163,12 +126,6 @@
       "parent_track_index": 7,
       "division_frame": 55,
       "division_score": 0.20720560205327615
-    },
-    {
-      "track_index": 9,
-      "parent_track_index": 10,
-      "division_frame": 56,
-      "division_score": 0.14542807832379037
     },
     {
       "track_index": 7,

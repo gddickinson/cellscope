@@ -322,7 +322,7 @@ python scripts/evaluate_against_gt.py data/ic295_gt_full/Pos20_KO
 | ignasi_control_full | ctrl | 65 | 0.897 | 0.92 | 100% | — |
 | **Aggregate** | — | **238** | **0.846** | **0.83** | **95.92%** | **2 / 2 ✓** |
 
-All six IC295 conditions (WT/KO/GOF/OT/Y1/DMSO) covered. Pos51_Y1 + Pos68_DMSO were re-run on 2026-05-20 with a smarter auto-select probe (raw `cpsam` for density estimation instead of cpsam_dic, which merges touching cells); both gained ~+0.10 IoU and Pos51_Y1 went from 83% → 100% ID consistency. The division annotator's daughter-search was updated the same day to handle multi-track resolves (Hungarian-tracked daughters that inherit an existing track ID at the split), restoring Pos51_Y1's GT-evident split. The annotator also flagged a new candidate on Pos20_KO at F3 (score 0.36) — not yet GT-validated.
+All six IC295 conditions (WT/KO/GOF/OT/Y1/DMSO) covered. Pos51_Y1 + Pos68_DMSO were re-run on 2026-05-20 with a smarter auto-select probe (raw `cpsam` for density estimation instead of cpsam_dic, which merges touching cells); both gained ~+0.10 IoU and Pos51_Y1 went from 83% → 100% ID consistency. The division annotator's daughter-search was updated the same day to handle multi-track resolves (Hungarian-tracked daughters that inherit an existing track ID at the split), restoring Pos51_Y1's GT-evident split. Two false-positive classes also fixed: parent tracks must have ≥5 frames of history before their peak (kills early-recording transients) and baseline area must be ≥500 px (kills noise-blob "swellings"). 0 false positives across the 9 recordings.
 
 **Phase-contrast Ignasi GT (separate 65-frame benchmark)**: mean IoU **0.932**, 65/65 frames > 0.85, min 0.867 (cpsam + DeepSea union).
 
