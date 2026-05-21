@@ -43,9 +43,12 @@ Each evaluated GT folder now contains a `<name>.cellscope` project file. Drag an
 - the fusion source stack when available — toggle **Source ⓘ** in the viewer to colour cells by detection origin
 
 Project files:
+- `data/ic295_gt_full/Pos7_WT/Pos7_WT.cellscope`
 - `data/ic295_gt_full/Pos20_KO/Pos20_KO.cellscope`
 - `data/ic295_gt_full/Pos30_GOF/Pos30_GOF.cellscope`
-- `data/ic295_gt_full/Pos7_WT/Pos7_WT.cellscope`
+- `data/ic295_gt_full/Pos39_OT/Pos39_OT.cellscope`
+- `data/ic295_gt_full/Pos51_Y1/Pos51_Y1.cellscope`
+- `data/ic295_gt_full/Pos68_DMSO/Pos68_DMSO.cellscope`
 - `data/legacy_gt/ignasi_3_cells_control_IC293_Pos3/ignasi_3_cells_control_IC293_Pos3.cellscope`
 - `data/legacy_gt/ignasi_control/ignasi_control.cellscope`
 - `data/legacy_gt/ignasi_control_full/ignasi_control_full.cellscope`
