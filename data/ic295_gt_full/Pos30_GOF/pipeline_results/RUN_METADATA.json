@@ -1,8 +1,8 @@
 {
   "schema_version": "1.0.0",
-  "started_at": "2026-05-17T19:27:40",
-  "finished_at": "2026-05-17T19:27:40",
-  "runtime_seconds": 5048.622406244278,
+  "started_at": "2026-05-21T02:46:17",
+  "finished_at": "2026-05-21T02:46:17",
+  "runtime_seconds": 4846.942488193512,
   "pipeline_function": "hybrid_cpsam_multi",
   "mode": "multi",
   "source_recording": {
@@ -31,6 +31,7 @@
     "use_gap_fill": true,
     "use_sam2_video_gap_fill": true,
     "use_tta": false,
+    "use_mirror_pad": "auto",
     "use_tiling": false,
     "tile_grid": 2,
     "use_roi": false,
@@ -84,6 +85,7 @@
     "use_gap_fill": true,
     "use_sam2_video_gap_fill": true,
     "use_tta": false,
+    "use_mirror_pad": "auto",
     "use_tiling": false,
     "tile_grid": 2,
     "use_roi": false,
@@ -106,19 +108,19 @@
   },
   "results_summary": {
     "n_frames_processed": 97,
-    "n_tracks": 6,
-    "n_cy5_fusion_added": 48,
+    "n_tracks": 5,
+    "n_cy5_fusion_added": 33,
     "fusion_source_breakdown": {
       "both": 4,
-      "dic_only": 2
+      "dic_only": 1
     },
     "n_analysis_cells": 0
   },
   "env": {
     "python": "3.10.17",
-    "platform": "macOS-26.4.1-arm64-arm-64bit",
+    "platform": "macOS-26.5-arm64-arm-64bit",
     "conda_env": "cellpose4",
-    "hostname": "Georges-MacBook-Pro.local",
+    "hostname": "MacBookPro.lan",
     "cellpose": "?",
     "numpy": "2.0.2",
     "scipy": "1.15.3",
@@ -126,20 +128,26 @@
     "skimage": "0.25.2",
     "torch": "2.7.0"
   },
-  "git_commit": null,
+  "git_commit": "9dd8c371336e",
   "rerun_command": "conda run -n cellpose4 python scripts/run_pipeline_on_gt_recording.py data/ic295_gt_full/Pos30_GOF",
   "out_dir": "/Users/george/claude_test/cellscope/data/ic295_gt_full/Pos30_GOF/pipeline_results",
   "extra": {
     "model_path": null,
-    "n_tracks": 6,
+    "n_tracks": 5,
     "auto_select": {
-      "reason": "median 2.0 cells/frame \u2265 1.5: multi-cell scene, switching to raw cpsam (cpsam_dic merges touching cells)",
+      "reason": "p75 5.5 cells/frame \u2265 1.5: multi-cell scene, switching to raw cpsam (cpsam_dic merges touching cells)",
       "cell_counts_at_sample": [
+        6,
+        5,
+        6,
+        5,
+        5,
+        7,
         4,
+        5,
+        5,
         4,
-        2,
-        1,
-        0
+        4
       ]
     },
     "channel_alignment": {
@@ -158,8 +166,8 @@
       "cell_diameter_px": 23
     },
     "unified_detection_path": true,
-    "n_cy5_fusion_added": 48,
-    "n_tracks_raw": 10,
-    "cy5_filter_kept": 6
+    "n_cy5_fusion_added": 33,
+    "n_tracks_raw": 9,
+    "cy5_filter_kept": 5
   }
 }

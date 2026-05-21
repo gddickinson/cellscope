@@ -1,9 +1,9 @@
 # RUN_METADATA — Pos30_GOF
 
 **Schema version**: 1.0.0
-**Started**: 2026-05-17T19:27:40
-**Finished**: 2026-05-17T19:27:40
-**Runtime**: 5049 s
+**Started**: 2026-05-21T02:46:17
+**Finished**: 2026-05-21T02:46:17
+**Runtime**: 4847 s
 **Pipeline**: `hybrid_cpsam_multi` (mode = multi)
 
 ## Source recording
@@ -17,10 +17,10 @@
 
 ## Results
 
-- **n_tracks**: 6
-- **n_cy5_fusion_added** (pre-tracking): 48
+- **n_tracks**: 5
+- **n_cy5_fusion_added** (pre-tracking): 33
 - **n_analysis_cells**: 0
-  - fusion source breakdown: both = 4, dic_only = 2
+  - fusion source breakdown: both = 4, dic_only = 1
 
 ## Parameters deviating from defaults
 
@@ -35,7 +35,7 @@
 
 - **conda env**: `cellpose4`
 - **python**: `3.10.17`
-- **platform**: `macOS-26.4.1-arm64-arm-64bit`
+- **platform**: `macOS-26.5-arm64-arm-64bit`
 - **cellpose**: `?`
 - **numpy**: `2.0.2`
 - **tifffile**: `2023.2.28`
@@ -45,7 +45,7 @@
 
 ## Reproducibility
 
-- **git commit**: `(not a git repo or git unavailable)`
+- **git commit**: `9dd8c371336e`
 - **rerun command**:
 
 ```bash

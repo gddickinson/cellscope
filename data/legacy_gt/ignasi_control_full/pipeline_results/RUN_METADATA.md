@@ -1,10 +1,10 @@
 # RUN_METADATA — C1-IC293__1_MMStack_Pos0-WT.ome-1cropped.tif
 
 **Schema version**: 1.0.0
-**Started**: 2026-05-16T12:56:45
-**Finished**: 2026-05-16T12:56:45
-**Runtime**: 450 s
-**Pipeline**: `hybrid_dic_multi` (mode = multi)
+**Started**: 2026-05-21T07:53:21
+**Finished**: 2026-05-21T07:53:21
+**Runtime**: 669 s
+**Pipeline**: `hybrid_cpsam_multi` (mode = multi)
 
 ## Source recording
 
@@ -17,24 +17,25 @@
 
 ## Results
 
-- **n_tracks**: 1
+- **n_tracks**: 3
 - **n_cy5_fusion_added** (pre-tracking): 0
 - **n_analysis_cells**: 0
-  - fusion source breakdown: dic_only = 1
+  - fusion source breakdown: dic_only = 3
 
 ## Parameters deviating from defaults
 
-  - **auto_selected_pipeline**: `cpsam_dic` (not in defaults)
+  - **auto_selected_pipeline**: `cpsam` (not in defaults)
+  - **cy5_filter_mode**: `None` (default `multi_metric`)
   - **downsample**: `1` (not in defaults)
   - **downsample_reason**: `auto: max dim 759 < 900; cells would be too small at ds≥2` (not in defaults)
   - **downsample_spec**: `auto` (not in defaults)
-  - **model_path**: `data/models/cpsam_dic` (not in defaults)
+  - **model_path**: `None` (not in defaults)
 
 ## Environment
 
 - **conda env**: `cellpose4`
 - **python**: `3.10.17`
-- **platform**: `macOS-26.4.1-arm64-arm-64bit`
+- **platform**: `macOS-26.5-arm64-arm-64bit`
 - **cellpose**: `?`
 - **numpy**: `2.0.2`
 - **tifffile**: `2023.2.28`
@@ -44,11 +45,11 @@
 
 ## Reproducibility
 
-- **git commit**: `(not a git repo or git unavailable)`
+- **git commit**: `9dd8c371336e`
 - **rerun command**:
 
 ```bash
-conda run -n cellpose python scripts/run_pipeline_on_gt_recording.py data/legacy_gt/ignasi_control_full
+conda run -n cellpose4 python scripts/run_pipeline_on_gt_recording.py data/legacy_gt/ignasi_control_full
 ```
 
 ## Output directory

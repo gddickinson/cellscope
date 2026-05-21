@@ -1,8 +1,8 @@
 {
   "schema_version": "1.0.0",
-  "started_at": "2026-05-18T15:25:53",
-  "finished_at": "2026-05-18T15:25:53",
-  "runtime_seconds": 5439.429196834564,
+  "started_at": "2026-05-21T03:56:01",
+  "finished_at": "2026-05-21T03:56:01",
+  "runtime_seconds": 4176.468345165253,
   "pipeline_function": "hybrid_cpsam_multi",
   "mode": "multi",
   "source_recording": {
@@ -31,6 +31,7 @@
     "use_gap_fill": true,
     "use_sam2_video_gap_fill": true,
     "use_tta": false,
+    "use_mirror_pad": "auto",
     "use_tiling": false,
     "tile_grid": 2,
     "use_roi": false,
@@ -84,6 +85,7 @@
     "use_gap_fill": true,
     "use_sam2_video_gap_fill": true,
     "use_tta": false,
+    "use_mirror_pad": "auto",
     "use_tiling": false,
     "tile_grid": 2,
     "use_roi": false,
@@ -107,7 +109,7 @@
   "results_summary": {
     "n_frames_processed": 97,
     "n_tracks": 9,
-    "n_cy5_fusion_added": 13,
+    "n_cy5_fusion_added": 15,
     "fusion_source_breakdown": {
       "both": 6,
       "dic_only": 3
@@ -126,20 +128,26 @@
     "skimage": "0.25.2",
     "torch": "2.7.0"
   },
-  "git_commit": "01f881f43017",
+  "git_commit": "9dd8c371336e",
   "rerun_command": "conda run -n cellpose4 python scripts/run_pipeline_on_gt_recording.py data/ic295_gt_full/Pos39_OT",
   "out_dir": "/Users/george/claude_test/cellscope/data/ic295_gt_full/Pos39_OT/pipeline_results",
   "extra": {
     "model_path": null,
     "n_tracks": 9,
     "auto_select": {
-      "reason": "median 4.0 cells/frame \u2265 1.5: multi-cell scene, switching to raw cpsam (cpsam_dic merges touching cells)",
+      "reason": "p75 9.0 cells/frame \u2265 1.5: multi-cell scene, switching to raw cpsam (cpsam_dic merges touching cells)",
       "cell_counts_at_sample": [
-        4,
-        5,
-        4,
-        3,
-        4
+        8,
+        9,
+        8,
+        9,
+        9,
+        9,
+        9,
+        9,
+        9,
+        10,
+        13
       ]
     },
     "channel_alignment": {
@@ -158,8 +166,8 @@
       "cell_diameter_px": 23
     },
     "unified_detection_path": true,
-    "n_cy5_fusion_added": 13,
-    "n_tracks_raw": 18,
+    "n_cy5_fusion_added": 15,
+    "n_tracks_raw": 14,
     "cy5_filter_kept": 9
   }
 }

@@ -1,9 +1,9 @@
 # RUN_METADATA — Pos7_WT
 
 **Schema version**: 1.0.0
-**Started**: 2026-05-16T11:54:35
-**Finished**: 2026-05-16T11:54:35
-**Runtime**: 6856 s
+**Started**: 2026-05-21T00:16:19
+**Finished**: 2026-05-21T00:16:19
+**Runtime**: 6351 s
 **Pipeline**: `hybrid_cpsam_multi` (mode = multi)
 
 ## Source recording
@@ -17,15 +17,17 @@
 
 ## Results
 
-- **n_tracks**: 11
-- **n_cy5_fusion_added** (pre-tracking): 59
+- **n_tracks**: 13
+- **n_cy5_fusion_added** (pre-tracking): 79
 - **n_analysis_cells**: 0
-  - fusion source breakdown: both = 7, dic_only = 4
+  - fusion source breakdown: both = 6, cy5_only = 1, dic_only = 6
 
 ## Parameters deviating from defaults
 
   - **auto_selected_pipeline**: `cpsam` (not in defaults)
   - **downsample**: `2` (not in defaults)
+  - **downsample_reason**: `auto: max dim 2048 ≥ 1500; ds=2 gives ~5× speedup with minimal accuracy loss` (not in defaults)
+  - **downsample_spec**: `auto` (not in defaults)
   - **model_path**: `None` (not in defaults)
   - **use_cy5_recovery**: `False` (default `True`)
 
@@ -33,7 +35,7 @@
 
 - **conda env**: `cellpose4`
 - **python**: `3.10.17`
-- **platform**: `macOS-26.4.1-arm64-arm-64bit`
+- **platform**: `macOS-26.5-arm64-arm-64bit`
 - **cellpose**: `?`
 - **numpy**: `2.0.2`
 - **tifffile**: `2023.2.28`
@@ -43,11 +45,11 @@
 
 ## Reproducibility
 
-- **git commit**: `(not a git repo or git unavailable)`
+- **git commit**: `9dd8c371336e`
 - **rerun command**:
 
 ```bash
-conda run -n cellpose python scripts/run_pipeline_on_gt_recording.py data/ic295_gt_full/Pos7_WT
+conda run -n cellpose4 python scripts/run_pipeline_on_gt_recording.py data/ic295_gt_full/Pos7_WT
 ```
 
 ## Output directory

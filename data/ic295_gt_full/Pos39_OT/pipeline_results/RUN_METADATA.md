@@ -1,9 +1,9 @@
 # RUN_METADATA — Pos39_OT
 
 **Schema version**: 1.0.0
-**Started**: 2026-05-18T15:25:53
-**Finished**: 2026-05-18T15:25:53
-**Runtime**: 5439 s
+**Started**: 2026-05-21T03:56:01
+**Finished**: 2026-05-21T03:56:01
+**Runtime**: 4176 s
 **Pipeline**: `hybrid_cpsam_multi` (mode = multi)
 
 ## Source recording
@@ -18,7 +18,7 @@
 ## Results
 
 - **n_tracks**: 9
-- **n_cy5_fusion_added** (pre-tracking): 13
+- **n_cy5_fusion_added** (pre-tracking): 15
 - **n_analysis_cells**: 0
   - fusion source breakdown: both = 6, dic_only = 3
 
@@ -45,7 +45,7 @@
 
 ## Reproducibility
 
-- **git commit**: `01f881f43017`
+- **git commit**: `9dd8c371336e`
 - **rerun command**:
 
 ```bash

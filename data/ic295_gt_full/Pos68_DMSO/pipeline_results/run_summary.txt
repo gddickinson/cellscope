@@ -1,10 +1,10 @@
 Pipeline run on Pos68_DMSO
 
-Detection:        30 raw tracks
-Cy5 fusion added: 17 cells
-Cy5 filter kept:  15 / 30
-Cells per frame:  min=12 max=15 mean=13.0
+Detection:        28 raw tracks
+Cy5 fusion added: 15 cells
+Cy5 filter kept:  15 / 28
+Cells per frame:  min=12 max=15 mean=13.9
 Downsample:       2× (auto: max dim 2048 ≥ 1500; ds=2 gives ~5× speedup with minimal accuracy loss)
 Pipeline:         cpsam
-Runtime:          6673s
+Runtime:          8474s
 Output dir:       /Users/george/claude_test/cellscope/data/ic295_gt_full/Pos68_DMSO/pipeline_results

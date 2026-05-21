@@ -1,8 +1,8 @@
 {
   "schema_version": "1.0.0",
-  "started_at": "2026-05-17T12:27:37",
-  "finished_at": "2026-05-17T12:27:37",
-  "runtime_seconds": 4293.96549987793,
+  "started_at": "2026-05-21T01:25:23",
+  "finished_at": "2026-05-21T01:25:23",
+  "runtime_seconds": 4134.505875110626,
   "pipeline_function": "hybrid_cpsam_multi",
   "mode": "multi",
   "source_recording": {
@@ -31,6 +31,7 @@
     "use_gap_fill": true,
     "use_sam2_video_gap_fill": true,
     "use_tta": false,
+    "use_mirror_pad": "auto",
     "use_tiling": false,
     "tile_grid": 2,
     "use_roi": false,
@@ -84,6 +85,7 @@
     "use_gap_fill": true,
     "use_sam2_video_gap_fill": true,
     "use_tta": false,
+    "use_mirror_pad": "auto",
     "use_tiling": false,
     "tile_grid": 2,
     "use_roi": false,
@@ -107,19 +109,19 @@
   "results_summary": {
     "n_frames_processed": 97,
     "n_tracks": 11,
-    "n_cy5_fusion_added": 77,
+    "n_cy5_fusion_added": 109,
     "fusion_source_breakdown": {
-      "dic_only": 3,
-      "both": 6,
-      "cy5_only": 2
+      "both": 8,
+      "dic_only": 2,
+      "cy5_only": 1
     },
     "n_analysis_cells": 0
   },
   "env": {
     "python": "3.10.17",
-    "platform": "macOS-26.4.1-arm64-arm-64bit",
+    "platform": "macOS-26.5-arm64-arm-64bit",
     "conda_env": "cellpose4",
-    "hostname": "Georges-MacBook-Pro.local",
+    "hostname": "MacBookPro.lan",
     "cellpose": "?",
     "numpy": "2.0.2",
     "scipy": "1.15.3",
@@ -127,33 +129,27 @@
     "skimage": "0.25.2",
     "torch": "2.7.0"
   },
-  "git_commit": null,
-  "rerun_command": "conda run -n cellpose python scripts/run_pipeline_on_gt_recording.py data/ic295_gt_full/Pos20_KO",
+  "git_commit": "9dd8c371336e",
+  "rerun_command": "conda run -n cellpose4 python scripts/run_pipeline_on_gt_recording.py data/ic295_gt_full/Pos20_KO",
   "out_dir": "/Users/george/claude_test/cellscope/data/ic295_gt_full/Pos20_KO/pipeline_results",
   "extra": {
     "model_path": null,
-    "n_cy5_fusion_added": 77,
-    "n_tracks_raw": 13,
-    "cy5_filter_kept": 11,
+    "n_tracks": 11,
     "auto_select": {
-      "sampled_frames": [
-        0,
-        24,
-        48,
-        72,
-        96
-      ],
+      "reason": "p75 7.0 cells/frame \u2265 1.5: multi-cell scene, switching to raw cpsam (cpsam_dic merges touching cells)",
       "cell_counts_at_sample": [
-        4,
+        8,
+        7,
+        6,
+        6,
+        7,
+        8,
+        6,
         5,
-        3,
-        4,
-        4
-      ],
-      "median_count": 4.0,
-      "threshold": 1.5,
-      "choice": "cpsam",
-      "reason": "median 4.0 cells/frame \u2265 1.5: multi-cell scene, switching to raw cpsam (cpsam_dic merges touching cells)"
+        6,
+        5,
+        5
+      ]
     },
     "channel_alignment": {
       "n_pairs": 21,
@@ -163,6 +159,16 @@
       "iqr_dy_px": 2.4917666645787904,
       "iqr_dx_px": 6.572703038103214,
       "shift_applied": true
-    }
+    },
+    "px_thresholds": {
+      "min_area_px": 50,
+      "max_hop_px": 115,
+      "search_radius_px": 77,
+      "cell_diameter_px": 23
+    },
+    "unified_detection_path": true,
+    "n_cy5_fusion_added": 109,
+    "n_tracks_raw": 15,
+    "cy5_filter_kept": 11
   }
 }

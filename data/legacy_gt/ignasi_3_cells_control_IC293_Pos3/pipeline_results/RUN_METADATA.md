@@ -1,9 +1,9 @@
 # RUN_METADATA — IC293__1_MMStack_Pos3-WT.ome-cropped.tif
 
 **Schema version**: 1.0.0
-**Started**: 2026-05-16T12:26:44
-**Finished**: 2026-05-16T12:26:44
-**Runtime**: 495 s
+**Started**: 2026-05-21T07:39:52
+**Finished**: 2026-05-21T07:39:52
+**Runtime**: 594 s
 **Pipeline**: `hybrid_cpsam_multi` (mode = multi)
 
 ## Source recording
@@ -25,14 +25,17 @@
 ## Parameters deviating from defaults
 
   - **auto_selected_pipeline**: `cpsam` (not in defaults)
+  - **cy5_filter_mode**: `None` (default `multi_metric`)
   - **downsample**: `2` (not in defaults)
+  - **downsample_reason**: `auto: max dim 1028 in [900, 1500); ds=2 keeps cells resolvable while giving a ~3× speedup` (not in defaults)
+  - **downsample_spec**: `auto` (not in defaults)
   - **model_path**: `None` (not in defaults)
 
 ## Environment
 
 - **conda env**: `cellpose4`
 - **python**: `3.10.17`
-- **platform**: `macOS-26.4.1-arm64-arm-64bit`
+- **platform**: `macOS-26.5-arm64-arm-64bit`
 - **cellpose**: `?`
 - **numpy**: `2.0.2`
 - **tifffile**: `2023.2.28`
@@ -42,11 +45,11 @@
 
 ## Reproducibility
 
-- **git commit**: `(not a git repo or git unavailable)`
+- **git commit**: `9dd8c371336e`
 - **rerun command**:
 
 ```bash
-conda run -n cellpose python scripts/run_pipeline_on_gt_recording.py data/legacy_gt/ignasi_3_cells_control_IC293_Pos3
+conda run -n cellpose4 python scripts/run_pipeline_on_gt_recording.py data/legacy_gt/ignasi_3_cells_control_IC293_Pos3
 ```
 
 ## Output directory

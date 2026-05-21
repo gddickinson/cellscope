@@ -1,8 +1,8 @@
 {
   "schema_version": "1.0.0",
-  "started_at": "2026-05-20T17:44:16",
-  "finished_at": "2026-05-20T17:44:16",
-  "runtime_seconds": 6671.701209068298,
+  "started_at": "2026-05-21T07:29:45",
+  "finished_at": "2026-05-21T07:29:45",
+  "runtime_seconds": 8472.144499778748,
   "pipeline_function": "hybrid_cpsam_multi",
   "mode": "multi",
   "source_recording": {
@@ -31,6 +31,7 @@
     "use_gap_fill": true,
     "use_sam2_video_gap_fill": true,
     "use_tta": false,
+    "use_mirror_pad": "auto",
     "use_tiling": false,
     "tile_grid": 2,
     "use_roi": false,
@@ -84,6 +85,7 @@
     "use_gap_fill": true,
     "use_sam2_video_gap_fill": true,
     "use_tta": false,
+    "use_mirror_pad": "auto",
     "use_tiling": false,
     "tile_grid": 2,
     "use_roi": false,
@@ -107,10 +109,10 @@
   "results_summary": {
     "n_frames_processed": 97,
     "n_tracks": 15,
-    "n_cy5_fusion_added": 17,
+    "n_cy5_fusion_added": 15,
     "fusion_source_breakdown": {
-      "dic_only": 3,
-      "both": 12
+      "dic_only": 5,
+      "both": 10
     },
     "n_analysis_cells": 0
   },
@@ -126,7 +128,7 @@
     "skimage": "0.25.2",
     "torch": "2.7.0"
   },
-  "git_commit": "5e7b718aaea2",
+  "git_commit": "9dd8c371336e",
   "rerun_command": "conda run -n cellpose4 python scripts/run_pipeline_on_gt_recording.py data/ic295_gt_full/Pos68_DMSO",
   "out_dir": "/Users/george/claude_test/cellscope/data/ic295_gt_full/Pos68_DMSO/pipeline_results",
   "extra": {
@@ -164,8 +166,8 @@
       "cell_diameter_px": 23
     },
     "unified_detection_path": true,
-    "n_cy5_fusion_added": 17,
-    "n_tracks_raw": 30,
+    "n_cy5_fusion_added": 15,
+    "n_tracks_raw": 28,
     "cy5_filter_kept": 15
   }
 }

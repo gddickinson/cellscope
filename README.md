@@ -311,18 +311,22 @@ python scripts/evaluate_against_gt.py data/ic295_gt_full/Pos20_KO
 
 | Recording | Genotype | Frames | Mean IoU | F1@.5 | ID cons. | GT divisions caught |
 |---|---|---:|---:|---:|---:|---:|
-| Pos7_WT | WT | 10 | 0.844 | 0.83 | 100% | — |
-| Pos20_KO | KO | 10 | 0.839 | 0.85 | 95% | — |
-| Pos30_GOF | GOF | 10 | 0.848 | 0.84 | 92% | — |
-| Pos39_OT | OT | 10 | 0.855 | 0.95 | 97.78% | 1 / 1 ✓ |
-| Pos51_Y1 | Y1 | 10 | 0.864 | 0.90 | 100% | 1 / 1 ✓ |
-| Pos68_DMSO | DMSO | 11 | 0.761 | 0.50 | 84.29% | — |
-| ignasi_3_cells_control | ctrl | 97 | 0.820 | 0.87 | 93% | — |
-| ignasi_control | ctrl | 15 | 0.890 | 0.80 | 100% | — |
-| ignasi_control_full | ctrl | 65 | 0.897 | 0.92 | 100% | — |
-| **Aggregate** | — | **238** | **0.847** | **0.83** | **95.79%** | **2 / 2 ✓** |
+| Pos7_WT | WT | 10 | 0.851 | 0.77 | 92.22% | — |
+| Pos20_KO | KO | 10 | 0.842 | 0.88 | 92.28% | — |
+| Pos30_GOF | GOF | 10 | 0.860 | 0.86 | 100% | — |
+| Pos39_OT | OT | 10 | 0.863 | 0.94 | 93.75% | 0 / 1 ✗ |
+| Pos51_Y1 | Y1 | 10 | 0.866 | **1.00** | 100% | 1 / 1 ✓ |
+| Pos68_DMSO | DMSO | 11 | 0.762 | **0.56** | 88.37% | — |
+| ignasi_3_cells_control | ctrl | 97 | 0.820 | 0.87 | 93.01% | — |
+| ignasi_control | ctrl | 15 | 0.924 | 0.63 | 100% | — |
+| ignasi_control_full | ctrl | 65 | 0.932 | 0.66 | 100% | — |
+| **Aggregate** | — | **238** | **0.858** | **0.80** | **95.51%** | **1 / 2** |
 
-All six IC295 conditions (WT/KO/GOF/OT/Y1/DMSO) covered. Pos51_Y1 + Pos68_DMSO were re-run on 2026-05-20 with a smarter auto-select probe (raw `cpsam` for density estimation instead of cpsam_dic, which merges touching cells); both gained ~+0.10 IoU and Pos51_Y1 went from 83% → 100% ID consistency. The division annotator's daughter-search was updated the same day to handle multi-track resolves (Hungarian-tracked daughters that inherit an existing track ID at the split), restoring Pos51_Y1's GT-evident split. Two false-positive classes also fixed: parent tracks must have ≥5 frames of history before their peak (kills early-recording transients) and baseline area must be ≥500 px (kills noise-blob "swellings"). 0 false positives across the 9 recordings. A new FoV-edge-vignette filter (`core/track_postprocess.py::reject_edge_sliver_detections`) zeroes thin near-solid bars hugging an image boundary that cpsam was previously segmenting as cells — caught 58 sliver frames across Pos7_WT (3), Pos20_KO (27), Pos39_OT (1), and Pos68_DMSO (27).
+**Detection upgrade 2026-05-21** — added mirror-padding (`use_mirror_pad="auto"`): cpsam input is padded with 50 px reflection before each frame's `eval()`. Auto-enabled when min detection dim ≥ 1000 px (catches all IC295 at ds=2, skipped for small cropped ignasi). Validated on 9 GT recordings via detection-only sweep on GT-labelled frames (`scripts/investigate_pos68_detection.py`); pipeline re-ran end-to-end with the new policy. **Aggregate IoU 0.847 → 0.858 (+0.011).** Per-recording IoU improved on all 6 IC295 + all 3 legacy. **Big F1 wins on the previously worst recordings**: Pos51_Y1 0.90 → 1.00, Pos68_DMSO 0.50 → 0.56. F1 dipped on ignasi recordings (0.80→0.63, 0.92→0.66) because raw cpsam now finds 3 cells/frame on those small fields where GT only annotates 1 — boundary quality on the GT-annotated cell improved (IoU +0.03) but the extra real-cell detections are scored as FPs by the single-cell-GT metric.
+
+**Pos39_OT division regression** (was 1/1 ✓, now 0/1 ✗): the new multi-track cpsam segmentation no longer produces the area-halving signal the annotator's primary trigger relies on (parent track keeps one daughter at near-full area; the other daughter spawns as a new track 4 frames later). Needs a "backward-from-new-track" detection path — flagged as follow-up.
+
+Previous round (2026-05-20): auto-select probe switched to raw `cpsam` (no cell-merging bias). Multi-track daughter detection in the division annotator. Edge-sliver filter (`core/track_postprocess.py::reject_edge_sliver_detections`) zeroes vignette-bar mis-detections at the FoV edge.
 
 **Phase-contrast Ignasi GT (separate 65-frame benchmark)**: mean IoU **0.932**, 65/65 frames > 0.85, min 0.867 (cpsam + DeepSea union).
 

@@ -6,11 +6,11 @@
       "frame": 31,
       "peak_frame": 26,
       "parent_track": 9,
-      "area_peak": 11832,
-      "area_parent_at_split": 1520,
-      "area_parent_post_peak": 5880,
-      "area_baseline": 13727,
-      "swelling_ratio": 0.8619383413951861,
+      "area_peak": 11876,
+      "area_parent_at_split": 1164,
+      "area_parent_post_peak": 5788,
+      "area_baseline": 12992,
+      "swelling_ratio": 0.914044701680931,
       "pre_split_states": [
         "transitional",
         "transitional",
@@ -18,120 +18,120 @@
       ],
       "pre_split_balled_frac": 0.8571428571428571,
       "parent_centroid": [
-        1150.8263157894737,
-        1080.4947368421053
+        1151.414089347079,
+        1080.245704467354
       ],
-      "daughter_track": 13,
+      "daughter_track": 14,
       "daughter_first_frame": 35,
       "daughter_persistence_frames": 62,
-      "distance_px": 22.4749760099906,
-      "area_daughter_first": 5964,
-      "area_daughter_post_peak": 8212,
-      "mass_ratio": 1.1910074374577417,
+      "distance_px": 22.760717291581333,
+      "area_daughter_first": 5776,
+      "area_daughter_post_peak": 7860,
+      "mass_ratio": 1.1492084877062985,
       "mass_score": 1.0,
       "persist_score": 1.0,
       "balled_score": 0.9285714285714286,
       "swelling_score": 0.0,
-      "prox_score": 0.7732704906970732,
-      "score": 0.3590184421093554,
+      "prox_score": 0.7710478812923699,
+      "score": 0.3579865163143146,
       "daughter_centroid": [
-        1136.1727028839705,
-        1063.453722334004
-      ]
-    },
-    {
-      "frame": 55,
-      "peak_frame": 52,
-      "parent_track": 8,
-      "area_peak": 1588,
-      "area_parent_at_split": 560,
-      "area_parent_post_peak": 1532,
-      "area_baseline": 3031,
-      "swelling_ratio": 0.523884930060702,
-      "pre_split_states": [
-        "transitional",
-        "transitional",
-        "transitional"
-      ],
-      "pre_split_balled_frac": 1.0,
-      "parent_centroid": [
-        337.25714285714287,
-        1374.2857142857142
-      ],
-      "daughter_track": 10,
-      "daughter_first_frame": 60,
-      "daughter_persistence_frames": 36,
-      "distance_px": 22.120753945153897,
-      "area_daughter_first": 20,
-      "area_daughter_post_peak": 796,
-      "mass_ratio": 1.4659949622166246,
-      "mass_score": 0.5340050377833754,
-      "persist_score": 1.0,
-      "balled_score": 1.0,
-      "swelling_score": 0.0,
-      "prox_score": 0.7760436227844398,
-      "score": 0.20720560205327615,
-      "daughter_centroid": [
-        355.7,
-        1386.5
+        1136.98891966759,
+        1062.639889196676
       ]
     },
     {
       "frame": 50,
       "peak_frame": 45,
       "parent_track": 11,
-      "area_peak": 1504,
-      "area_parent_at_split": 24,
-      "area_parent_post_peak": 996,
-      "area_baseline": 1422,
-      "swelling_ratio": 1.0576652601969059,
+      "area_peak": 1496,
+      "area_parent_at_split": 20,
+      "area_parent_post_peak": 1020,
+      "area_baseline": 1318,
+      "swelling_ratio": 1.1343645738550197,
       "pre_split_states": [
         "transitional",
         "transitional",
         "transitional"
       ],
-      "pre_split_balled_frac": 0.42857142857142855,
+      "pre_split_balled_frac": 0.5714285714285714,
       "parent_centroid": [
-        362.5,
-        1363.8333333333333
+        364.9,
+        1366.5
       ],
-      "daughter_track": 8,
+      "daughter_track": 10,
       "daughter_first_frame": 50,
-      "daughter_persistence_frames": 47,
-      "distance_px": 15.566173099265903,
+      "daughter_persistence_frames": 17,
+      "distance_px": 17.830156481277275,
       "area_daughter_first": 1388,
       "area_daughter_post_peak": 1588,
-      "mass_ratio": 1.7180851063829787,
-      "mass_score": 0.28191489361702127,
+      "mass_ratio": 1.7433155080213905,
+      "mass_score": 0.25668449197860954,
       "persist_score": 1.0,
-      "balled_score": 0.7142857142857143,
-      "swelling_score": 0.11533052039381175,
-      "prox_score": 0.8312024804884791,
-      "score": 0.09334056086842639,
+      "balled_score": 0.7857142857142857,
+      "swelling_score": 0.2687291477100393,
+      "prox_score": 0.8112851573220557,
+      "score": 0.10379507154948066,
       "daughter_centroid": [
         366.22334293948126,
         1348.7190201729106
+      ]
+    },
+    {
+      "frame": 68,
+      "peak_frame": 67,
+      "parent_track": 13,
+      "area_peak": 7332,
+      "area_parent_at_split": 2908,
+      "area_parent_post_peak": 2908,
+      "area_baseline": 1348,
+      "swelling_ratio": 5.437555621477306,
+      "pre_split_states": [
+        "transitional",
+        "transitional",
+        "attached"
+      ],
+      "pre_split_balled_frac": 0.42857142857142855,
+      "parent_centroid": [
+        1881.5563961485557,
+        681.146492434663
+      ],
+      "daughter_track": 8,
+      "daughter_first_frame": 69,
+      "daughter_persistence_frames": 17,
+      "distance_px": 23.903636896311127,
+      "area_daughter_first": 6300,
+      "area_daughter_post_peak": 10456,
+      "mass_ratio": 1.822695035460993,
+      "mass_score": 0.17730496453900702,
+      "persist_score": 1.0,
+      "balled_score": 0.7142857142857143,
+      "swelling_score": 1.0,
+      "prox_score": 0.7622841052867713,
+      "score": 0.09654054018322833,
+      "daughter_centroid": [
+        1881.283492063492,
+        705.0485714285714
       ]
     }
   ],
   "track_lineage": [
     {
-      "track_index": 12,
+      "track_index": 13,
       "parent_track_index": 8,
       "division_frame": 31,
-      "division_score": 0.3590184421093554
+      "division_score": 0.3579865163143146
     },
     {
       "track_index": 9,
-      "parent_track_index": 7,
-      "division_frame": 55,
-      "division_score": 0.20720560205327615
+      "parent_track_index": 10,
+      "division_frame": 50,
+      "division_score": 0.10379507154948066
     },
     {
       "track_index": 7,
-      "parent_track_index": 10,
-      "division_frame": 50,
-      "division_score": 0.09334056086842639
+      "parent_track_index": 12,
+      "division_frame": 68,
+      "division_score": 0.09654054018322833
     }
   ]
 }

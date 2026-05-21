@@ -8,27 +8,27 @@
 
 | Threshold | TP/frame | FN/frame | FP/frame | F1 |
 |---:|---:|---:|---:|---:|
-| IoU≥0.3 | 4.7 | 1.6 | 0.2 | 0.84 |
-| IoU≥0.5 | 4.7 | 1.6 | 0.2 | 0.84 |
-| IoU≥0.7 | 4.4 | 1.9 | 0.5 | 0.79 |
+| IoU≥0.3 | 4.8 | 1.5 | 0.0 | 0.86 |
+| IoU≥0.5 | 4.8 | 1.5 | 0.0 | 0.86 |
+| IoU≥0.7 | 4.8 | 1.5 | 0.0 | 0.86 |
 
-- **Mean per-cell IoU (matched)**: 0.848
-- **Median per-cell IoU (matched)**: 0.858
+- **Mean per-cell IoU (matched)**: 0.860
+- **Median per-cell IoU (matched)**: 0.861
 
 ## Tracking identity preservation
 
 - **Mean ID consistency** (per GT cell, fraction of frames where it
-  maps to the same pipeline ID): **92.00%**
+  maps to the same pipeline ID): **100.00%**
 - **GT cells with perfect 1.0 consistency**:
-  3 / 5
+  5 / 5
 
 | GT cell | matched in N frames | dominant pred | consistency |
 |---:|---:|---:|---:|
 | 1 | 10 | 1 | 1.00 |
-| 3 | 7 | 3 | 1.00 |
+| 2 | 10 | 2 | 1.00 |
+| 3 | 8 | 3 | 1.00 |
 | 4 | 10 | 4 | 1.00 |
-| 2 | 10 | 2 | 0.80 |
-| 5 | 10 | 5 | 0.80 |
+| 5 | 10 | 5 | 1.00 |
 
 ## Per-frame breakdown
 
@@ -41,7 +41,7 @@
 | F40 | 6 | 5 | 5 | 0 | 1 | 0.91 |
 | F50 | 6 | 5 | 5 | 0 | 1 | 0.91 |
 | F60 | 6 | 5 | 5 | 0 | 1 | 0.91 |
-| F70 | 7 | 6 | 4 | 2 | 3 | 0.61 |
+| F70 | 7 | 5 | 5 | 0 | 2 | 0.83 |
 | F80 | 6 | 4 | 4 | 0 | 2 | 0.80 |
 | F90 | 6 | 4 | 4 | 0 | 2 | 0.80 |
 
