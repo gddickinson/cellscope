@@ -290,10 +290,15 @@ def detect_hybrid_cpsam_multi(frames, progress_fn=None,
     if progress_fn:
         progress_fn("Post-processing tracks", 95)
     pp = postprocess_tracks(tracks, frames=frames)
-    if pp.get("fps_rejected") or pp.get("tracks_removed"):
+    if (pp.get("fps_rejected") or pp.get("tracks_removed")
+            or pp.get("edge_slivers_dropped")
+            or pp.get("edge_sliver_frames_zeroed")):
         log.info("Post-process: %d FPs rejected, %d tracks removed, "
-                 "%d tracks remaining",
+                 "%d edge-sliver tracks dropped, "
+                 "%d sliver frames zeroed, %d tracks remaining",
                  pp.get("fps_rejected", 0), pp.get("tracks_removed", 0),
+                 pp.get("edge_slivers_dropped", 0),
+                 pp.get("edge_sliver_frames_zeroed", 0),
                  pp.get("tracks_remaining", len(tracks)))
 
     # Step 6: build tracked label stack

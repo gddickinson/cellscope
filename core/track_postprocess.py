@@ -381,28 +381,117 @@ def reject_edge_artifact_tracks(tracks, frame_shape,
     return removed
 
 
+def reject_edge_sliver_detections(
+        tracks, frame_shape,
+        edge_band_px=40,
+        min_aspect_ratio=5.0,
+        max_sliver_thickness_px=50,
+        min_density=0.5,
+        per_track_threshold=0.5):
+    """Drop per-frame detections that look like FoV-edge vignette
+    artifacts — thin near-solid bars hugging an image boundary.
+
+    cpsam will sometimes segment the dark illumination-edge gradient
+    (the vignette from the microscope aperture / objective shadow)
+    as a single elongated cell. The mask is a narrow vertical or
+    horizontal strip pressed against an image edge. The existing
+    `reject_edge_artifact_tracks` filter catches only small (<500 px)
+    edge specks; vignette bars can be 30,000+ px so they pass through.
+
+    Signature of the artifact:
+      - touches an edge of the image (within `edge_band_px`)
+      - aspect ratio of the bbox ≥ `min_aspect_ratio` (long / short)
+      - the short dimension ≤ `max_sliver_thickness_px`
+      - density (mask pixels / bbox area) ≥ `min_density` (≈ a solid
+        bar; real elongated cells are spindly with density ≪ 0.5)
+
+    A frame matching all four is zeroed in place. If a track has
+    `per_track_threshold` or more of its active frames matching, the
+    whole track is dropped. Otherwise only the offending frames are
+    zeroed and the rest of the track survives.
+
+    Modifies tracks in-place. Returns a dict
+    {tracks_dropped, frames_zeroed}.
+    """
+    H, W = frame_shape[-2:]
+    surviving = []
+    frames_zeroed = 0
+    for t in tracks:
+        stack = t["stack"]
+        sliver_frames = []
+        active_frames = []
+        for fi in range(len(stack)):
+            m = stack[fi]
+            if not m.any():
+                continue
+            active_frames.append(fi)
+            ys, xs = np.where(m)
+            bbox_h = int(ys.max() - ys.min() + 1)
+            bbox_w = int(xs.max() - xs.min() + 1)
+            short = min(bbox_h, bbox_w)
+            long_ = max(bbox_h, bbox_w)
+            ar = long_ / max(1, short)
+            density = int(m.sum()) / max(1, bbox_h * bbox_w)
+            on_edge = (xs.min() < edge_band_px
+                       or xs.max() >= W - edge_band_px
+                       or ys.min() < edge_band_px
+                       or ys.max() >= H - edge_band_px)
+            if (on_edge and ar >= min_aspect_ratio
+                    and short <= max_sliver_thickness_px
+                    and density >= min_density):
+                sliver_frames.append(fi)
+        if not sliver_frames:
+            surviving.append(t)
+            continue
+        sliver_frac = len(sliver_frames) / max(1, len(active_frames))
+        if sliver_frac >= per_track_threshold:
+            log.info("Dropped edge-sliver track: %d/%d frames look "
+                     "like vignette (AR≥%.1f, short≤%dpx, density≥%.2f)",
+                     len(sliver_frames), len(active_frames),
+                     min_aspect_ratio, max_sliver_thickness_px,
+                     min_density)
+            continue
+        for fi in sliver_frames:
+            stack[fi] = False
+        frames_zeroed += len(sliver_frames)
+        surviving.append(t)
+    tracks_dropped = len(tracks) - len(surviving)
+    tracks[:] = surviving
+    if frames_zeroed:
+        log.info("Zeroed %d edge-sliver frames in surviving tracks",
+                 frames_zeroed)
+    return {"tracks_dropped": tracks_dropped,
+            "frames_zeroed": frames_zeroed}
+
+
 def postprocess_tracks(tracks, frames=None,
                         overlap_threshold=0.3, iou_threshold=0.05,
                         min_frames=3):
     """Full post-processing pipeline.
 
     1. Reject false positives (outlier detections)
-    2. Drop edge-artifact tracks
-    3. Remove empty tracks
+    2. Drop small edge-artifact tracks (mounting reflections, specks)
+    3. Drop edge-vignette sliver detections (FoV illumination edge
+       segmented as a thin near-solid bar)
+    4. Remove empty tracks
 
     Modifies tracks in-place. Returns summary dict.
     """
     n_fps = reject_false_positives(tracks, frames)
 
     n_edge = 0
+    sliver = {"tracks_dropped": 0, "frames_zeroed": 0}
     if frames is not None and tracks:
         n_edge = reject_edge_artifact_tracks(tracks, frames.shape)
+        sliver = reject_edge_sliver_detections(tracks, frames.shape)
 
     n_removed = remove_empty_tracks(tracks, min_frames)
 
     return {
         "fps_rejected": n_fps,
         "edge_artifacts_dropped": n_edge,
+        "edge_slivers_dropped": sliver["tracks_dropped"],
+        "edge_sliver_frames_zeroed": sliver["frames_zeroed"],
         "tracks_removed": n_removed,
         "tracks_remaining": len(tracks),
     }
