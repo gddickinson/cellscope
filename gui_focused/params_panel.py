@@ -155,8 +155,29 @@ class ParamsPanel(QWidget):
         self.use_tta.setToolTip(
             "Test-time augmentation: run cpsam on 4 rotations\n"
             "and average results. Slower (~4x) but may recover\n"
-            "cells missed at default orientation.")
+            "cells missed at default orientation.\n"
+            "Effects vary by recording (validated 2026-05-21):\n"
+            "  - helps very dense fields (Pos68_DMSO +0.03 F1)\n"
+            "  - hurts most other recordings (-0.02 F1 typical)\n"
+            "Off by default; enable for dense recordings.")
         form.addRow("TTA (augment):", self.use_tta)
+
+        self.use_mirror_pad = QComboBox()
+        self.use_mirror_pad.addItems(["auto", "on", "off"])
+        idx = self.use_mirror_pad.findText(
+            str(_PD.use_mirror_pad).lower())
+        if idx >= 0:
+            self.use_mirror_pad.setCurrentIndex(idx)
+        self.use_mirror_pad.setToolTip(
+            "Mirror-pad the image by 50 px before each cpsam call so\n"
+            "cells at the FoV edge sit in the interior of a 'complete'\n"
+            "reflection — cpsam segments them as full cells instead of\n"
+            "partial profiles. Adds ~40% runtime.\n"
+            "auto: enabled when detection image min-dim ≥ 1000 px\n"
+            "      (skipped on small cropped recordings where the\n"
+            "      relative padding ratio would be too large).\n"
+            "Validated 2026-05-21: +0.018 mean F1 on 6 IC295 recordings.")
+        form.addRow("Mirror-pad:", self.use_mirror_pad)
 
         self.use_tiling = QCheckBox()
         self.use_tiling.setChecked(_PD.use_tiling)
@@ -543,6 +564,7 @@ class ParamsPanel(QWidget):
             "search_radius": self.search_radius.value(),
             "min_track_length": self.min_track_len.value(),
             "use_tta": self.use_tta.isChecked(),
+            "use_mirror_pad": self.use_mirror_pad.currentText(),
             "use_tiling": self.use_tiling.isChecked(),
             "tile_grid": self.tile_grid.value(),
             "use_deepsea": self.use_deepsea.isChecked(),

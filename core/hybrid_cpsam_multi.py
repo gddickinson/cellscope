@@ -100,6 +100,7 @@ def detect_hybrid_cpsam_multi(frames, progress_fn=None,
                                use_deepsea=True,
                                use_gap_fill=True,
                                use_tta=False,
+                               use_mirror_pad="auto",
                                expected_cells=0,
                                cy5_frames=None,
                                recover_with_cy5=False,
@@ -152,12 +153,35 @@ def detect_hybrid_cpsam_multi(frames, progress_fn=None,
         m = models.CellposeModel(gpu=True)
     raw_labels = np.zeros(frames.shape, dtype=np.int32)
     eval_kwargs = {"augment": True} if use_tta else {}
+    # Resolve mirror-padding policy: enabled for large detection
+    # frames where the reflection border is a small fraction of the
+    # image. Validated across 9 GT recordings (2026-05-21).
+    from core.pipeline_defaults import (
+        should_use_mirror_pad, MIRROR_PAD_PX)
+    pad_enabled = should_use_mirror_pad(use_mirror_pad, frames.shape[1:])
+    pad_px = MIRROR_PAD_PX if pad_enabled else 0
+    if pad_enabled:
+        log.info("Mirror-padding cpsam input by %d px "
+                 "(detection-min-dim=%d ≥ threshold)",
+                 pad_px, min(frames.shape[1:]))
     for i in range(n):
         if progress_fn and (i % 10 == 0 or i == n - 1):
-            progress_fn(f"cpsam {i+1}/{n}"
-                        + (" (TTA)" if use_tta else ""),
+            label = "cpsam"
+            if use_tta:
+                label += "+TTA"
+            if pad_enabled:
+                label += "+pad"
+            progress_fn(f"{label} {i+1}/{n}",
                         int(30 * i / max(n - 1, 1)))
-        masks_i, _, _ = m.eval(frames[i], **eval_kwargs)
+        if pad_enabled:
+            padded = np.pad(
+                frames[i], ((pad_px, pad_px), (pad_px, pad_px)),
+                mode="reflect")
+            masks_i, _, _ = m.eval(padded, **eval_kwargs)
+            H_, W_ = frames.shape[1:]
+            masks_i = masks_i[pad_px:pad_px + H_, pad_px:pad_px + W_]
+        else:
+            masks_i, _, _ = m.eval(frames[i], **eval_kwargs)
         raw_labels[i] = masks_i.astype(np.int32)
 
     # Step 2: debris filter

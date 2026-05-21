@@ -88,6 +88,8 @@ class FocusedDetectWorker(QThread):
             dic_model_path = self.params.get("dic_model_path", None)
 
             use_tta = self.params.get("use_tta", _PD.use_tta)
+            use_mirror_pad = self.params.get(
+                "use_mirror_pad", _PD.use_mirror_pad)
             if self.mode == "auto":
                 # Canonical end-to-end detection used by both the GUI
                 # and the evaluation script (run_pipeline_on_gt_recording).
@@ -246,6 +248,7 @@ class FocusedDetectWorker(QThread):
                     use_deepsea=use_deepsea,
                     use_gap_fill=use_gap_fill,
                     use_tta=use_tta,
+                    use_mirror_pad=use_mirror_pad,
                     cy5_frames=cy5_frames,
                     recover_with_cy5=recover,
                     use_cy5_fusion=use_cy5_fusion)

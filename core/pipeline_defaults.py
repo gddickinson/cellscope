@@ -91,6 +91,36 @@ MULTICELL_THRESHOLD = 1.5
 N_SAMPLE_FRAMES_FOR_AUTO = 11
 PROBE_AGGREGATOR_PERCENTILE = 75
 
+# Mirror-padding policy: pad the image by MIRROR_PAD_PX before each
+# cpsam call when the detection-resolution min dim is at least
+# MIRROR_PAD_MIN_DIM_PX. Below that threshold the reflection border
+# becomes a too-large fraction of the frame and cpsam mis-detects
+# the padding region as cell-like, causing -0.10+ F1 regressions
+# (validated on small legacy ignasi recordings, 2026-05-21).
+MIRROR_PAD_PX = 50
+MIRROR_PAD_MIN_DIM_PX = 1000
+
+
+def should_use_mirror_pad(use_mirror_pad, det_frame_shape):
+    """Resolve the use_mirror_pad config against an image shape.
+
+    Args:
+      use_mirror_pad: "auto" | "on" | "off" | True | False | None
+      det_frame_shape: (H, W) at the resolution detection runs at
+
+    Returns:
+      bool — whether to pad
+    """
+    if use_mirror_pad in (None, "off", "Off", "OFF", False):
+        return False
+    if use_mirror_pad in ("on", "On", "ON", True):
+        return True
+    # "auto" or anything else
+    if det_frame_shape is None:
+        return False
+    H, W = det_frame_shape[-2:]
+    return min(H, W) >= MIRROR_PAD_MIN_DIM_PX
+
 
 # ------------------------------------------------------------------
 # Auto-downsample policy
@@ -366,6 +396,22 @@ class PipelineDefaults:
     # ~1 sec per gap frame; turn off if cpsam(augment) is enough for
     # your data.
     use_tta: bool = False             # cpsam test-time augmentation
+
+    # --- Mirror padding (auto-enabled on large detection frames) ---
+    # When the detection-resolution image is large enough that the
+    # reflection border is a small fraction of the frame
+    # (min(H, W) ≥ MIRROR_PAD_MIN_DIM_PX), pad the image by
+    # MIRROR_PAD_PX before each cpsam call so cells right at the FoV
+    # edge sit in the interior of a "complete" reflection — cpsam
+    # segments them as full cells instead of partial profiles.
+    # Validated on 9 GT recordings (2026-05-21): +0.018 mean F1
+    # across 6 IC295 recordings (2048² → ds=2 → 1024² detection),
+    # with a small -0.016 regression on Pos20_KO that's outweighed
+    # by gains of +0.006 to +0.034 on the other 5. SKIPPED on small
+    # legacy ignasi recordings (438² or 1028×828) where the
+    # reflection border is too large a fraction of the frame.
+    # "auto" → enabled iff min_det_dim ≥ MIRROR_PAD_MIN_DIM_PX.
+    use_mirror_pad: str = "auto"      # "auto" | "on" | "off"
 
     # --- Tiling (only relevant for cpsam multi mode) ---
     use_tiling: bool = False
