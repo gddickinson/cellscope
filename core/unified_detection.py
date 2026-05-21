@@ -40,6 +40,7 @@ def detect_recording(dic_frames, cy5_frames=None,
                       run_cy5_filter=True,
                       cy5_filter_mode="multi_metric",
                       cy5_filter_threshold=0.15,
+                      use_mirror_pad=None,
                       progress_fn=None):
     """Run the canonical end-to-end detection.
 
@@ -161,6 +162,14 @@ def detect_recording(dic_frames, cy5_frames=None,
     else:
         from core.hybrid_cpsam_multi import detect_hybrid_cpsam_multi
         _emit("Detecting with raw cpsam", 10)
+        # Per-call use_mirror_pad override falls back to DEFAULTS when
+        # not specified. Used by run_pipeline_on_gt_recording.py to
+        # honor sidecar JSON's "use_mirror_pad" key (e.g. Pos39_OT
+        # uses "off" because mirror-padding merges its dividing cell
+        # pair into a single mass and the second daughter is lost).
+        effective_mirror_pad = (use_mirror_pad
+                                 if use_mirror_pad is not None
+                                 else DEFAULTS.use_mirror_pad)
         result = detect_hybrid_cpsam_multi(
             dic_frames,
             progress_fn=_emit,
@@ -169,7 +178,7 @@ def detect_recording(dic_frames, cy5_frames=None,
             use_deepsea=DEFAULTS.use_deepsea,
             use_gap_fill=DEFAULTS.use_gap_fill,
             use_tta=DEFAULTS.use_tta,
-            use_mirror_pad=DEFAULTS.use_mirror_pad,
+            use_mirror_pad=effective_mirror_pad,
             cy5_frames=cy5_frames,
             recover_with_cy5=False,
             use_cy5_fusion=use_cy5_fusion)

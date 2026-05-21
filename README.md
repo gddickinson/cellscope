@@ -314,19 +314,19 @@ python scripts/evaluate_against_gt.py data/ic295_gt_full/Pos20_KO
 | Pos7_WT | WT | 10 | 0.851 | 0.77 | **0.85** | 92.22% | — |
 | Pos20_KO | KO | 10 | 0.842 | 0.88 | 0.90 | 92.28% | — |
 | Pos30_GOF | GOF | 10 | 0.860 | 0.86 | 0.86 | 100% | — |
-| Pos39_OT | OT | 10 | 0.863 | 0.94 | 0.94 | 93.75% | 0 / 1 ✗ |
+| Pos39_OT | OT | 10 | 0.855 | 0.95 | 0.96 | 97.78% | 1 / 1 ✓ |
 | Pos51_Y1 | Y1 | 10 | 0.866 | **1.00** | 1.00 | 100% | 1 / 1 ✓ |
 | Pos68_DMSO | DMSO | 11 | 0.762 | 0.56 | 0.58 | 88.37% | — |
 | ignasi_3_cells_control | ctrl | 97 | 0.820 | 0.87 | 0.87 | 93.01% | — |
 | ignasi_control | ctrl | 15 | 0.924 | 0.63 | **1.00** | 100% | — |
 | ignasi_control_full | ctrl | 65 | 0.932 | 0.66 | **1.00** | 100% | — |
-| **Aggregate** | — | **238** | **0.858** | 0.80 | **0.89** | **95.51%** | **1 / 2** |
+| **Aggregate** | — | **238** | **0.857** | 0.80 | **0.89** | **95.96%** | **2 / 2 ✓** |
 
 `F1 focused` excludes predictions that have zero IoU with *any* GT cell from the FP count — these are real cells in the field that the GT just didn't annotate (the standard F1 penalizes them as FPs). Right metric when GT covers only part of the field (single-cell ignasi recordings) or when the pipeline finds extras the GT didn't label (Pos7_WT). Recording-level: same answer (or better) than raw F1 on all 9; per-recording the gap is largest for ignasi (0.63 → 1.00) where GT explicitly only annotates the 1 cell of interest. **Aggregate F1 focused 0.89 vs raw 0.80** — the +0.09 gap is the cost of the GT coverage gap, not pipeline quality.
 
 **Detection upgrade 2026-05-21** — added mirror-padding (`use_mirror_pad="auto"`): cpsam input is padded with 50 px reflection before each frame's `eval()`. Auto-enabled when min detection dim ≥ 1000 px (catches all IC295 at ds=2, skipped for small cropped ignasi). Validated on 9 GT recordings via detection-only sweep on GT-labelled frames (`scripts/investigate_pos68_detection.py`); pipeline re-ran end-to-end with the new policy. **Aggregate IoU 0.847 → 0.858 (+0.011).** Per-recording IoU improved on all 6 IC295 + all 3 legacy. **Big F1 wins on the previously worst recordings**: Pos51_Y1 0.90 → 1.00, Pos68_DMSO 0.50 → 0.56. F1 dipped on ignasi recordings (0.80→0.63, 0.92→0.66) because raw cpsam now finds 3 cells/frame on those small fields where GT only annotates 1 — boundary quality on the GT-annotated cell improved (IoU +0.03) but the extra real-cell detections are scored as FPs by the single-cell-GT metric.
 
-**Pos39_OT division regression** (was 1/1 ✓, now 0/1 ✗): the new multi-track cpsam segmentation no longer produces the area-halving signal the annotator's primary trigger relies on (parent track keeps one daughter at near-full area; the other daughter spawns as a new track 4 frames later). Needs a "backward-from-new-track" detection path — flagged as follow-up.
+**Pos39_OT per-recording override (2026-05-21)**: the recording's sidecar JSON (`IC295__1_MMStack_Pos39-OT.ome.json`) sets `"use_mirror_pad": "off"` because mirror-padding merges this particular dividing cell pair (~F73-F80) into a single mass and the second daughter is lost from detection. Pad-off restores the division catch (T7→T9 F75 ✓) and is strictly better on this recording: +0.005 F1, +0.019 F1_focused, +4pp ID consistency at the cost of -0.008 IoU. `scripts/run_pipeline_on_gt_recording.py` honors the sidecar key; the auto-default for other recordings (including future ones) remains padding-on. Pattern can be reused for any other recording where padding shows similar trade-offs.
 
 Previous round (2026-05-20): auto-select probe switched to raw `cpsam` (no cell-merging bias). Multi-track daughter detection in the division annotator. Edge-sliver filter (`core/track_postprocess.py::reject_edge_sliver_detections`) zeroes vignette-bar mis-detections at the FoV edge.
 

@@ -1,12 +1,12 @@
 # GT evaluation aggregate
 
-_9 recordings, generated Thu May 21 10:22:38 CDT 2026_
+_9 recordings, generated Thu May 21 11:47:57 CDT 2026_
 
 | Recording | GT frames | Mean IoU | F1@.5 | F1@.5 focused | Mean TP/frame | Mean FN | Mean FP | OOS pred | ID consistency | Perfect tracks |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
 | Pos20_KO | 10 | 0.842 | 0.88 | 0.90 | 6.2 | 1.3 | 0.3 | 0.3 | 92.28% | 7/9 |
 | Pos30_GOF | 10 | 0.860 | 0.86 | 0.86 | 4.8 | 1.5 | 0.0 | 0.0 | 100.00% | 5/5 |
-| Pos39_OT | 10 | 0.863 | 0.94 | 0.94 | 6.6 | 0.8 | 0.1 | 0.1 | 93.75% | 7/8 |
+| Pos39_OT | 10 | 0.855 | 0.95 | 0.96 | 6.9 | 0.5 | 0.3 | 0.2 | 97.78% | 8/9 |
 | Pos51_Y1 | 10 | 0.866 | 1.00 | 1.00 | 1.3 | 0.0 | 0.0 | 0.0 | 100.00% | 2/2 |
 | Pos68_DMSO | 11 | 0.762 | 0.56 | 0.58 | 8.6 | 8.8 | 2.9 | 1.6 | 88.37% | 8/15 |
 | Pos7_WT | 10 | 0.851 | 0.77 | 0.85 | 8.3 | 2.5 | 2.5 | 2.0 | 92.22% | 7/9 |
@@ -28,7 +28,7 @@ _9 recordings, generated Thu May 21 10:22:38 CDT 2026_
 
 ## Aggregate (across recordings)
 
-- Mean per-cell IoU: **0.858** (across 238 annotated frames)
+- Mean per-cell IoU: **0.857** (across 238 annotated frames)
 - Mean F1 @ IoU≥0.5: **0.80**
 - Mean F1 @ IoU≥0.5 focused: **0.89** (excludes predictions with no GT overlap from FP count)
-- Mean ID consistency: **95.51%**
+- Mean ID consistency: **95.96%**

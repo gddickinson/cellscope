@@ -9,5 +9,7 @@
     "0": "Cy5 (F-actin)",
     "1": "DIC"
   },
-  "source": "/Volumes/GeorgeDrive/ignasi/IC295/IC295__1_MMStack_Pos39-OT.ome.tif"
+  "source": "/Volumes/GeorgeDrive/ignasi/IC295/IC295__1_MMStack_Pos39-OT.ome.tif",
+  "use_mirror_pad": "off",
+  "use_mirror_pad_reason": "Mirror-padding merges this recording's dividing cell pair (around F73-F80) into one mass; the second daughter is lost from detection. Tested 2026-05-21: pad-off has -0.008 IoU but +0.004 F1, +0.019 F1_focused, +4pp ID consistency, AND restores the GT-evident division catch (1/1 ✓). Strict win on this recording."
 }

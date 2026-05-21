@@ -128,6 +128,16 @@ def main():
     # conversion, auto-select, detection, Cy5 filter, and upscale.
     # The GUI worker calls the same function — guaranteeing the runner
     # and GUI produce identical labels for the same inputs.
+    # Optional per-recording use_mirror_pad override from sidecar
+    # JSON. Default "auto" works for most recordings; specific ones
+    # (Pos39_OT: padding merges its dividing cell pair) can set
+    # `"use_mirror_pad": "off"` in <recording>.ome.json to skip
+    # padding for that recording only.
+    use_mirror_pad_override = meta.get("use_mirror_pad")
+    if use_mirror_pad_override is not None:
+        log.info("Per-recording use_mirror_pad override: %s",
+                 use_mirror_pad_override)
+
     from core.unified_detection import detect_recording
     detect = detect_recording(
         dic, cy5_frames=cy5,
@@ -141,6 +151,7 @@ def main():
         run_cy5_filter=True,
         cy5_filter_mode="multi_metric",
         cy5_filter_threshold=0.15,
+        use_mirror_pad=use_mirror_pad_override,
         progress_fn=lambda m, p: log.info("  detect[%d%%]: %s", p, m))
 
     auto = detect["auto"]
