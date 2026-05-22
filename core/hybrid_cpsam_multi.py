@@ -101,6 +101,7 @@ def detect_hybrid_cpsam_multi(frames, progress_fn=None,
                                use_gap_fill=True,
                                use_tta=False,
                                use_mirror_pad="auto",
+                               use_cpsam_cy5_union=True,
                                expected_cells=0,
                                cy5_frames=None,
                                recover_with_cy5=False,
@@ -183,6 +184,67 @@ def detect_hybrid_cpsam_multi(frames, progress_fn=None,
         else:
             masks_i, _, _ = m.eval(frames[i], **eval_kwargs)
         raw_labels[i] = masks_i.astype(np.int32)
+
+    # Step 1b: cpsam-on-Cy5 union (Method D, validated 2026-05-22).
+    # Run cpsam on the Cy5 channel too and merge with DIC detections.
+    # Cells that DIC's cpsam missed but show on Cy5 (e.g. cells with
+    # weak DIC contrast but strong Cy5 nuclear/actin signal) are
+    # recovered. Validated bbox-detection F1 on 3 worst recordings:
+    #   Pos68_DMSO: 0.56 → 0.67  (+0.11)
+    #   Pos21_KO:   0.61 → 0.61  (same — already had good DIC coverage)
+    #   Pos31_GOF:  0.52 → 0.78  (+0.26)
+    # Auto-enabled when cy5_frames provided.
+    if (use_cpsam_cy5_union and cy5_frames is not None
+            and len(cy5_frames) == n):
+        log.info("Running cpsam on Cy5 channel for union detection")
+        cy5_added_total = 0
+        for i in range(n):
+            if progress_fn and (i % 10 == 0 or i == n - 1):
+                progress_fn(f"cpsam(Cy5) union {i+1}/{n}",
+                            30 + int(8 * i / max(n - 1, 1)))
+            # cpsam expects uint8; Cy5 may be uint16 — normalize
+            cy5_frame = cy5_frames[i]
+            if cy5_frame.dtype != np.uint8:
+                p1, p99 = np.percentile(cy5_frame, [1, 99])
+                cy5_frame = np.clip(
+                    (cy5_frame.astype(float) - p1)
+                    / max(1.0, p99 - p1), 0, 1)
+                cy5_frame = (cy5_frame * 255).astype(np.uint8)
+            if pad_enabled:
+                padded = np.pad(
+                    cy5_frame, ((pad_px, pad_px), (pad_px, pad_px)),
+                    mode="reflect")
+                cy5_masks, _, _ = m.eval(padded, **eval_kwargs)
+                H_, W_ = frames.shape[1:]
+                cy5_masks = cy5_masks[pad_px:pad_px + H_,
+                                       pad_px:pad_px + W_]
+            else:
+                cy5_masks, _, _ = m.eval(cy5_frame, **eval_kwargs)
+            # NMS-union: for each Cy5-detected cell, add to raw_labels
+            # if it doesn't overlap any existing DIC cell ≥ IoU 0.3.
+            existing_max = int(raw_labels[i].max())
+            for cid in range(1, int(cy5_masks.max()) + 1):
+                cy5_m = cy5_masks == cid
+                if cy5_m.sum() < min_area_px: continue
+                # Quick IoU vs each existing DIC label
+                duplicate = False
+                for did in range(1, existing_max + 1):
+                    dic_m = raw_labels[i] == did
+                    if not dic_m.any(): continue
+                    inter = np.logical_and(cy5_m, dic_m).sum()
+                    if inter == 0: continue
+                    union = np.logical_or(cy5_m, dic_m).sum()
+                    if inter / union >= 0.3:
+                        duplicate = True; break
+                if duplicate: continue
+                existing_max += 1
+                # Only place pixels not already occupied
+                free = (raw_labels[i] == 0) & cy5_m
+                if free.sum() < min_area_px: continue
+                raw_labels[i][free] = existing_max
+                cy5_added_total += 1
+        log.info("cpsam(Cy5) union added %d cells across %d frames",
+                 cy5_added_total, n)
 
     # Step 2: debris filter
     cell_counts = np.zeros(n, dtype=int)

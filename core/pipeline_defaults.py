@@ -413,6 +413,18 @@ class PipelineDefaults:
     # "auto" → enabled iff min_det_dim ≥ MIRROR_PAD_MIN_DIM_PX.
     use_mirror_pad: str = "auto"      # "auto" | "on" | "off"
 
+    # --- cpsam-on-Cy5 union (Method D, 2026-05-22) ---
+    # Run cpsam on the Cy5 channel too (when present), union the
+    # detected cells with the DIC-detected cells via NMS. Recovers
+    # cells with weak DIC contrast but strong Cy5 signal. Validated
+    # on 3 worst-performing GT recordings:
+    #   Pos68_DMSO bbox F1: 0.56 → 0.67  (+0.11)
+    #   Pos31_GOF  bbox F1: 0.52 → 0.78  (+0.26)
+    #   Pos21_KO   bbox F1: 0.61 → 0.61  (no-op — DIC was already good)
+    # Auto-enabled when Cy5 channel is present. Cost: ~1.5× runtime
+    # (cpsam runs twice per frame instead of once).
+    use_cpsam_cy5_union: bool = True
+
     # --- Tiling (only relevant for cpsam multi mode) ---
     use_tiling: bool = False
     tile_grid: int = 2

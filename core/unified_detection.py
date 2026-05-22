@@ -179,6 +179,7 @@ def detect_recording(dic_frames, cy5_frames=None,
             use_gap_fill=DEFAULTS.use_gap_fill,
             use_tta=DEFAULTS.use_tta,
             use_mirror_pad=effective_mirror_pad,
+            use_cpsam_cy5_union=DEFAULTS.use_cpsam_cy5_union,
             cy5_frames=cy5_frames,
             recover_with_cy5=False,
             use_cy5_fusion=use_cy5_fusion)
