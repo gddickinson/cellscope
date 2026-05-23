@@ -415,15 +415,19 @@ class PipelineDefaults:
 
     # --- cpsam-on-Cy5 union (Method D, 2026-05-22) ---
     # Run cpsam on the Cy5 channel too (when present), union the
-    # detected cells with the DIC-detected cells via NMS. Recovers
-    # cells with weak DIC contrast but strong Cy5 signal. Validated
-    # on 3 worst-performing GT recordings:
-    #   Pos68_DMSO bbox F1: 0.56 → 0.67  (+0.11)
-    #   Pos31_GOF  bbox F1: 0.52 → 0.78  (+0.26)
-    #   Pos21_KO   bbox F1: 0.61 → 0.61  (no-op — DIC was already good)
-    # Auto-enabled when Cy5 channel is present. Cost: ~1.5× runtime
-    # (cpsam runs twice per frame instead of once).
-    use_cpsam_cy5_union: bool = True
+    # detected cells with the DIC-detected cells via NMS. The
+    # *bbox-detection* validation showed +0.11-0.26 F1 on dense
+    # recordings (Pos68_DMSO, Pos31_GOF), but the full-pipeline
+    # re-run (2026-05-23) showed those gains EVAPORATED:
+    #   Pos68_DMSO: 0.56 → 0.56  (no change after Cy5 filter)
+    #   Pos31_GOF:  0.52 → 0.52  (no change)
+    # The downstream multi-metric Cy5 filter rejects cpsam(Cy5)-
+    # detected cells because their Cy5 signal characteristics don't
+    # match what the filter expects from threshold-based Cy5 fusion.
+    # Default OFF until the filter is tuned to admit cpsam(Cy5) cells
+    # (queued investigation, 2026-05-23). Cost when enabled: ~1.5×
+    # runtime.
+    use_cpsam_cy5_union: bool = False
 
     # --- Tiling (only relevant for cpsam multi mode) ---
     use_tiling: bool = False

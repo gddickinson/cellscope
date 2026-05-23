@@ -1,0 +1,51 @@
+{
+  "recording": "Pos51_Y1",
+  "n_candidates": 1,
+  "candidates": [
+    {
+      "frame": 68,
+      "peak_frame": 63,
+      "parent_track": 1,
+      "area_peak": 10432,
+      "area_parent_at_split": 1372,
+      "area_parent_post_peak": 6092,
+      "area_baseline": 9917,
+      "swelling_ratio": 1.051867387271114,
+      "pre_split_states": [
+        "attached",
+        "attached",
+        "transitional"
+      ],
+      "pre_split_balled_frac": 0.5714285714285714,
+      "parent_centroid": [
+        959.1180758017492,
+        717.9577259475219
+      ],
+      "daughter_track": 2,
+      "daughter_first_frame": 70,
+      "daughter_persistence_frames": 27,
+      "distance_px": 16.933657505248267,
+      "area_daughter_first": 640,
+      "area_daughter_post_peak": 4932,
+      "mass_ratio": 1.0567484662576687,
+      "mass_score": 1.0,
+      "persist_score": 1.0,
+      "balled_score": 0.7857142857142857,
+      "swelling_score": 0.1037347745422279,
+      "prox_score": 0.8190568342953896,
+      "score": 0.3551513076329007,
+      "daughter_centroid": [
+        975.7875,
+        720.9375
+      ]
+    }
+  ],
+  "track_lineage": [
+    {
+      "track_index": 1,
+      "parent_track_index": 0,
+      "division_frame": 68,
+      "division_score": 0.3551513076329007
+    }
+  ]
+}

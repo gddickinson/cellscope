@@ -1,0 +1,94 @@
+{
+  "recording": "Pos68_DMSO",
+  "n_candidates": 2,
+  "candidates": [
+    {
+      "frame": 31,
+      "peak_frame": 26,
+      "parent_track": 9,
+      "area_peak": 11876,
+      "area_parent_at_split": 1164,
+      "area_parent_post_peak": 5788,
+      "area_baseline": 12992,
+      "swelling_ratio": 0.914044701680931,
+      "pre_split_states": [
+        "transitional",
+        "transitional",
+        "transitional"
+      ],
+      "pre_split_balled_frac": 0.8571428571428571,
+      "parent_centroid": [
+        1151.414089347079,
+        1080.245704467354
+      ],
+      "daughter_track": 14,
+      "daughter_first_frame": 35,
+      "daughter_persistence_frames": 62,
+      "distance_px": 22.760717291581333,
+      "area_daughter_first": 5776,
+      "area_daughter_post_peak": 7860,
+      "mass_ratio": 1.1492084877062985,
+      "mass_score": 1.0,
+      "persist_score": 1.0,
+      "balled_score": 0.9285714285714286,
+      "swelling_score": 0.0,
+      "prox_score": 0.7710478812923699,
+      "score": 0.3579865163143146,
+      "daughter_centroid": [
+        1136.98891966759,
+        1062.639889196676
+      ]
+    },
+    {
+      "frame": 50,
+      "peak_frame": 45,
+      "parent_track": 11,
+      "area_peak": 1496,
+      "area_parent_at_split": 20,
+      "area_parent_post_peak": 1020,
+      "area_baseline": 1318,
+      "swelling_ratio": 1.1343645738550197,
+      "pre_split_states": [
+        "transitional",
+        "transitional",
+        "transitional"
+      ],
+      "pre_split_balled_frac": 0.5714285714285714,
+      "parent_centroid": [
+        364.9,
+        1366.5
+      ],
+      "daughter_track": 10,
+      "daughter_first_frame": 50,
+      "daughter_persistence_frames": 17,
+      "distance_px": 17.830156481277275,
+      "area_daughter_first": 1388,
+      "area_daughter_post_peak": 1588,
+      "mass_ratio": 1.7433155080213905,
+      "mass_score": 0.25668449197860954,
+      "persist_score": 1.0,
+      "balled_score": 0.7857142857142857,
+      "swelling_score": 0.2687291477100393,
+      "prox_score": 0.8112851573220557,
+      "score": 0.10379507154948066,
+      "daughter_centroid": [
+        366.22334293948126,
+        1348.7190201729106
+      ]
+    }
+  ],
+  "track_lineage": [
+    {
+      "track_index": 13,
+      "parent_track_index": 8,
+      "division_frame": 31,
+      "division_score": 0.3579865163143146
+    },
+    {
+      "track_index": 9,
+      "parent_track_index": 10,
+      "division_frame": 50,
+      "division_score": 0.10379507154948066
+    }
+  ]
+}

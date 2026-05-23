@@ -1,0 +1,51 @@
+{
+  "recording": "Pos21_KO",
+  "n_candidates": 1,
+  "candidates": [
+    {
+      "frame": 59,
+      "peak_frame": 54,
+      "parent_track": 2,
+      "area_peak": 9688,
+      "area_parent_at_split": 4136,
+      "area_parent_post_peak": 4332,
+      "area_baseline": 8070,
+      "swelling_ratio": 1.2003766665014621,
+      "pre_split_states": [
+        "transitional",
+        "attached",
+        "attached"
+      ],
+      "pre_split_balled_frac": 0.5714285714285714,
+      "parent_centroid": [
+        1367.71083172147,
+        1169.4400386847196
+      ],
+      "daughter_track": 5,
+      "daughter_first_frame": 63,
+      "daughter_persistence_frames": 33,
+      "distance_px": 16.75169847567202,
+      "area_daughter_first": 504,
+      "area_daughter_post_peak": 4356,
+      "mass_ratio": 0.8967795210569777,
+      "mass_score": 1.0,
+      "persist_score": 1.0,
+      "balled_score": 0.7857142857142857,
+      "swelling_score": 0.40075333300292426,
+      "prox_score": 0.8206524352491148,
+      "score": 0.4516017133226359,
+      "daughter_centroid": [
+        1382.515873015873,
+        1177.2777777777778
+      ]
+    }
+  ],
+  "track_lineage": [
+    {
+      "track_index": 4,
+      "parent_track_index": 1,
+      "division_frame": 59,
+      "division_score": 0.4516017133226359
+    }
+  ]
+}

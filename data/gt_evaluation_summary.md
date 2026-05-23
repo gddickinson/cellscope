@@ -1,6 +1,6 @@
 # GT evaluation aggregate
 
-_13 recordings, generated Thu May 21 17:59:32 CDT 2026_
+_13 recordings, generated Sat May 23 09:30:22 CDT 2026_
 
 | Recording | GT frames | Mean IoU | F1@.5 | F1@.5 focused | Mean TP/frame | Mean FN | Mean FP | OOS pred | ID consistency | Perfect tracks |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|

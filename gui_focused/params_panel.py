@@ -165,14 +165,13 @@ class ParamsPanel(QWidget):
         self.use_cpsam_cy5_union = QCheckBox()
         self.use_cpsam_cy5_union.setChecked(_PD.use_cpsam_cy5_union)
         self.use_cpsam_cy5_union.setToolTip(
-            "Run cpsam on the Cy5 channel too and union-merge with\n"
-            "DIC detections. Recovers cells with weak DIC contrast\n"
-            "but strong Cy5 signal. Validated 2026-05-22:\n"
-            "  Pos68_DMSO bbox F1: 0.56 → 0.67  (+0.11)\n"
-            "  Pos31_GOF  bbox F1: 0.52 → 0.78  (+0.26)\n"
-            "  Pos21_KO   bbox F1: 0.61 → 0.61  (no-op)\n"
-            "Only active when Cy5 channel is present. Cost: ~1.5×\n"
-            "runtime (cpsam runs twice per frame).")
+            "EXPERIMENTAL (default off). Run cpsam on the Cy5\n"
+            "channel too and union-merge with DIC detections.\n"
+            "Bbox validation showed +0.11-0.26 F1 on dense\n"
+            "recordings but the multi-metric Cy5 filter rejects\n"
+            "the cpsam(Cy5) cells in the full pipeline, so net\n"
+            "F1 change is ~0 currently. Will be re-enabled once\n"
+            "the filter is tuned. Cost when on: ~1.5× runtime.")
         form.addRow("cpsam-on-Cy5 union:", self.use_cpsam_cy5_union)
 
         self.use_mirror_pad = QComboBox()
