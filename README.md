@@ -16,7 +16,8 @@ CellScope detects cell boundaries, tracks cells across frames, and quantifies mi
 - **Cell-state classification** — per cell-frame: balled (mitotic / rounded) vs attached (spread) vs transitional, with per-state motility metrics (removes the dividing-cell composition confound).
 - **VAMPIRE shape modes** — PCA eigenshapes + K-means clustering + Shannon entropy heterogeneity (Lam et al., Nature Protocols 2021).
 - **Statistical comparison** — t-test, Mann-Whitney, ANOVA, Kruskal-Wallis, Cohen's d, Bonferroni post-hoc.
-- **Single source of truth for defaults** — every GUI + worker reads from `core/pipeline_defaults.py`. No drift between focused/batch/tracking analysis of the same recording.
+- **🔬 Test on frame** — one-click preview detection on the currently displayed frame with current GUI settings, with a density-aware runtime estimate for the full recording (sparse 1.5× / medium 2.0× / dense 2.5× post-proc multiplier). Tune any of the 17 GUI-exposed pipeline parameters interactively without paying the cost of a full re-detect.
+- **Single source of truth for defaults** — every GUI + worker reads from `core/pipeline_defaults.py`. All 17 detection toggles (persistence_guard sub-params, mirror padding, SAM2 gap-fill, max_gap_frames, Cy5 fusion sub-thresholds, DIC preprocess/retry, etc.) are GUI-tunable and threaded end-to-end. No drift between focused/batch/tracking analysis of the same recording.
 - **Full reproducibility** — every analysis run writes `RUN_METADATA.{md,json}` with source path + checksum, all params, env versions, git commit, and the exact CLI to reproduce.
 - **Cross-platform** — macOS (MPS GPU), Linux/Windows (CUDA GPU), CPU fallback.
 - **5 specialised GUIs** + unified launcher, 107/107 headless test coverage.
@@ -48,23 +49,22 @@ Recording (.tif / .mp4)              ← single- or multi-channel
 │ DETECTION                                           │
 │  ★ Auto-selected backbone:                          │
 │      cpsam_dic (CP4 ViT fine-tune) OR raw cpsam     │
+│  → Mirror padding (auto when min-dim ≥ 1024 px;     │
+│    +50 px reflection helps cells at FoV edges;      │
+│    per-recording override via sidecar JSON)         │
 │  → DeepSea union (fills under-segmented regions,    │
 │    removes debris via largest-CC + fill-holes)      │
 │  → Fallback: cellpose+MedSAM+DeepSea (CP3)          │
 │    only for frames the primary missed               │
-└─────────────┬───────────────────────────────────────┘
-              │
-              ▼
-┌─────────────────────────────────────────────────────┐
-│ MULTICHANNEL FUSION + FILTER (Cy5 only)             │
-│  - Cy5 fusion (Tier 1): detect on Cy5 too, merge    │
-│  - Cy5 recovery (Tier 2): crop+re-detect at Cy5+    │
-│    regions not covered by DIC mask                  │
-│  - Cy5 false-positive filter (Tier 4) — default     │
-│    "persistence_guard": keep if mm≥2/3 OR (long AND │
-│    moving); drops static phantom tracks even when   │
-│    long-lived; preserves weak-Cy5 real cells in     │
-│    GOF/OT/DMSO conditions                           │
+│                                                     │
+│  ★ Optional refinement toggles (all GUI-tunable):   │
+│      TTA, cpsam-on-Cy5 union (experimental)         │
+│                                                     │
+│  ★ Multichannel-only inline stages (when Cy5):      │
+│      Cy5 fusion (Tier 1): cpsam on Cy5, union into  │
+│        DIC labels — recovers cells DIC missed       │
+│      Cy5 recovery (Tier 2): crop+re-detect at Cy5+  │
+│        regions not covered by any DIC mask          │
 └─────────────┬───────────────────────────────────────┘
               │
               ▼
@@ -73,7 +73,7 @@ Recording (.tif / .mp4)              ← single- or multi-channel
 │  Hungarian assignment (scipy linear_sum_assignment) │
 │  → Gap-tolerant (max_gap_frames=15 by default)      │
 │  → Spawn new tracks for cells entering FoV          │
-│  → Division detection (area-ratio heuristic)        │
+│  → Drop tracks shorter than min_track_length (3)    │
 └─────────────┬───────────────────────────────────────┘
               │
               ▼
@@ -85,6 +85,32 @@ Recording (.tif / .mp4)              ← single- or multi-channel
 │  Phase 4: translation-only fill (last resort)       │
 │                                                     │
 │  100% fill rate on tested recordings (41/41 gaps)   │
+└─────────────┬───────────────────────────────────────┘
+              │
+              ▼
+┌─────────────────────────────────────────────────────┐
+│ POST-PROCESS TRACKS                                 │
+│  → Reject false-positive detections (outlier QC)    │
+│  → Drop small edge-artefact tracks (FoV reflections)│
+│  → Zero edge-sliver detections (vignette bars)      │
+│  → Drop tracks below min_track_length               │
+└─────────────┬───────────────────────────────────────┘
+              │
+              ▼
+┌─────────────────────────────────────────────────────┐
+│ Cy5 FALSE-POSITIVE FILTER (Tier 4, multichannel)    │
+│  Default = persistence_guard (mm-pass OR long+      │
+│  moving):                                           │
+│    Stage 1: keep if multi-metric ≥2/3 thresholds    │
+│             pass {score, IO ratio, frac positive}   │
+│    Stage 2: drop if short (lifetime <35 frames)     │
+│             AND failing the metrics                 │
+│    Stage 3: drop if long-lived AND failing AND      │
+│             STATIC (mean vel <3 px/frame AND        │
+│             median consecutive-frame mask IoU>0.85) │
+│             — phantom signature: vignette / debris  │
+│  Other modes selectable: off, multi-metric (orig    │
+│  strict), composite_score, consensus, adaptive...   │
 └─────────────┬───────────────────────────────────────┘
               │
               ▼
@@ -119,6 +145,12 @@ Recording (.tif / .mp4)              ← single- or multi-channel
 │  Batch group CSVs + box/violin plots                │
 └─────────────────────────────────────────────────────┘
 ```
+
+> **🔬 Tip:** before committing to a full-recording detect (1–3 h on
+> a 97-frame 2048² recording), click **🔬 Test on frame** in the
+> Detection & Analysis GUI to preview the result on the current
+> frame with your chosen parameters in 20–60 s, and get a density-
+> aware runtime estimate for the full run.
 
 This entire chain lives in **`core/unified_detection.detect_recording(...)`** — one function, called by both the focused GUI worker (`mode="auto"`) and the runner script (`scripts/run_pipeline_on_gt_recording.py`). The GUI and CLI produce **identical output by construction**.
 
@@ -321,30 +353,32 @@ python scripts/evaluate_against_gt.py data/ic295_gt_full/Pos20_KO
 #   per-GT-cell tracking
 ```
 
-**Current GT aggregate** (13 recordings, 278 annotated frames, see `data/gt_evaluation_summary.md`):
+**Current GT aggregate** (13 recordings, 278 annotated frames, refreshed 2026-05-25 after persistence_guard v2 rollout; see `data/gt_evaluation_summary.md`):
 
 | Recording | Genotype | Frames | Mean IoU | F1@.5 | F1 focused | ID cons. | GT divisions caught |
 |---|---|---:|---:|---:|---:|---:|---:|
-| Pos7_WT | WT | 10 | 0.851 | 0.77 | 0.85 | 92.22% | — |
+| Pos7_WT | WT | 10 | 0.847 | 0.83 | 0.91 | 89.25% | — |
 | Pos10_WT | WT | 10 | 0.863 | 0.84 | **0.97** | 93.33% | — |
-| Pos20_KO | KO | 10 | 0.842 | 0.88 | 0.90 | 92.28% | — |
-| Pos21_KO | KO | 10 | 0.799 | 0.61 | 0.61 | 91.33% | — |
-| Pos30_GOF | GOF | 10 | 0.860 | 0.86 | 0.86 | 100% | — |
-| Pos31_GOF | GOF | 10 | 0.873 | 0.52 | 0.52 | 100% | — |
-| Pos39_OT | OT | 10 | 0.855 | 0.95 | 0.96 | 97.78% | 1 / 1 ✓ |
-| Pos44_OT | OT | 10 | 0.881 | 0.74 | 0.79 | 98.00% | — |
-| Pos51_Y1 | Y1 | 10 | 0.866 | **1.00** | 1.00 | 100% | 1 / 1 ✓ |
-| Pos68_DMSO | DMSO | 11 | 0.762 | 0.56 | 0.58 | 88.37% | — |
+| Pos20_KO | KO | 10 | 0.846 | 0.90 | **0.97** | 91.17% | — |
+| Pos21_KO | KO | 10 | 0.677 | 0.66 | 0.69 | 79.59% | — |
+| Pos30_GOF | GOF | 10 | 0.792 | 0.80 | 0.83 | 100% | — |
+| Pos31_GOF | GOF | 10 | 0.779 | **0.74** | **0.84** | 100% | — |
+| Pos39_OT | OT | 10 | 0.857 | 0.89 | 0.90 | 97.78% | 1 / 1 ✓ |
+| Pos44_OT | OT | 10 | 0.872 | 0.73 | 0.90 | 98.57% | — |
+| Pos51_Y1 | Y1 | 10 | 0.866 | **1.00** | **1.00** | 100% | 1 / 1 ✓ |
+| Pos68_DMSO | DMSO | 11 | 0.775 | **0.74** | **0.75** | 86.46% | — |
 | ignasi_3_cells_control | ctrl | 97 | 0.820 | 0.87 | 0.87 | 93.01% | — |
 | ignasi_control | ctrl | 15 | 0.924 | 0.63 | **1.00** | 100% | — |
 | ignasi_control_full | ctrl | 65 | 0.932 | 0.66 | **1.00** | 100% | — |
-| **Aggregate** | — | **278** | **0.856** | 0.76 | **0.84** | **95.87%** | **2 / 2 ✓** |
+| **Aggregate** | — | **278** | **~0.83** | **0.81** | **0.87** | **94.55%** | **2 / 2 ✓** |
 
-`F1 focused` excludes predictions that have zero IoU with *any* GT cell from the FP count — these are real cells in the field that the GT just didn't annotate (the standard F1 penalizes them as FPs). Right metric when GT covers only part of the field (single-cell ignasi recordings) or when the pipeline finds extras the GT didn't label. **Pos10_WT goes 0.84 → 0.97 focused**; ignasi recordings go 0.63 → 1.00.
+`F1 focused` excludes predictions that have zero IoU with *any* GT cell from the FP count — these are real cells in the field that the GT just didn't annotate (the standard F1 penalizes them as FPs). Right metric when GT covers only part of the field (single-cell ignasi recordings) or when the pipeline finds extras the GT didn't label. **Pos10_WT and Pos20_KO go 0.84/0.90 → 0.97 focused**; ignasi recordings go 0.63 → 1.00.
 
-**Three under-detection cases** stand out: **Pos21_KO** (F1 0.61, FN 3.5/frame), **Pos31_GOF** (F1 0.52 but IoU 0.873 — boundaries are excellent on what it finds), and **Pos68_DMSO** (F1 0.56, FN 8.8/frame). All three have raw cpsam missing roughly half the cells per frame. Next investigation: click-prompted SAM and Cy5-peak auto-prompts to seed detection at known cell locations (see plan in commits).
+**One stubborn under-detection case remains**: **Pos21_KO** (F1 0.66, IoU 0.677). cpsam still misses ~half the cells per frame on this particular Y-27632 / cKO field. Next investigation: click-prompted SAM and Cy5-peak auto-prompts to seed detection at known cell locations (see ROADMAP). The other two previously-worst recordings — **Pos31_GOF and Pos68_DMSO — were largely fixed by the persistence_guard v2 filter** (F1_focused +0.33 and +0.18 respectively; see below).
 
-**Detection upgrade 2026-05-21** — added mirror-padding (`use_mirror_pad="auto"`): cpsam input is padded with 50 px reflection before each frame's `eval()`. Auto-enabled when min detection dim ≥ 1000 px (catches all IC295 at ds=2, skipped for small cropped ignasi). Validated on 9 GT recordings via detection-only sweep on GT-labelled frames (`scripts/investigate_pos68_detection.py`); pipeline re-ran end-to-end with the new policy. **Aggregate IoU 0.847 → 0.858 (+0.011).** Per-recording IoU improved on all 6 IC295 + all 3 legacy. **Big F1 wins on the previously worst recordings**: Pos51_Y1 0.90 → 1.00, Pos68_DMSO 0.50 → 0.56. F1 dipped on ignasi recordings (0.80→0.63, 0.92→0.66) because raw cpsam now finds 3 cells/frame on those small fields where GT only annotates 1 — boundary quality on the GT-annotated cell improved (IoU +0.03) but the extra real-cell detections are scored as FPs by the single-cell-GT metric.
+**Filter upgrade 2026-05-25** — replaced the Cy5 multi-metric filter default with **`persistence_guard` v2**. A 13-recording GT audit revealed the original strict `multi_metric` filter was dropping 70 of 989 real cells across the corpus (−7.1% recall), with catastrophic damage on weak-Cy5 conditions: Pos31_GOF −50%, Pos44_OT −23%, Pos68_DMSO −22% (SiR-actin is dimmer in GOF/OT/DMSO than the corpus the original thresholds were tuned on). The v2 filter uses a 3-stage rule: (1) keep if ≥2/3 Cy5 cellularity metrics pass; (2) drop short tracks (<35 frames) that fail; (3) for long-lived tracks that fail the metrics, drop ONLY if STATIC (mean velocity <3 px/frame AND median consecutive-frame mask IoU >0.85) — phantom signature. Real cells either move or deform, so the rule preserves weak-Cy5 cells while killing persistent vignette/debris phantoms (notably the one in Pos51_Y1, fully restored to F1_focused 1.00). **Aggregate: F1_focused 0.836 → 0.874 (+0.038)** with no per-recording overrides needed. All sub-thresholds GUI-tunable.
+
+**Detection upgrade 2026-05-21** — added mirror-padding (`use_mirror_pad="auto"`): cpsam input is padded with 50 px reflection before each frame's `eval()`. Auto-enabled when min detection dim ≥ 1000 px (catches all IC295 at ds=2, skipped for small cropped ignasi). Validated on 9 GT recordings via detection-only sweep on GT-labelled frames (`scripts/investigate_pos68_detection.py`); pipeline re-ran end-to-end with the new policy. **Aggregate IoU 0.847 → 0.858 (+0.011).** Per-recording IoU improved on all 6 IC295 + all 3 legacy. F1 dipped on ignasi recordings (0.80→0.63, 0.92→0.66) because raw cpsam now finds 3 cells/frame on those small fields where GT only annotates 1 — boundary quality on the GT-annotated cell improved (IoU +0.03) but the extra real-cell detections are scored as FPs by the single-cell-GT metric. `F1 focused` (excluding 0-IoU FPs) recovers them to 1.00.
 
 **Pos39_OT per-recording override (2026-05-21)**: the recording's sidecar JSON (`IC295__1_MMStack_Pos39-OT.ome.json`) sets `"use_mirror_pad": "off"` because mirror-padding merges this particular dividing cell pair (~F73-F80) into a single mass and the second daughter is lost from detection. Pad-off restores the division catch (T7→T9 F75 ✓) and is strictly better on this recording: +0.005 F1, +0.019 F1_focused, +4pp ID consistency at the cost of -0.008 IoU. `scripts/run_pipeline_on_gt_recording.py` honors the sidecar key; the auto-default for other recordings (including future ones) remains padding-on. Pattern can be reused for any other recording where padding shows similar trade-offs.
 
@@ -439,11 +473,14 @@ You can recreate any analysis from its metadata file alone.
 | F | Training + Editor GUIs | 7 | launch, scan data dir, dock panel |
 | G | Parameter flow | 11 | params plumb through to detect dict; scale overrides; toggle behaviour |
 
+**🔬 Test on frame** (2026-05-25): validated end-to-end on two real recordings via QTest-driven mouse clicks — sparse DIC (Pos10_WT, 3 cells in 28s) and dense multichannel (Pos68_DMSO, 14 cells in 40s). Real-recording drive uncovered + fixed three latent bugs where the GUI silently dropped user values onto hardcoded `DEFAULTS` (5 detection toggles + `min_track_length` + `postprocess_tracks` min_frames). The standalone Phase G "parameter flow" check verifies the in-process plumbing; the real-recording drive script verifies the full chain reaches cpsam + tracker.
+
 Run via:
 ```bash
 conda run -n cellpose4 python scripts/test_focused_gui.py       # Phase A
 conda run -n cellpose4 python scripts/test_comprehensive_gui.py # Phases B-G
 python scripts/aggregate_comprehensive_report.py                 # merge
+conda run -n cellpose4 python scripts/test_defaults_consistency.py  # defaults
 ```
 
 All tests run headless via `QT_QPA_PLATFORM=offscreen`.
