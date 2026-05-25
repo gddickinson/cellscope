@@ -1,6 +1,6 @@
 # CellScope — Project Status
 
-*Last updated: 2026-05-01*
+*Last updated: 2026-05-25*
 
 ![CellScope pipeline](docs/figures/hero.png)
 
@@ -42,6 +42,11 @@ extensible to any single- or multi-cell DIC/phase-contrast recordings.
 - **109 Python files** across 9 packages
 - **5 specialized GUIs** + unified launcher
 - **34 core modules** for detection, tracking, and analysis
+- **17 GUI-tunable pipeline parameters** threaded end-to-end through
+  `core/unified_detection.detect_recording` (persistence_guard v2
+  sub-params, mirror padding, SAM2 video gap-fill, max_gap_frames,
+  min_track_length, DIC preprocess/retry, Cy5 fusion sub-thresholds,
+  and the 6 previously-broken detection toggles)
 - **Dual conda environments**: cellpose4 (cpsam ViT) + cellpose (CP3 fallback)
 
 ---
@@ -60,9 +65,9 @@ cpsam (ViT) → DeepSea union → fallback (CP3) → gap fill
 ```
 cpsam_dic (CP4 ViT, via cellpose4 subprocess) → DeepSea union → fallback
 ```
-- **0.795 IoU** on our 526² in-domain GT (cpsam_dic, current best)
-- **0.697 IoU** on VAMPIRE held-out OOD crops (cpsam_dic, +0.42 over cellpose_dic_v3)
-- +280% over default cpsam on DIC (0.697 vs 0.183)
+- **0.826 IoU** on our 526² in-domain GT (cpsam_dic v2, current best)
+- **0.754 IoU** on VAMPIRE held-out OOD crops (cpsam_dic v2, +0.475 over cellpose_dic_v3)
+- +312% over default cpsam on DIC (0.754 vs 0.183)
 - Modality auto-detection routes to correct pipeline. CP3 fine-tunes
   (cellpose_dic_v3, etc.) remain available as faster fallbacks.
 
@@ -107,7 +112,7 @@ cpsam/cellpose → debris filter → DeepSea per-cell → Hungarian tracker
 
 | Model | Type | Trained On | Best For |
 |-------|------|-----------|----------|
-| **cpsam_dic** ★ | ViT (CP4) | 1,000 DIC pairs (Colab fine-tune of base cpsam) | **DIC, current best** (0.795 in-domain, 0.697 OOD) |
+| **cpsam_dic** ★ | ViT (CP4) | 1,000 DIC pairs (Colab fine-tune of base cpsam) | **DIC, current best** (0.826 in-domain, 0.754 OOD; cpsam_dic v2) |
 | cpsam (default) | ViT (CP4) | General microscopy | Phase-contrast |
 | cellpose_dic_v3 | CNN (CP3) | 2,644 standardized 448px crops | Faster DIC alternative |
 | cellpose_dic_v2 | CNN (CP3) | 2,812 DIC pairs (VAMPIRE+GT+CTC) | Legacy DIC |
@@ -189,6 +194,19 @@ in `download_models.py` serves this same v2 file.
 ### Detection & Analysis GUI (`main_focused.py`)
 - Single-cell and multi-cell modes
 - Modality selector: Auto / DIC / Phase-contrast
+- **🔬 Test on frame** — preview detection on the currently displayed
+  frame with current GUI settings; status bar reports cell count +
+  runtime + density-aware extrapolation to full-recording runtime
+  (sparse 1.5× / medium 2.0× / dense 2.5× post-proc multiplier).
+  Single fastest way to tune parameters interactively.
+- **17 GUI-tunable pipeline parameters**, grouped: Detection (model,
+  min_area, expected_cells, search_radius, min_track_length, ROI),
+  Refinement (DeepSea, TTA, cpsam-on-Cy5 union, fallback, mirror
+  padding), Gap fill (toggle, SAM2 video sub-toggle, max_gap_frames),
+  Cy5 multichannel (fusion, recovery, filter mode + 3
+  persistence_guard sub-spinboxes), Tiling, DIC pipeline (preprocess,
+  retry, 3 Cy5 fusion sub-thresholds). Default Cy5 filter:
+  **persistence_guard** (see below).
 - Brightness/contrast adjustment, zoom, pan
 - Frame navigator bar (green=detected, red=missed)
 - ROI selector (rectangle/ellipse/polygon)
@@ -241,8 +259,11 @@ from 4 experiments (85, 100, 126, 135, 240).
 ## What's Working Well
 
 - **Phase-contrast detection**: 0.932 IoU, 100% detection — production ready
-- **Multi-cell tracking**: TRA 0.929 on CTC benchmark; biology-aware division annotator (`core/division_annotator.py`) detects pre-mitotic-swelling → balled → split → grown-daughter pattern, **catching 2 / 2 GT divisions across 9 IC295 GT recordings** (Pos51_Y1, Pos39_OT). Pos39_OT initially regressed after mirror-pad rollout because padding caused cpsam to merge its dividing pair; restored via per-recording sidecar override `"use_mirror_pad": "off"` in the recording's `.ome.json`, honored by `scripts/run_pipeline_on_gt_recording.py`. Pad-off on Pos39_OT is strictly better (+0.005 F1, +4pp ID, division catch restored) at -0.008 IoU.
-- **GT aggregate**: 9 recordings, mean per-cell IoU **0.858**, raw F1@.5 **0.80**, GT-focused F1@.5 **0.89**, ID consistency **95.51%** (238 frames). IoU improved on all 9 after the 2026-05-21 mirror-pad rollout. F1 went up on most recordings, with ignasi appearing to regress (0.80→0.63, 0.92→0.66) only because raw cpsam finds 2 extra real cells per frame that the single-cell ignasi GT doesn't annotate — the GT-focused F1 (excludes predictions with zero IoU vs any GT from FP) corrects this artifact: ignasi goes 0.63/0.66 → **1.00/1.00** focused. Pos7_WT also recovers: raw 0.77 (regression vs prior 0.83) → focused 0.85 (above prior). The +0.09 aggregate gap between raw and focused F1 reflects GT-coverage debt, not pipeline quality.
+- **Multi-cell tracking**: TRA 0.929 on CTC benchmark; biology-aware division annotator (`core/division_annotator.py`) detects pre-mitotic-swelling → balled → split → grown-daughter pattern, **catching 2 / 2 GT divisions across 13 IC295 + ignasi GT recordings** (Pos51_Y1, Pos39_OT). Pos39_OT initially regressed after mirror-pad rollout because padding caused cpsam to merge its dividing pair; restored via per-recording sidecar override `"use_mirror_pad": "off"` in the recording's `.ome.json`, honored by `scripts/run_pipeline_on_gt_recording.py`. Pad-off on Pos39_OT is strictly better (+0.005 F1, +4pp ID, division catch restored) at -0.008 IoU.
+- **Cy5 false-positive filter (persistence_guard v2, 2026-05-25)**: 3-stage rule (mm-pass OR long-AND-moving) replaced the original strict `multi_metric` filter. +0.038 F1_focused aggregate across the 13-recording GT corpus. Big wins on weak-Cy5 conditions (GOF/OT/DMSO) where the original filter was dropping persistent real cells; persistent vignette/debris phantoms still killed by the static-track gate. **No per-recording overrides needed** — the global rule (vel<3 AND median consec IoU>0.85) cleanly separates phantoms from real cells via motion + shape stability. All sub-thresholds GUI-tunable.
+- **17 GUI-tunable pipeline parameters threaded end-to-end**: every detection toggle and sub-threshold the user can see in the focused GUI now reaches `detect_recording` and the underlying functions. Three latent bugs (5 GUI toggles silently dropped onto hardcoded `DEFAULTS`, `min_track_length` hardcoded in 2 places, `postprocess_tracks` `min_frames=3` hardcoded) were uncovered + fixed during real-recording GUI driving for the 🔬 Test on frame feature.
+- **🔬 Test on frame**: one-click detection preview on the currently displayed frame with current GUI parameters; status bar reports cell count, runtime, and density-aware full-recording extrapolation. Validated on both sparse (Pos10_WT, 3 cells in 28s) and dense (Pos68_DMSO, 14 cells in 40s) recordings.
+- **GT aggregate**: 13 recordings, mean per-cell IoU **~0.83**, raw F1@.5 **0.81**, GT-focused F1@.5 **0.87**, ID consistency **94.55%** (278 annotated frames). Numbers refreshed 2026-05-25 after the persistence_guard v2 filter rollout. Aggregate F1_focused: **0.836 → 0.874 (+0.038)** vs the previous strict `multi_metric` filter, with no per-recording overrides needed. Biggest wins on the previously worst recordings: Pos31_GOF F1_focused 0.52 → **0.84**, Pos68_DMSO 0.58 → **0.75**, Pos20_KO 0.90 → **0.97**. Pos51_Y1 fully recovered to 1.00 (the static-track gate kills its persistent vignette phantom). One stubborn under-detection case remains — Pos21_KO (F1 0.66, IoU 0.677) — where cpsam still misses ~half the cells; next investigation is click-prompted SAM seeding.
 - **Analysis suite**: 20 graph types, VAMPIRE shape modes, statistical comparison
 - **GUI**: 5 specialized apps covering the full workflow
 - **Robustness**: cellpose_robust_v2 wins 9/11 perturbation tests
@@ -265,37 +286,43 @@ from 4 experiments (85, 100, 126, 135, 240).
 
 ## In Progress
 
-1. **IC293 full pipeline run** (started 2026-05-01) — 16 new full-frame
-   2048×2048 phase-contrast Ignasi recordings × 5 conditions
-   (WT/KO/GOF/Y1/DMSO). 8/16 done at the time of writing, ~50 min per
-   recording, ETA total ~13 h. Caching per recording, resumable.
-   Outputs: `results/ignasi_new_full/{<pos>_<cond>.npz, .html,
-   _image.tif, _labels.tif}` + summary CSV + RUN_METADATA.md.
-   Best config from comparison: `cpsam_base` (no fine-tune) without
-   TTA, with flat-field σ=80 preprocessing — wins by 2.5× over
-   `cpsam_dic` on these out-of-distribution recordings.
-2. **IC295 multichannel pipeline (DIC + SiR-actin Cy5)** — Phases 1–2c
-   built and unit-tested. Pilot queued for after IC293 frees the GPU.
-   See `docs/multichannel_analysis_plan.md`.
-3. **IC295 ground truth** — 38 candidates sampled to
-   `data/ic295_gt/candidates/` (each candidate = DIC + Cy5 + composite
-   PNGs), pending hand-labelling. After labelling,
-   `scripts/bench_multichannel.py` quantifies IoU DIC-only vs
-   AND-fusion vs full 3-tier per condition.
-4. **Resume cpsam_dic fine-tune** — current model is from a partial
-   ~6-epoch run that timed out on Colab. Resuming notebook is at
-   `notebooks/resume_cpsam_dic_colab.ipynb`; expect another +0.02 IoU
-   when the full 20-epoch run completes.
-5. **Distribution polish** — install scripts, model bundles, and Drive
+1. **Pos21_KO under-detection** — only remaining stubborn case in the
+   13-recording GT corpus (F1 0.66, IoU 0.677). Raw cpsam still misses
+   roughly half the cells per frame on this Y-27632 / cKO field. Next:
+   click-prompted SAM seeding + Cy5-peak auto-prompts.
+2. **cpsam_dic v3 fine-tune** — current cpsam_dic v2 (0.826 in-domain,
+   0.754 OOD) is from a 20-epoch resume. Further gains possible via
+   harder-mining + augmentation expansion. Resuming notebook at
+   `notebooks/resume_cpsam_dic_colab.ipynb`.
+3. **Distribution polish** — install scripts, model bundles, and Drive
    downloader are wired (`install.{bat,sh}`, `download_models.py`,
-   `make_models_bundle.py`, `make_dist.py`). Doc updates in flight.
+   `make_models_bundle.py`, `make_dist.py`). Doc updates landed
+   2026-05-25.
+
+## Recently Completed
+
+- **Persistence_guard v2 Cy5 filter** (2026-05-25) — replaced the
+  strict `multi_metric` default after a 13-GT audit showed it was
+  dropping 70 of 989 real cells. Validation: +0.038 F1_focused
+  aggregate, +0.196 to +0.333 on the worst recordings (Pos68_DMSO,
+  Pos31_GOF). Static-track gate (vel < 3 AND consec IoU > 0.85)
+  cleanly separates phantoms from real cells without per-recording
+  overrides.
+- **17 GUI-tunable pipeline parameters** (2026-05-25) — full plumbing
+  audit + the 🔬 Test on frame feature. Three latent GUI-bypassing
+  bugs uncovered + fixed.
+- **Mirror padding** (2026-05-21) — `use_mirror_pad="auto"` lifts
+  aggregate IoU 0.847 → 0.858 on IC295.
+- **IC295 multichannel pipeline + 13-recording GT** — Cy5 fusion +
+  recovery + filter shipped; aggregate F1_focused 0.874.
+- **Multi-track daughter detection** (2026-05-20) in the division
+  annotator — catches all 2 GT divisions across the corpus.
+- **IC293 phase-contrast** — 16 full-frame recordings × 5 conditions
+  processed; results in `results/ignasi_new_full/`.
 
 ## Planned Next Steps
 
-- Run IC295 multichannel pilot once IC293 GPU is free.
-- Hand-label IC295 GT, then quantitative benchmark.
-- Phase 3 of multichannel: Cy5 features in Hungarian tracker.
-- Phase 4 of multichannel: track-quality penalty for low-Cy5 tracks.
+- Click-prompted SAM seeding for Pos21_KO-style under-detection.
 - Phase 5 of multichannel (speculative): subcellular features
   (lamellipodia polarity, cortex ratio, stress-fibre density) — most
   likely to give a strong Piezo1 phenotype signal.

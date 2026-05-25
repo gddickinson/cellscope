@@ -21,7 +21,7 @@
 
 - **io.py** — `load_video`, `load_recording`, `find_recordings`
 - **pipeline.py** — `detect()`, `refine()`, `analyze_recording()`
-- **unified_detection.py** — `detect_recording()` — **single canonical detection entry point.** Performs alignment → downsample → threshold conversion → auto-pipeline-select → detect → Cy5 multi-metric filter → upscale labels back. Called from both `gui_focused/workers.py` (mode="auto") and `scripts/run_pipeline_on_gt_recording.py`, guaranteeing the GUI and runner produce identical output.
+- **unified_detection.py** — `detect_recording()` — **single canonical detection entry point.** Performs alignment → downsample → threshold conversion → auto-pipeline-select → detect (with optional Cy5 fusion + recovery inline) → Cy5 persistence_guard filter → upscale labels back. Accepts **16 explicit kwargs** (use_deepsea, use_gap_fill, use_sam2_video_gap_fill, max_gap_frames, min_track_length, use_tta, use_cpsam_cy5_union, use_fallback, use_mirror_pad, use_preprocess, use_retry, cy5_filter_mode, cy5_filter_threshold, cy5_pg_min_lifetime, cy5_pg_static_velocity_px, cy5_pg_static_shape_iou, cy5_fusion_jaccard_thresh, cy5_fusion_max_overlap_frac, cy5_fusion_augment_cpsam) — None for any kwarg falls back to `DEFAULTS`. Called from both `gui_focused/workers.py` (mode="auto") and `scripts/run_pipeline_on_gt_recording.py`, guaranteeing the GUI and runner produce identical output.
 - **channel_alignment.py** — `align_cy5_to_dic()` measures DIC↔Cy5 offset via cellpose centroid matching (in `cellpose4` subprocess), `apply_offset_to_stack()` shifts via scipy.ndimage. Skips when |offset| < 1px.
 - **detection.py** — `detect_cellpose`, `detect_cellpose_labels`, `detect_cellpose_tiled`
 - **hybrid_cpsam.py** — `detect_hybrid_cpsam()` — single-cell cpsam + DeepSea + fallback
@@ -31,8 +31,10 @@
 - **deepsea_multicell.py** — Per-cell DeepSea refinement preserving labels
 - **medsam_deepsea_union.py** — MedSAM + DeepSea union (single-cell)
 - **medsam_refine.py** — MedSAM bbox-prompt refinement
-- **multi_cell.py** — `track_all_cells()` — Hungarian tracker
-- **track_gap_fill.py** — Post-tracking gap fill with augmented re-detection
+- **multi_cell.py** — `track_all_cells()` — Hungarian tracker (accepts `min_track_length` + `max_gap_frames`)
+- **track_gap_fill.py** — Post-tracking gap fill cascade: cpsam(augment) → CP3 + MedSAM + DeepSea → SAM2 video propagation → translation-only fill. 100% fill rate on tested recordings (41/41 gaps).
+- **track_postprocess.py** — `postprocess_tracks(tracks, frames, min_frames)` — 4-stage track-level cleanup: (1) reject_false_positives, (2) reject_edge_artifact_tracks (small near-FoV-edge tracks), (3) reject_edge_sliver_detections (vignette-bar mis-detections), (4) remove_empty_tracks below `min_frames` (default 3, must match `min_track_length` for single-frame test-on-frame to work).
+- **cy5_filter.py** — `apply_cy5_filter(tracks, mode, threshold, pg_min_lifetime, pg_static_velocity_px, pg_static_shape_iou)` — Tier 4 false-positive filter for tracked Cy5-multichannel runs. 11 strategies: off / persistence_guard (default) / conservative / conservative_strict / threshold / adaptive / adaptive_loose / multi_metric / composite_score / consensus / temporal_stability. **`persistence_guard_filter(tracks, min_lifetime=35, static_velocity_px=3.0, static_shape_iou=0.85, ...)`** — 3-stage rule: (1) keep if multi-metric ≥2/3 pass; (2) drop short tracks (lifetime < min_lifetime) that fail; (3) for long-lived tracks failing the metrics, drop only if STATIC (mean velocity < static_velocity_px AND median consecutive-frame mask IoU > static_shape_iou). Calibrated against full 13-GT corpus (F1_focused +0.038 vs strict multi_metric).
 - **division_annotator.py** — post-hoc cell-division event detection. `find_candidates(labels, um_per_px)` scans a labels stack for the biology-aware division signature (pre-mitotic swelling → balled state → mask halves relative to peak → both daughters grow substantial → daughter persists ≥4 consecutive frames). `annotate_track_lineage(tracks, labels, um_per_px)` sets `parent_id`/`division_score`/`division_frame` on daughter tracks in the pipeline's track list. Called automatically by `hybrid_cpsam_multi` and `hybrid_dic` after postprocess; result dict gains `divisions: [...]` and `scripts/run_pipeline_on_gt_recording.py` writes a `divisions.json` sidecar.
 - **tracking.py** — Speed, MSD, persistence, direction autocorrelation
 - **morphology.py** — Area, perimeter, circularity, solidity, AR, eccentricity
@@ -65,10 +67,10 @@
 - **options/** — Shared parameter panels (params.py, detection_panel.py, refinement_panel.py, analysis_panel.py, presets.py, presets_widget.py, options_panel.py)
 
 ## `gui_focused/` — Detection & Analysis GUI
-- **main_window.py** — FocusedMainWindow (state machine, ROI, drag-drop)
+- **main_window.py** — FocusedMainWindow (state machine, ROI, drag-drop). Hosts `_on_test_frame()` which runs detection on the currently displayed frame with current GUI parameters, times it, and reports a density-aware extrapolation to full-recording runtime (1.5× sparse / 2.0× medium / 2.5× dense post-proc multiplier).
 - **image_viewer.py** — ImageViewer + FrameNavigatorBar (B/C, zoom, pan)
-- **pipeline_panel.py** — 5 stage buttons + mode selector
-- **params_panel.py** — Context-sensitive parameters (modality selector: Auto/DIC/Phase-contrast)
+- **pipeline_panel.py** — 5 stage buttons + mode selector + Cancel / Undo Detect / **🔬 Test on frame** / Clear All toolbar row. `btn_test_frame` auto-gates on detect-stage availability; emits `test_frame_clicked` signal.
+- **params_panel.py** — Context-sensitive parameters (modality selector: Auto/DIC/Phase-contrast). Exposes **17 wired pipeline parameters** in 6 grouped sections: Detection (model, min_area, expected_cells, search_radius, min_track_length, ROI), Refinement steps (DeepSea, TTA, cpsam-on-Cy5 union, fallback, mirror-pad), Gap fill (toggle + SAM2 video sub-toggle gated on Gap fill, max_gap_frames), Cy5 multichannel (fusion, recovery, filter mode dropdown + 3 persistence_guard sub-spinboxes gated on Persistence guard mode), Tiling, DIC pipeline (preprocess, retry, 3 Cy5 fusion sub-thresholds). All values reach `detect_recording` end-to-end via `get_detect_params()`.
 - **analysis_view.py** — Summary/Graphs/Log tabs
 - **analysis_plots.py** — 16 plot functions + GRAPH_REGISTRY (timeseries plots accept `gap_interp_max` kwarg for short-gap interpolation)
 - **vampire_plots.py** — 4 VAMPIRE plots (Shape Modes scatter, Mode Distribution histogram, Mode Over Time, Eigenshape variations); split out so analysis_plots stays under the 500-line limit
