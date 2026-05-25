@@ -124,12 +124,17 @@ F1 0.65, raw cpsam F1 0.90 — same recording, same defaults, only the
 backbone differs.
 
 `core/pipeline_defaults.py::select_pipeline_for_recording(frames)`
-samples 5 evenly-spaced frames, runs cpsam_dic to count cells, and
-returns:
+samples **11 evenly-spaced frames** (`N_SAMPLE_FRAMES_FOR_AUTO`),
+runs **raw cpsam** (no fine-tune bias — switched 2026-05-20 because
+cpsam_dic was probing a 9-14-cells/frame recording as single-cell
+and mis-routing it), and returns:
 
-- `('cpsam_dic', model_path, info)` when median cell count < 1.5 →
+- `('cpsam_dic', model_path, info)` when **p75 cell count** < 1.5 →
   cleaner boundaries on isolated cells
-- `('cpsam', None, info)` when median ≥ 1.5 → handles touching cells
+- `('cpsam', None, info)` when p75 ≥ 1.5 → handles touching cells
+
+p75 instead of median means a few empty frames at the start of a
+recording don't pull a multi-cell scene's count below threshold.
 
 `scripts/run_pipeline_on_gt_recording.py` calls this automatically.
 The choice + sample counts are recorded in `RUN_METADATA.json` under
@@ -151,14 +156,26 @@ It performs the full chain in fixed order:
 2. resolve downsample factor + downsample stacks
 3. convert physical-unit thresholds to per-recording px
 4. auto-select cpsam_dic vs raw cpsam by sampled cell density
-5. run the chosen detection pipeline
-6. annotate Cy5 metrics + apply multi-metric filter (multichannel)
+5. run the chosen detection pipeline (which internally does:
+   detection → tracking → 4-phase gap fill → post-process tracks)
+6. annotate Cy5 metrics + apply **`persistence_guard`** filter (default;
+   was `multi_metric` before 2026-05-25) — multichannel only
 7. upscale labels back to original resolution
+
+**`detect_recording` accepts 16 explicit kwargs** for fine-grained
+overrides (use_deepsea, use_gap_fill, use_sam2_video_gap_fill,
+max_gap_frames, min_track_length, use_tta, use_cpsam_cy5_union,
+use_fallback, use_mirror_pad, use_preprocess, use_retry,
+cy5_filter_mode, cy5_filter_threshold, cy5_pg_min_lifetime,
+cy5_pg_static_velocity_px, cy5_pg_static_shape_iou,
+cy5_fusion_jaccard_thresh, cy5_fusion_max_overlap_frac,
+cy5_fusion_augment_cpsam). All default to `None` → fall back to
+`DEFAULTS`. The focused GUI's params panel exposes all 17.
 
 **Any change to detection defaults belongs in `detect_recording` or
 its dependencies (`pipeline_defaults`, `channel_alignment`,
-`hybrid_dic`, `hybrid_cpsam_multi`).** Don't fork the logic into
-script-only or GUI-only paths.
+`hybrid_dic`, `hybrid_cpsam_multi`, `cy5_filter`).** Don't fork the
+logic into script-only or GUI-only paths.
 
 Launch the GUI from the **`cellpose4`** env — both `cpsam_dic`
 (CP4 ViT fine-tune) and raw cpsam need cellpose 4.x. The runner
@@ -167,6 +184,22 @@ script needs cellpose4 for the same reason.
 ```bash
 conda run -n cellpose4 python main_focused.py
 ```
+
+### 🔬 Test on frame — preview detection on the displayed frame
+
+The focused GUI has a toolbar button (between Cancel and Undo Detect)
+that runs detection on the currently displayed frame with current
+GUI parameters, times it, and reports a density-aware extrapolation
+to full-recording runtime (sparse 1.5× / medium 2.0× / dense 2.5×
+post-proc multiplier). **Use this when validating parameter changes
+— skip the 1-3 hour full-recording detect cycle.**
+
+The handler (`gui_focused/main_window.py::_on_test_frame`) forces
+`min_track_length=1` and skips multi-frame stages (Cy5 filter, gap
+fill) since they're not meaningful on 1 frame. When adding new
+detection-related kwargs, remember to forward them in this handler
+too — otherwise the preview will silently use defaults while the
+production `_on_detect` honours the GUI's value.
 
 ## Auto-downsample
 
@@ -215,8 +248,8 @@ runs a four-phase cascade to recover the cell:
    with 4-rotation TTA. Catches detections cpsam missed at the
    default orientation.
 2. **Phase 2 — CP3 fallback**: cellpose+MedSAM+DeepSea via subprocess
-   in the `cellpose4` env. Different model family; catches different
-   failures.
+   in the **`cellpose`** env (CP3 models). Different model family;
+   catches different failures.
 3. **Phase 3 — SAM2 video propagation**: use `core/sam2_video.py` to
    propagate the most recent flanking mask through the gap using
    SAM2's memory attention. **This is the key win for cells that
