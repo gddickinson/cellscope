@@ -2,19 +2,19 @@
 
 **Recording**: `/Users/george/claude_test/cellscope/data/ic295_gt_full/Pos30_GOF`
 **GT frames evaluated**: 10
-**GT cells (unique IDs)**: 5
+**GT cells (unique IDs)**: 7
 
 ## Detection accuracy
 
 | Threshold | TP/frame | FN/frame | FP/frame | F1 | F1_focused |
 |---:|---:|---:|---:|---:|---:|
-| IoU≥0.3 | 4.8 | 1.5 | 0.0 | 0.86 | 0.86 |
-| IoU≥0.5 | 4.8 | 1.5 | 0.0 | 0.86 | 0.86 |
-| IoU≥0.7 | 4.8 | 1.5 | 0.0 | 0.86 | 0.86 |
+| IoU≥0.3 | 4.9 | 1.4 | 0.8 | 0.82 | 0.85 |
+| IoU≥0.5 | 4.8 | 1.5 | 0.9 | 0.80 | 0.83 |
+| IoU≥0.7 | 4.8 | 1.5 | 0.9 | 0.80 | 0.83 |
 
-- **Mean per-cell IoU (matched)**: 0.860
-- **Median per-cell IoU (matched)**: 0.861
-- **Out-of-scope predictions/frame**: 0.0
+- **Mean per-cell IoU (matched)**: 0.792
+- **Median per-cell IoU (matched)**: 0.859
+- **Out-of-scope predictions/frame**: 0.4
 
 `F1_focused` excludes predictions with zero IoU vs *any* GT cell from
 the FP count — they're real cells in the field the GT just didn't
@@ -26,7 +26,7 @@ ignasi recordings have 1 GT cell per frame but the field shows 3).
 - **Mean ID consistency** (per GT cell, fraction of frames where it
   maps to the same pipeline ID): **100.00%**
 - **GT cells with perfect 1.0 consistency**:
-  5 / 5
+  7 / 7
 
 | GT cell | matched in N frames | dominant pred | consistency |
 |---:|---:|---:|---:|
@@ -35,21 +35,23 @@ ignasi recordings have 1 GT cell per frame but the field shows 3).
 | 3 | 8 | 3 | 1.00 |
 | 4 | 10 | 4 | 1.00 |
 | 5 | 10 | 5 | 1.00 |
+| 7 | 3 | 6 | 1.00 |
+| 8 | 2 | 6 | 1.00 |
 
 ## Per-frame breakdown
 
 | Frame | n_GT | n_pred | TP@.5 | FP | FN | F1 |
 |---:|---:|---:|---:|---:|---:|---:|
 | F0 | 6 | 5 | 5 | 0 | 1 | 0.91 |
-| F10 | 6 | 5 | 5 | 0 | 1 | 0.91 |
-| F20 | 7 | 5 | 5 | 0 | 2 | 0.83 |
-| F30 | 7 | 5 | 5 | 0 | 2 | 0.83 |
-| F40 | 6 | 5 | 5 | 0 | 1 | 0.91 |
+| F10 | 6 | 7 | 5 | 2 | 1 | 0.77 |
+| F20 | 7 | 7 | 5 | 2 | 2 | 0.71 |
+| F30 | 7 | 6 | 5 | 1 | 2 | 0.77 |
+| F40 | 6 | 7 | 5 | 2 | 1 | 0.77 |
 | F50 | 6 | 5 | 5 | 0 | 1 | 0.91 |
 | F60 | 6 | 5 | 5 | 0 | 1 | 0.91 |
-| F70 | 7 | 5 | 5 | 0 | 2 | 0.83 |
+| F70 | 7 | 6 | 5 | 1 | 2 | 0.77 |
 | F80 | 6 | 4 | 4 | 0 | 2 | 0.80 |
-| F90 | 6 | 4 | 4 | 0 | 2 | 0.80 |
+| F90 | 6 | 5 | 4 | 1 | 2 | 0.73 |
 
 ## Files
 

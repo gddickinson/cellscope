@@ -2,19 +2,19 @@
 
 **Recording**: `/Users/george/claude_test/cellscope/data/ic295_gt_full/Pos44_OT`
 **GT frames evaluated**: 10
-**GT cells (unique IDs)**: 5
+**GT cells (unique IDs)**: 7
 
 ## Detection accuracy
 
 | Threshold | TP/frame | FN/frame | FP/frame | F1 | F1_focused |
 |---:|---:|---:|---:|---:|---:|
-| IoU≥0.3 | 3.5 | 1.9 | 0.6 | 0.74 | 0.79 |
-| IoU≥0.5 | 3.5 | 1.9 | 0.6 | 0.74 | 0.79 |
-| IoU≥0.7 | 3.5 | 1.9 | 0.6 | 0.74 | 0.79 |
+| IoU≥0.3 | 4.6 | 0.8 | 2.3 | 0.75 | 0.92 |
+| IoU≥0.5 | 4.5 | 0.9 | 2.4 | 0.73 | 0.90 |
+| IoU≥0.7 | 4.5 | 0.9 | 2.4 | 0.73 | 0.90 |
 
-- **Mean per-cell IoU (matched)**: 0.881
-- **Median per-cell IoU (matched)**: 0.889
-- **Out-of-scope predictions/frame**: 0.6
+- **Mean per-cell IoU (matched)**: 0.872
+- **Median per-cell IoU (matched)**: 0.884
+- **Out-of-scope predictions/frame**: 2.3
 
 `F1_focused` excludes predictions with zero IoU vs *any* GT cell from
 the FP count — they're real cells in the field the GT just didn't
@@ -24,32 +24,34 @@ ignasi recordings have 1 GT cell per frame but the field shows 3).
 ## Tracking identity preservation
 
 - **Mean ID consistency** (per GT cell, fraction of frames where it
-  maps to the same pipeline ID): **98.00%**
+  maps to the same pipeline ID): **98.57%**
 - **GT cells with perfect 1.0 consistency**:
-  4 / 5
+  6 / 7
 
 | GT cell | matched in N frames | dominant pred | consistency |
 |---:|---:|---:|---:|
-| 2 | 10 | 2 | 1.00 |
-| 5 | 10 | 3 | 1.00 |
-| 6 | 4 | 6 | 1.00 |
-| 4 | 1 | 4 | 1.00 |
-| 3 | 10 | 4 | 0.90 |
+| 1 | 10 | 1 | 1.00 |
+| 2 | 10 | 3 | 1.00 |
+| 5 | 10 | 4 | 1.00 |
+| 6 | 4 | 9 | 1.00 |
+| 8 | 1 | 7 | 1.00 |
+| 4 | 1 | 5 | 1.00 |
+| 3 | 10 | 5 | 0.90 |
 
 ## Per-frame breakdown
 
 | Frame | n_GT | n_pred | TP@.5 | FP | FN | F1 |
 |---:|---:|---:|---:|---:|---:|---:|
-| F0 | 5 | 4 | 3 | 1 | 2 | 0.67 |
-| F10 | 4 | 4 | 3 | 1 | 1 | 0.75 |
-| F20 | 5 | 3 | 3 | 0 | 2 | 0.75 |
-| F30 | 4 | 3 | 3 | 0 | 1 | 0.86 |
-| F40 | 5 | 3 | 3 | 0 | 2 | 0.75 |
-| F50 | 5 | 4 | 3 | 1 | 2 | 0.67 |
-| F60 | 6 | 5 | 4 | 1 | 2 | 0.73 |
-| F70 | 6 | 5 | 4 | 1 | 2 | 0.73 |
-| F80 | 7 | 5 | 4 | 1 | 3 | 0.67 |
-| F90 | 7 | 5 | 5 | 0 | 2 | 0.83 |
+| F0 | 5 | 6 | 4 | 2 | 1 | 0.73 |
+| F10 | 4 | 7 | 4 | 3 | 0 | 0.73 |
+| F20 | 5 | 6 | 3 | 3 | 2 | 0.55 |
+| F30 | 4 | 6 | 4 | 2 | 0 | 0.80 |
+| F40 | 5 | 6 | 4 | 2 | 1 | 0.73 |
+| F50 | 5 | 7 | 4 | 3 | 1 | 0.67 |
+| F60 | 6 | 8 | 5 | 3 | 1 | 0.71 |
+| F70 | 6 | 8 | 5 | 3 | 1 | 0.71 |
+| F80 | 7 | 8 | 6 | 2 | 1 | 0.80 |
+| F90 | 7 | 7 | 6 | 1 | 1 | 0.86 |
 
 ## Files
 
