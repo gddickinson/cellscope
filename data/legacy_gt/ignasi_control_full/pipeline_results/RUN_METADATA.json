@@ -1,8 +1,8 @@
 {
   "schema_version": "1.0.0",
-  "started_at": "2026-05-21T07:53:21",
-  "finished_at": "2026-05-21T07:53:21",
-  "runtime_seconds": 668.8060941696167,
+  "started_at": "2026-05-25T11:25:16",
+  "finished_at": "2026-05-25T11:25:16",
+  "runtime_seconds": 579.2608199119568,
   "pipeline_function": "hybrid_cpsam_multi",
   "mode": "multi",
   "source_recording": {
@@ -32,6 +32,7 @@
     "use_sam2_video_gap_fill": true,
     "use_tta": false,
     "use_mirror_pad": "auto",
+    "use_cpsam_cy5_union": false,
     "use_tiling": false,
     "tile_grid": 2,
     "use_roi": false,
@@ -60,7 +61,7 @@
   "params_non_default": {
     "cy5_filter_mode": {
       "used": null,
-      "default": "multi_metric"
+      "default": "persistence_guard"
     },
     "model_path": null,
     "auto_selected_pipeline": "cpsam",
@@ -86,12 +87,13 @@
     "use_sam2_video_gap_fill": true,
     "use_tta": false,
     "use_mirror_pad": "auto",
+    "use_cpsam_cy5_union": false,
     "use_tiling": false,
     "tile_grid": 2,
     "use_roi": false,
     "use_cy5_fusion": false,
     "use_cy5_recovery": false,
-    "cy5_filter_mode": "multi_metric",
+    "cy5_filter_mode": "persistence_guard",
     "cy5_filter_threshold": 0.15,
     "cy5_fusion_jaccard_thresh": 0.3,
     "cy5_fusion_max_overlap_frac": 0.5,
@@ -127,7 +129,7 @@
     "skimage": "0.25.2",
     "torch": "2.7.0"
   },
-  "git_commit": "9dd8c371336e",
+  "git_commit": "dfae5cb3132c",
   "rerun_command": "conda run -n cellpose4 python scripts/run_pipeline_on_gt_recording.py data/legacy_gt/ignasi_control_full",
   "out_dir": "/Users/george/claude_test/cellscope/data/legacy_gt/ignasi_control_full/pipeline_results",
   "extra": {

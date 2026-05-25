@@ -1,9 +1,9 @@
 # RUN_METADATA — Pos31_GOF
 
 **Schema version**: 1.0.0
-**Started**: 2026-05-21T16:47:28
-**Finished**: 2026-05-21T16:47:28
-**Runtime**: 5892 s
+**Started**: 2026-05-24T19:32:41
+**Finished**: 2026-05-24T19:32:41
+**Runtime**: 5939 s
 **Pipeline**: `hybrid_cpsam_multi` (mode = multi)
 
 ## Source recording
@@ -17,10 +17,10 @@
 
 ## Results
 
-- **n_tracks**: 2
+- **n_tracks**: 8
 - **n_cy5_fusion_added** (pre-tracking): 4
 - **n_analysis_cells**: 0
-  - fusion source breakdown: both = 2
+  - fusion source breakdown: both = 2, dic_only = 6
 
 ## Parameters deviating from defaults
 
@@ -45,7 +45,7 @@
 
 ## Reproducibility
 
-- **git commit**: `b5acb426e434`
+- **git commit**: `dfae5cb3132c`
 - **rerun command**:
 
 ```bash

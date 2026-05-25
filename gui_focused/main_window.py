@@ -332,6 +332,7 @@ class FocusedMainWindow(QMainWindow):
         self.pipeline.cancel_clicked.connect(self._on_cancel)
         self.pipeline.undo_clicked.connect(self._on_undo_detect)
         self.pipeline.clear_all_clicked.connect(self._on_clear_all)
+        self.pipeline.test_frame_clicked.connect(self._on_test_frame)
         self.params.btn_scan.clicked.connect(self._on_scan_cells)
         self.params.use_roi.toggled.connect(self._on_roi_toggled)
 
@@ -502,6 +503,133 @@ class FocusedMainWindow(QMainWindow):
             f"{self.recording.get('name', '')} | "
             f"{self.recording.get('um_per_px', '?')} um/px")
         self._worker = None
+
+    def _on_test_frame(self):
+        """Run detection on the CURRENT displayed frame only, with
+        all current GUI params. Time the run and extrapolate a total
+        runtime estimate for the full recording. Skips multi-frame
+        steps (tracking, gap fill, Cy5 multi-metric filter) since
+        they're not meaningful on a single frame."""
+        if self.recording is None:
+            return
+        import time as _time
+        import numpy as _np
+        idx = int(self.viewer.current_frame)
+        frames = self.recording["frames"]
+        n_total = len(frames)
+        if idx < 0 or idx >= n_total:
+            return
+        # Slice to a 1-frame stack (detect_recording requires N≥1)
+        one_frame = frames[idx:idx + 1]
+        cy5 = self.recording.get("cy5_frames")
+        one_cy5 = cy5[idx:idx + 1] if cy5 is not None else None
+        # Apply ROI if active
+        if self.roi.active and self.roi.roi_mask is not None:
+            one_frame = self.roi.apply_to_frames(one_frame)
+        params = self.params.get_detect_params()
+        # Honor the modality selector — same logic as _on_detect.
+        # For DIC recordings cpsam_dic (single-cell ViT fine-tune)
+        # finds sparse cells that the multi-cell cpsam misses; for
+        # phase-contrast / auto-detected dense recordings, cpsam
+        # is the right choice. Letting pipeline_kind="auto" probe
+        # also works on a single frame (probe accepts N≥1).
+        modality = params.get("modality", "auto")
+        if modality == "dic":
+            test_pipeline_kind = "cpsam_dic"
+        elif modality == "phase_contrast":
+            test_pipeline_kind = "cpsam"
+        else:
+            test_pipeline_kind = "auto"  # probe even on 1 frame
+        self.logger.log(
+            "info",
+            f"Test detect on frame {idx} (1/{n_total}); "
+            f"pipeline_kind={test_pipeline_kind}…")
+        self.status.showMessage(
+            f"Testing frame {idx}…", 0)
+        # Time the run
+        from core.unified_detection import detect_recording
+        from core.pipeline_defaults import DEFAULTS as _PD
+        t0 = _time.time()
+        try:
+            result = detect_recording(
+                one_frame, cy5_frames=one_cy5,
+                um_per_px=self.recording.get("um_per_px"),
+                time_interval_min=self.recording.get(
+                    "time_interval_min"),
+                downsample=params.get("downsample", "auto"),
+                # Single-frame: skip multi-frame stages
+                align_channels=False,
+                pipeline_kind=test_pipeline_kind,
+                run_cy5_filter=False,
+                use_gap_fill=False,
+                # Tracking needs min_track_length=1 for a 1-frame run
+                # (default 3 would drop the single-frame "track").
+                min_track_length=1,
+                use_mirror_pad=params.get("use_mirror_pad"),
+                use_deepsea=params.get("use_deepsea"),
+                use_tta=params.get("use_tta"),
+                use_cpsam_cy5_union=params.get(
+                    "use_cpsam_cy5_union"),
+                use_fallback=params.get("use_fallback"),
+                progress_fn=None,
+            )
+        except Exception as e:
+            self.status.showMessage(
+                f"Test failed on frame {idx}: {e}", 8000)
+            self.logger.log("error", f"Test detect error: {e}")
+            return
+        elapsed = _time.time() - t0
+        labels = result.get("labels")
+        if labels is None:
+            labels = result["masks"]
+        # Count cells in the frame
+        if labels.ndim == 3:
+            lab0 = labels[0]
+        else:
+            lab0 = labels
+        n_cells = int(_np.unique(lab0[lab0 > 0]).size)
+        # Extrapolate: detection-only (precise, linear in N) and an
+        # estimated full-pipeline runtime that accounts for the
+        # multi-frame post-processing stages (tracking + gap fill +
+        # Cy5 fusion + filter). The post-processing multiplier scales
+        # with cell density — denser scenes have more gap candidates
+        # and more track-pair comparisons, both of which dominate the
+        # gap-fill cascade.
+        #   sparse (<5 cells/frame):    full ≈ 1.5 × detection
+        #   medium (5-10 cells/frame):  full ≈ 2.0 × detection
+        #   dense (≥10 cells/frame):    full ≈ 2.5 × detection
+        # Calibrated against Pos10_WT (4 cells, canonical ~1.5×
+        # extrapolated detection) and Pos68_DMSO (17 cells, canonical
+        # ~2.3× extrapolated detection).
+        if n_cells < 5:
+            mult, density = 1.5, "sparse"
+        elif n_cells < 10:
+            mult, density = 2.0, "medium"
+        else:
+            mult, density = 2.5, "dense"
+        est_detect_only = elapsed * n_total
+        est_full = est_detect_only * mult
+
+        def _fmt(secs):
+            return (f"{secs:.0f}s" if secs < 60
+                    else f"{secs / 60:.1f} min" if secs < 3600
+                    else f"{secs / 3600:.1f} h")
+
+        # Update viewer with the test labels (zero-pad to full stack
+        # so the viewer's indexing matches; only frame `idx` carries
+        # the test result, others are empty).
+        test_stack = _np.zeros(
+            (n_total, lab0.shape[0], lab0.shape[1]), dtype=lab0.dtype)
+        test_stack[idx] = lab0
+        self.viewer.update_masks(test_stack)
+        # Report: short status-bar form + full info in log
+        msg = (f"Frame {idx}: {n_cells} cell(s) in {elapsed:.2f}s "
+               f"→ est. full run ({n_total} frames): "
+               f"~{_fmt(est_full)} "
+               f"(detect ~{_fmt(est_detect_only)} × {mult:.1f} "
+               f"{density} post-proc)")
+        self.status.showMessage(msg, 15000)
+        self.logger.log("info", msg)
 
     def _on_edit(self):
         if self.detect_result is None:

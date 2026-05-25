@@ -1,9 +1,9 @@
 # RUN_METADATA — Pos10_WT
 
 **Schema version**: 1.0.0
-**Started**: 2026-05-21T13:17:19
-**Finished**: 2026-05-21T13:17:19
-**Runtime**: 4838 s
+**Started**: 2026-05-25T04:12:29
+**Finished**: 2026-05-25T04:12:29
+**Runtime**: 4859 s
 **Pipeline**: `hybrid_cpsam_multi` (mode = multi)
 
 ## Source recording
@@ -17,10 +17,10 @@
 
 ## Results
 
-- **n_tracks**: 4
+- **n_tracks**: 8
 - **n_cy5_fusion_added** (pre-tracking): 24
 - **n_analysis_cells**: 0
-  - fusion source breakdown: both = 3, dic_only = 1
+  - fusion source breakdown: both = 3, dic_only = 5
 
 ## Parameters deviating from defaults
 
@@ -45,7 +45,7 @@
 
 ## Reproducibility
 
-- **git commit**: `b5acb426e434`
+- **git commit**: `dfae5cb3132c`
 - **rerun command**:
 
 ```bash

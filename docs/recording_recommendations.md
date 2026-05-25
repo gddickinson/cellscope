@@ -16,10 +16,17 @@ contrast — the modality selector picks the right config automatically.*
 | Recording type | Modality | Mode | Model | Other |
 |---|---|---|---|---|
 | **Cropped DIC, single cell** (~500 px) | DIC | Single-Cell | cpsam_dic | DeepSea on, fallback on |
-| **Full-frame DIC** (~1024 px, 1+ cells) | DIC | Multi-Cell | cpsam_dic | min_area=500, expected_cells=Auto, tiling=3×3 if cells small |
+| **Full-frame DIC** (~1024 px, 1+ cells) | DIC | Multi-Cell | cpsam_dic | min_area=200, expected_cells=Auto, tiling=3×3 if cells small |
 | **Cropped phase-contrast** | Phase-contrast | Single- or Multi-Cell | default cpsam | DeepSea on, gap fill on (multi-cell), TTA optional |
 | **Crowded multi-cell** (≥3 cells/frame) | DIC or phase | Multi-Cell | match modality | DeepSea on, gap fill on, expected_cells = typical N |
 | **Noisy / low-light DIC** | DIC | Single- or Multi-Cell | cellpose_combined_robust | TTA on, lower min_area |
+| **Weak-Cy5 (GOF / OT / DMSO conditions)** | DIC + Cy5 | Multi-Cell | cpsam_dic | Cy5 filter = `persistence_guard` (default) |
+| **Sparse multichannel with vignette artefacts** | DIC + Cy5 | Multi-Cell | cpsam_dic | persistence_guard auto-drops static phantom tracks |
+
+> **Best workflow:** click **🔬 Test on frame** in the toolbar before
+> committing to a full run. It runs detection on the current frame
+> with your chosen parameters in 20-60s and reports an estimated
+> total runtime — much cheaper than iterating with full 1-3h detects.
 
 ---
 
@@ -32,15 +39,26 @@ fine-tuned **cpsam_dic** specifically.
 ### Recommended pipeline (any DIC recording)
 
 ```
-modality      = DIC
-mode          = Single-Cell  (or Multi-Cell if more than one cell)
-DIC model     = Auto  (resolves to cpsam_dic when present)
-DeepSea       = on
-fallback      = on
-TTA           = off  (turn on if you see missed cells, see below)
-gap fill      = on   (multi-cell only)
-min area      = 500
-expected cells = Auto   (or set to N if you know the cell count)
+modality        = DIC
+mode            = Single-Cell  (or Multi-Cell if more than one cell)
+DIC model       = Auto  (resolves to cpsam_dic when present)
+DeepSea         = on
+fallback        = on
+TTA             = off  (turn on if you see missed cells, see below)
+gap fill        = on   (multi-cell only)
+SAM2 video gap  = on   (sub-toggle under gap fill)
+max gap frames  = 15   (multi-cell tracker)
+min area        = 200
+expected cells  = Auto   (or set to N if you know the cell count)
+mirror pad      = auto  (on when detection min-dim ≥ 1024)
+
+# Multichannel DIC + Cy5 only:
+Cy5 fusion       = on   (auto-enabled when Cy5 channel present)
+Cy5 recovery     = on
+Cy5 filter mode  = Persistence guard (mm-pass OR long+moving)
+   PG min lifetime         = 35   (frames)
+   PG static vel (px)       = 3.0
+   PG static shape IoU      = 0.85
 ```
 
 Benchmarks for cpsam_dic (vs older cellpose_dic_v3):
@@ -101,13 +119,16 @@ on the phase-contrast benchmark).
 ### Recommended pipeline (any phase-contrast recording)
 
 ```
-modality      = Phase-contrast
-mode          = Single-Cell (single-cell crop) or Multi-Cell (FoV)
-DeepSea       = on  (auto-filters debris via fill_holes + largest_CC)
-fallback      = on
-TTA           = off  (on if cells missed)
-gap fill      = on   (multi-cell only)
-min area      = 500
+modality        = Phase-contrast
+mode            = Single-Cell (single-cell crop) or Multi-Cell (FoV)
+DeepSea         = on  (auto-filters debris via fill_holes + largest_CC)
+fallback        = on
+TTA             = off  (on if cells missed)
+gap fill        = on   (multi-cell only)
+SAM2 video gap  = on   (sub-toggle under gap fill)
+min area        = 200
+min track len   = 3
+max gap frames  = 15
 ```
 
 Benchmark: cpsam + DeepSea = 0.932 IoU on a 65-frame phase-contrast

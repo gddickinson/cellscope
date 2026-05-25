@@ -1,9 +1,9 @@
 # RUN_METADATA — Pos44_OT
 
 **Schema version**: 1.0.0
-**Started**: 2026-05-21T17:57:02
-**Finished**: 2026-05-21T17:57:02
-**Runtime**: 4121 s
+**Started**: 2026-05-24T20:51:30
+**Finished**: 2026-05-24T20:51:30
+**Runtime**: 4719 s
 **Pipeline**: `hybrid_cpsam_multi` (mode = multi)
 
 ## Source recording
@@ -17,10 +17,10 @@
 
 ## Results
 
-- **n_tracks**: 7
+- **n_tracks**: 14
 - **n_cy5_fusion_added** (pre-tracking): 22
 - **n_analysis_cells**: 0
-  - fusion source breakdown: both = 5, cy5_only = 2
+  - fusion source breakdown: both = 5, cy5_only = 2, dic_only = 7
 
 ## Parameters deviating from defaults
 
@@ -45,7 +45,7 @@
 
 ## Reproducibility
 
-- **git commit**: `b5acb426e434`
+- **git commit**: `dfae5cb3132c`
 - **rerun command**:
 
 ```bash

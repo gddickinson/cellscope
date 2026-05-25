@@ -262,7 +262,9 @@ def detect_hybrid_dic_multi(frames, progress_fn=None,
                             cy5_frames=None,
                             use_cy5_fusion=None,
                             cy5_fusion_augment=None,
-                            cy5_fusion_jaccard_thresh=None):
+                            cy5_fusion_jaccard_thresh=None,
+                            min_track_length=None,
+                            max_gap_frames=None):
     # All defaults come from core.pipeline_defaults — single source of
     # truth shared with the GUI. Callers may override any value by
     # passing it explicitly; None means "use the canonical default".
@@ -280,6 +282,8 @@ def detect_hybrid_dic_multi(frames, progress_fn=None,
         cy5_fusion_augment = d.cy5_fusion_augment_cpsam
     if cy5_fusion_jaccard_thresh is None:
         cy5_fusion_jaccard_thresh = d.cy5_fusion_jaccard_thresh
+    if min_track_length is None: min_track_length = d.min_track_length
+    if max_gap_frames is None: max_gap_frames = d.max_gap_frames
     """DIC-optimized multi-cell detection + tracking.
 
     Same structure as hybrid_cpsam_multi but uses cellpose_dic
@@ -437,7 +441,8 @@ def detect_hybrid_dic_multi(frames, progress_fn=None,
         min_area_px=min_area_px,
         max_hop_px=150,
         spawn_new_tracks=True,
-        min_track_length=3,
+        min_track_length=min_track_length,
+        max_gap_frames=max_gap_frames,
         frames=frames,
     )
     log.info("Found %d tracks (max %d cells/frame)", len(tracks), max_cells)
@@ -464,7 +469,8 @@ def detect_hybrid_dic_multi(frames, progress_fn=None,
     from core.track_postprocess import postprocess_tracks
     if progress_fn:
         progress_fn("Post-processing tracks", 95)
-    postprocess_tracks(tracks, frames=frames)
+    postprocess_tracks(tracks, frames=frames,
+                        min_frames=min_track_length)
 
     # Step 6: build label stack
     from core.hybrid_cpsam_multi import _build_tracked_labels

@@ -75,6 +75,34 @@ Graphs tab (14 plot types).
 **5. Export** — Click Export to save masks, metrics, plots, and
 overlay TIFFs. Choose output format (PNG/SVG/PDF) and DPI.
 
+### 🔬 Test on frame — preview before a full run
+
+The toolbar's **🔬 Test on frame** button (between Cancel and Undo
+Detect) runs detection on the currently displayed frame only, with
+all current GUI parameter settings, then reports:
+
+- Number of cells detected on that frame
+- Detection runtime (seconds)
+- **Estimated full-recording runtime** with a density-aware
+  multiplier for post-processing:
+  - sparse (<5 cells/frame): 1.5× detection time
+  - medium (5-10 cells/frame): 2.0×
+  - dense (≥10 cells/frame): 2.5×
+
+Use this to tune parameters interactively without paying the
+1-3 hour cost of a full-recording detect after every change.
+
+The test-frame call **skips multi-frame stages** (Hungarian
+tracking, gap fill, Cy5 multi-metric filter) because they're not
+meaningful on a single frame. Force `min_track_length=1` is applied
+internally so the 1-frame "track" survives. The displayed detection
+preview is upper-bound — the full pipeline may keep fewer cells
+(filtered by Cy5) or find more (gap fill recovers misses).
+
+Result mask overlays appear on the viewer for visual inspection;
+status bar shows the timing message. Click again after changing
+any parameter to re-run.
+
 ### Image Viewer Controls
 
 - **Brightness/Contrast**: sliders, or click "Auto B/C" for
@@ -121,31 +149,118 @@ Below the modality picker. Lists all DIC fine-tunes found under
 
 ### Parameters
 
-- **Min area (px)**: minimum mask area to accept as a real cell
-  (smaller = debris). Default 500. Drop to ~200 for small/mitotic
-  cells, raise to 1000+ for large cells with lots of background
-  noise.
+All parameters below are GUI-tunable and threaded end-to-end through
+`detect_recording`. Defaults come from `core/pipeline_defaults.py` —
+the single source of truth shared by the GUI, batch worker, and CLI.
+
+**Detection**:
+
+- **Modality**: Auto / Phase-contrast / DIC. Auto-detect uses image
+  statistics; or pick explicitly. DIC routes to `cpsam_dic`
+  (single-cell ViT fine-tune); Phase-contrast routes to raw `cpsam`.
+- **DIC model**: which `cpsam_dic` / `cellpose_dic` variant to use
+  when modality=DIC. "Auto (best available)" picks the newest.
+- **Min area (px)**: minimum mask area to accept as a real cell.
+  Default 200. Drop further for small/mitotic cells, raise for
+  large cells with debris.
 - **Expected cells**: number of cells to keep per frame.
-  "Auto" = no filtering. Set to N if you know exactly how many cells
-  are in the recording — anything beyond the N largest is treated
-  as debris.
-- **DeepSea refinement**: toggle the DeepSea union step (default:
-  on). Tightens cpsam's already-good boundaries on filopodia and
-  drops spurious dots via fill_holes + largest_CC.
+  "Auto" = no enforcement. Set to N to keep only the N largest
+  detections.
+- **Search radius (px)**: max centroid hop for the Hungarian
+  tracker. Default 150 (corresponds to ~100 µm/frame at IC295
+  scale).
+- **Min track length**: drop tracks shorter than this many frames.
+  Default 3.
+
+**Refinement steps**:
+
+- **DeepSea refinement**: tighten cpsam boundaries via fill_holes +
+  largest_CC + DeepSea union (default: **on**).
+- **TTA (augment)**: 4-rotation test-time augmentation (default:
+  **off**). +25% runtime but no consistent recall gain in our 13-GT
+  audit; flip on only for very dense fields (Pos68_DMSO showed
+  marginal benefit).
+- **cpsam-on-Cy5 union** (experimental): also run cpsam on the Cy5
+  channel and union-merge with DIC detections (default: **off**).
+  Bbox validation showed +0.11-0.26 F1 on dense recordings but the
+  gains evaporated when the downstream Cy5 filter rejected the
+  added cells. Investigation queued (see ROADMAP).
 - **Fallback detection**: when cpsam returns nothing in a frame,
-  fall back to cellpose+MedSAM+DeepSea via subprocess (default: on).
-  Worth keeping on — cheap and only fires on empty frames.
-- **TTA (augment)**: run cpsam on 4 rotations and merge (default:
-  off). ~4× slower per frame but recovers cells cpsam misses at the
-  default orientation. Worth turning on for recordings with cells
-  in unusual orientations.
-- **Gap fill**: re-detect with `cpsam(augment=True)` for tracked
-  cells that disappear for a frame or two (default: on, multi-cell
-  only). 100% gap fill on the recordings we've tested.
-- **Tiling**: split each frame into N×N tiles, run cpsam per tile,
-  union (default: off). Mainly for >1024² recordings where cells
-  span a smaller fraction of the frame than cpsam expects. 3×3 with
-  64 px overlap is a good starting point.
+  fall back to cellpose+MedSAM+DeepSea (default: **on** for the
+  multi-cell path).
+- **Mirror-pad**: pad cpsam inputs by 50 px reflection (default:
+  **auto** — enabled when detection-min-dim ≥ 1024 px). Catches
+  cells at FoV edges. Per-recording override: set
+  `"use_mirror_pad": "off"` in the recording's JSON sidecar
+  (used by Pos39_OT to preserve a dividing cell pair).
+
+**Gap fill** (multi-cell only):
+
+- **Gap fill**: re-detect missing cells in internal track gaps
+  via cpsam(augment=True) → CP3 fallback cascade (default: **on**).
+- **SAM2 video gap fill** (sub-control of Gap fill): extra SAM2
+  video propagation stage between cpsam fallback and translation-
+  only fill (default: **on**). +1s per gap frame; turn off if
+  cpsam(augment) alone suffices.
+- **Max gap frames**: how many consecutive missing frames before
+  the Hungarian tracker declares a track dead (default: **15**).
+  Covers ~10 frames of biological transitions (mitosis,
+  retraction, de-attachment) at 10-min/frame intervals.
+
+**Cy5 multichannel** (only enabled when fluorescence channel is
+present):
+
+- **Cy5 fusion (Tier 1)**: detect on the fluorescence channel
+  too, merge into DIC label stack (default: **on** when Cy5
+  present).
+- **Cy5 recovery (Tier 2)**: for cells DIC missed, search Cy5+
+  regions and re-run cpsam there (default: **on** when Cy5
+  present).
+- **Cy5 filter (Tier 4)**: post-tracking quality filter. Choose
+  the strategy:
+  - `Off` — keep all detected tracks
+  - **`Persistence guard (mm-pass OR long+moving)`** — DEFAULT.
+    Three-stage rule: (1) keep tracks that pass ≥2/3 of the
+    Cy5 cellularity metrics (score, IO ratio, fraction positive);
+    (2) drop short tracks failing the metrics; (3) for long
+    tracks failing the metrics, drop only if they're STATIC
+    (low motion AND high shape-stability — phantom signature).
+    Validated on 13 GT recordings (corpus +0.038 F1_focused vs
+    multi_metric, no per-recording overrides needed).
+  - `Multi-metric (≥2/3)` — original strict filter; over-strict
+    on weak-Cy5 conditions (GOF/OT/DMSO), drops persistent
+    real cells.
+  - `Composite score (continuous)` — continuous cellularity sum
+  - `Consensus (multi_metric ∩ composite, safest)` — drops only
+    when both metrics agree
+  - `Temporal stability (drop noise)` — drops tracks whose Cy5
+    score is uncorrelated frame-to-frame
+  - Other modes (Conservative, Adaptive, Threshold) for special
+    cases
+
+- **PG min lifetime**, **PG static vel (px)**, **PG static shape
+  IoU**: sub-parameters for the persistence_guard filter (only
+  editable when the mode is selected). Defaults: 35 frames, 3.0
+  px/frame, 0.85 — tuned against the full 13-GT corpus.
+
+**Tiling**:
+
+- **Tiled detection**: split each frame into NxN tiles, run cpsam
+  per tile, union (default: **off**). For very large frames
+  (≥1024²) where cells span a smaller fraction than cpsam expects.
+- **Tile grid (NxN)**: tile count per axis. Default 2; 3×3 with
+  64 px overlap helps on 2048² frames.
+
+**DIC pipeline (cpsam_dic / hybrid_dic only)**:
+
+- **DIC preprocess**: temporal background subtraction + spatial
+  high-pass (default: **on** for cellpose_dic; auto-skipped for
+  cpsam_dic which is trained on raw crops).
+- **DIC retry low-cp**: retry missed frames with progressively
+  lower cellprob_threshold (default: **on**).
+- **Cy5 fusion Jaccard**, **Cy5 fusion max overlap**, **Cy5
+  fusion augment cpsam**: DIC-pipeline Cy5 fusion sub-parameters
+  (defaults 0.30, 0.50, off).
 
 ### ROI Selection
 

@@ -1,0 +1,10 @@
+Pipeline run on Pos39_OT
+
+Detection:        17 raw tracks
+Cy5 fusion added: 13 cells
+Cy5 filter kept:  15 / 17
+Cells per frame:  min=8 max=15 mean=11.8
+Downsample:       2× (auto: max dim 2048 ≥ 1500; ds=2 gives ~5× speedup with minimal accuracy loss)
+Pipeline:         cpsam
+Runtime:          5177s
+Output dir:       /Users/george/claude_test/cellscope/data/ic295_gt_full/Pos39_OT/pipeline_results

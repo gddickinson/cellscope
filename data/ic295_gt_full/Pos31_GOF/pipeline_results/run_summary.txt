@@ -2,9 +2,9 @@ Pipeline run on Pos31_GOF
 
 Detection:        8 raw tracks
 Cy5 fusion added: 4 cells
-Cy5 filter kept:  2 / 8
-Cells per frame:  min=1 max=2 mean=1.4
+Cy5 filter kept:  8 / 8
+Cells per frame:  min=4 max=8 mean=5.9
 Downsample:       2× (auto: max dim 2048 ≥ 1500; ds=2 gives ~5× speedup with minimal accuracy loss)
 Pipeline:         cpsam
-Runtime:          5893s
+Runtime:          5941s
 Output dir:       /Users/george/claude_test/cellscope/data/ic295_gt_full/Pos31_GOF/pipeline_results

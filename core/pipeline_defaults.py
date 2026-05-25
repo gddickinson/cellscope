@@ -441,8 +441,14 @@ class PipelineDefaults:
     # by set_cy5_available() in the GUI. We mirror that here.
     use_cy5_fusion: bool = False
     use_cy5_recovery: bool = False
-    cy5_filter_mode: str = "multi_metric"   # canonical string id
+    cy5_filter_mode: str = "persistence_guard"   # canonical string id
     cy5_filter_threshold: float = 0.15
+    # persistence_guard v2 sub-parameters (see core/cy5_filter.py
+    # persistence_guard_filter docstring for full rationale):
+    cy5_pg_min_lifetime: int = 35
+    cy5_pg_static_velocity_px: float = 3.0
+    cy5_pg_static_shape_iou: float = 0.85
+    # Cy5 fusion sub-parameters:
     cy5_fusion_jaccard_thresh: float = 0.30
     cy5_fusion_max_overlap_frac: float = 0.50
     cy5_fusion_augment_cpsam: bool = False
@@ -515,7 +521,7 @@ class PipelineDefaults:
             self,
             use_cy5_fusion=True,
             use_cy5_recovery=True,
-            cy5_filter_mode="multi_metric",
+            cy5_filter_mode="persistence_guard",
         )
 
 

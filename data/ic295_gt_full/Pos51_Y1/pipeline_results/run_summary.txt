@@ -2,9 +2,9 @@ Pipeline run on Pos51_Y1
 
 Detection:        7 raw tracks
 Cy5 fusion added: 28 cells
-Cy5 filter kept:  2 / 7
-Cells per frame:  min=1 max=2 mean=1.3
+Cy5 filter kept:  6 / 7
+Cells per frame:  min=2 max=6 mean=3.6
 Downsample:       2× (auto: max dim 2048 ≥ 1500; ds=2 gives ~5× speedup with minimal accuracy loss)
 Pipeline:         cpsam
-Runtime:          4336s
+Runtime:          4418s
 Output dir:       /Users/george/claude_test/cellscope/data/ic295_gt_full/Pos51_Y1/pipeline_results

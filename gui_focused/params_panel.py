@@ -221,6 +221,87 @@ class ParamsPanel(QWidget):
             "then cellpose fallback. Multi-cell only.")
         form.addRow("Gap fill:", self.use_gap_fill)
 
+        self.use_sam2_video_gap_fill = QCheckBox()
+        self.use_sam2_video_gap_fill.setChecked(
+            _PD.use_sam2_video_gap_fill)
+        self.use_sam2_video_gap_fill.setEnabled(_PD.use_gap_fill)
+        self.use_sam2_video_gap_fill.setToolTip(
+            "Extra gap-fill stage: SAM2 video propagation between\n"
+            "Phase 2 (CP3 fallback) and Phase 4 (mask translation).\n"
+            "Catches cells that biologically retract or dim too much\n"
+            "for cpsam to detect at the gap frame, but where SAM2's\n"
+            "memory attention can follow them through the gap.\n"
+            "~1 sec per gap frame; turn off if cpsam(augment) is\n"
+            "enough for your data. Only effective when Gap fill is on.")
+        form.addRow("  SAM2 video gap fill:",
+                     self.use_sam2_video_gap_fill)
+        # Disable SAM2 sub-toggle when gap fill is off
+        self.use_gap_fill.toggled.connect(
+            self.use_sam2_video_gap_fill.setEnabled)
+
+        self.max_gap_frames = QSpinBox()
+        self.max_gap_frames.setRange(1, 100)
+        self.max_gap_frames.setValue(_PD.max_gap_frames)
+        self.max_gap_frames.setToolTip(
+            "Max consecutive frames a track can be undetected before\n"
+            "the Hungarian tracker declares it dead. Default 15 —\n"
+            "covers ~10 frames of biological transitions (mitosis,\n"
+            "retraction, de-attachment) at our 10-min/frame interval.")
+        form.addRow("  Max gap frames:", self.max_gap_frames)
+
+        # --- DIC-pipeline-only params (cpsam_dic / hybrid_dic) ---
+        dic_label = QLabel("<b>DIC pipeline (single-cell):</b>")
+        form.addRow(dic_label)
+
+        self.use_preprocess = QCheckBox()
+        self.use_preprocess.setChecked(_PD.use_preprocess)
+        self.use_preprocess.setToolTip(
+            "DIC pipeline only: apply temporal background subtraction\n"
+            "+ spatial high-pass before detection. Skipped for cpsam\n"
+            "(it hurts ViT predictions). Default ON for cellpose_dic.")
+        form.addRow("DIC preprocess:", self.use_preprocess)
+
+        self.use_retry = QCheckBox()
+        self.use_retry.setChecked(_PD.use_retry)
+        self.use_retry.setToolTip(
+            "DIC pipeline only: retry missed frames with progressively\n"
+            "lower cellprob_threshold. Default ON.")
+        form.addRow("DIC retry low-cp:", self.use_retry)
+
+        self.cy5_fusion_jaccard_thresh = QDoubleSpinBox()
+        self.cy5_fusion_jaccard_thresh.setRange(0.0, 1.0)
+        self.cy5_fusion_jaccard_thresh.setSingleStep(0.05)
+        self.cy5_fusion_jaccard_thresh.setDecimals(3)
+        self.cy5_fusion_jaccard_thresh.setValue(
+            _PD.cy5_fusion_jaccard_thresh)
+        self.cy5_fusion_jaccard_thresh.setToolTip(
+            "DIC pipeline only: Jaccard overlap threshold for\n"
+            "merging a DIC mask with a Cy5-derived mask.\n"
+            "Default 0.30 — pairs above this get unioned.")
+        form.addRow("Cy5 fusion Jaccard:",
+                     self.cy5_fusion_jaccard_thresh)
+
+        self.cy5_fusion_max_overlap_frac = QDoubleSpinBox()
+        self.cy5_fusion_max_overlap_frac.setRange(0.0, 1.0)
+        self.cy5_fusion_max_overlap_frac.setSingleStep(0.05)
+        self.cy5_fusion_max_overlap_frac.setDecimals(3)
+        self.cy5_fusion_max_overlap_frac.setValue(
+            _PD.cy5_fusion_max_overlap_frac)
+        self.cy5_fusion_max_overlap_frac.setToolTip(
+            "DIC pipeline only: max overlap fraction for fusion-\n"
+            "candidate merging. Default 0.50.")
+        form.addRow("Cy5 fusion max overlap:",
+                     self.cy5_fusion_max_overlap_frac)
+
+        self.cy5_fusion_augment_cpsam = QCheckBox()
+        self.cy5_fusion_augment_cpsam.setChecked(
+            _PD.cy5_fusion_augment_cpsam)
+        self.cy5_fusion_augment_cpsam.setToolTip(
+            "DIC pipeline only: enable cpsam augmentation pass\n"
+            "during Cy5 fusion. Slower but may improve recall.")
+        form.addRow("Cy5 fusion augment cpsam:",
+                     self.cy5_fusion_augment_cpsam)
+
         # --- Cy5 fusion (Tier 1: detect on fluorescence) ---
         self.use_cy5_fusion = QCheckBox()
         self.use_cy5_fusion.setChecked(False)
@@ -261,6 +342,7 @@ class ParamsPanel(QWidget):
         self.cy5_filter_mode = QComboBox()
         self.cy5_filter_mode.addItems([
             "Off",
+            "Persistence guard (mm-pass OR long+moving)",
             "Conservative (no signal)",
             "Conservative strict (tighter)",
             "Adaptive (bimodal-aware)",
@@ -270,9 +352,11 @@ class ParamsPanel(QWidget):
             "Consensus (multi_metric ∩ composite, safest)",
             "Temporal stability (drop noise)",
             "Threshold (manual)"])
-        # Default to Multi-metric — best on IC295 per visual review
+        # Default to Persistence guard — recovers +70 GT cells (+7.1%)
+        # across 13-recording corpus vs Multi-metric (which dropped
+        # persistent cells in weak-Cy5 conditions: GOF/OT/DMSO).
         self.cy5_filter_mode.setCurrentText(
-            "Multi-metric (≥2/3 cellularity tests)")
+            "Persistence guard (mm-pass OR long+moving)")
         self.cy5_filter_mode.setEnabled(False)
         self.cy5_filter_mode.setToolTip(
             "After detection + tracking, drop tracks whose Cy5\n"
@@ -303,6 +387,65 @@ class ParamsPanel(QWidget):
             lambda txt: self.cy5_filter_threshold.setEnabled(
                 self.cy5_filter_mode.isEnabled()
                 and txt.startswith("Threshold")))
+
+        # --- Persistence guard v2 sub-parameters ---
+        # Enabled only when the Persistence guard mode is selected.
+        # See core/cy5_filter.persistence_guard_filter docstring.
+        self.cy5_pg_min_lifetime = QSpinBox()
+        self.cy5_pg_min_lifetime.setRange(5, 100)
+        self.cy5_pg_min_lifetime.setValue(_PD.cy5_pg_min_lifetime)
+        self.cy5_pg_min_lifetime.setEnabled(False)
+        self.cy5_pg_min_lifetime.setToolTip(
+            "Persistence guard: minimum lifetime (frames) above which "
+            "a track that fails the Cy5 multi-metric test still gets "
+            "a chance to be kept via the motion/shape gate.\n"
+            "Tracks shorter than this with mm<2 are dropped outright.\n"
+            "Default 35; tuned on full 13-recording GT corpus.")
+        form.addRow("  PG min lifetime:", self.cy5_pg_min_lifetime)
+
+        self.cy5_pg_static_velocity_px = QDoubleSpinBox()
+        self.cy5_pg_static_velocity_px.setRange(0.1, 20.0)
+        self.cy5_pg_static_velocity_px.setSingleStep(0.5)
+        self.cy5_pg_static_velocity_px.setDecimals(2)
+        self.cy5_pg_static_velocity_px.setValue(
+            _PD.cy5_pg_static_velocity_px)
+        self.cy5_pg_static_velocity_px.setEnabled(False)
+        self.cy5_pg_static_velocity_px.setToolTip(
+            "Persistence guard: tracks with mean per-frame centroid "
+            "displacement below this AND high shape stability are "
+            "considered 'static' and dropped (phantom signature).\n"
+            "Default 3.0 px/frame.")
+        form.addRow("  PG static vel (px):",
+                     self.cy5_pg_static_velocity_px)
+
+        self.cy5_pg_static_shape_iou = QDoubleSpinBox()
+        self.cy5_pg_static_shape_iou.setRange(0.5, 1.0)
+        self.cy5_pg_static_shape_iou.setSingleStep(0.05)
+        self.cy5_pg_static_shape_iou.setDecimals(3)
+        self.cy5_pg_static_shape_iou.setValue(
+            _PD.cy5_pg_static_shape_iou)
+        self.cy5_pg_static_shape_iou.setEnabled(False)
+        self.cy5_pg_static_shape_iou.setToolTip(
+            "Persistence guard: tracks with median consecutive-frame "
+            "mask IoU above this AND low velocity are 'static' "
+            "(phantom signature).\n"
+            "Default 0.85. Real cells deform (0.5-0.75) — phantoms "
+            "are bit-stable (0.85-0.97).")
+        form.addRow("  PG static shape IoU:",
+                     self.cy5_pg_static_shape_iou)
+
+        # Enable PG sub-spinboxes only when Persistence mode selected
+        def _toggle_pg(_=None):
+            on = (self.cy5_filter_mode.isEnabled()
+                  and self.cy5_filter_mode.currentText().startswith(
+                      "Persistence"))
+            for w in (self.cy5_pg_min_lifetime,
+                       self.cy5_pg_static_velocity_px,
+                       self.cy5_pg_static_shape_iou):
+                w.setEnabled(on)
+        self.cy5_filter_mode.currentTextChanged.connect(_toggle_pg)
+        # Also fire on enable-toggle (when Cy5 becomes available)
+        self._toggle_pg_sub = _toggle_pg
 
         # --- Scale ---
         scale_label = QLabel("<b>Scale:</b>")
@@ -529,12 +672,16 @@ class ParamsPanel(QWidget):
             self.use_cy5_fusion.setChecked(True)
             self.use_cy5_recovery.setChecked(True)
             self.cy5_filter_mode.setCurrentText(
-                "Multi-metric (≥2/3 cellularity tests)")
+                "Persistence guard (mm-pass OR long+moving)")
         else:
             self.use_cy5_fusion.setChecked(False)
             self.use_cy5_recovery.setChecked(False)
             self.cy5_filter_mode.setCurrentText("Off")
             self.cy5_filter_threshold.setEnabled(False)
+        # Re-evaluate the v2 sub-control enable state for the
+        # current mode (which may have just changed above).
+        if hasattr(self, "_toggle_pg_sub"):
+            self._toggle_pg_sub()
 
     def _populate_dic_models(self):
         """Scan data/models for cpsam_dic* and cellpose_dic* models.
@@ -588,6 +735,22 @@ class ParamsPanel(QWidget):
             "use_cy5_recovery": self.use_cy5_recovery.isChecked(),
             "cy5_filter_mode": self._cy5_filter_mode_value(),
             "cy5_filter_threshold": self.cy5_filter_threshold.value(),
+            "cy5_pg_min_lifetime": self.cy5_pg_min_lifetime.value(),
+            "cy5_pg_static_velocity_px":
+                self.cy5_pg_static_velocity_px.value(),
+            "cy5_pg_static_shape_iou":
+                self.cy5_pg_static_shape_iou.value(),
+            "use_sam2_video_gap_fill":
+                self.use_sam2_video_gap_fill.isChecked(),
+            "max_gap_frames": self.max_gap_frames.value(),
+            "use_preprocess": self.use_preprocess.isChecked(),
+            "use_retry": self.use_retry.isChecked(),
+            "cy5_fusion_jaccard_thresh":
+                self.cy5_fusion_jaccard_thresh.value(),
+            "cy5_fusion_max_overlap_frac":
+                self.cy5_fusion_max_overlap_frac.value(),
+            "cy5_fusion_augment_cpsam":
+                self.cy5_fusion_augment_cpsam.isChecked(),
         }
 
     def _cy5_filter_mode_value(self):
@@ -596,6 +759,8 @@ class ParamsPanel(QWidget):
         txt = self.cy5_filter_mode.currentText()
         if txt.startswith("Off"):
             return "off"
+        if txt.startswith("Persistence"):
+            return "persistence_guard"
         if txt.startswith("Conservative strict"):
             return "conservative_strict"
         if txt.startswith("Conservative"):

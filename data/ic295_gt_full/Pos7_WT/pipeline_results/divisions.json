@@ -1,6 +1,94 @@
 {
   "recording": "Pos7_WT",
-  "n_candidates": 0,
-  "candidates": [],
-  "track_lineage": []
+  "n_candidates": 2,
+  "candidates": [
+    {
+      "frame": 81,
+      "peak_frame": 76,
+      "parent_track": 5,
+      "area_peak": 1710,
+      "area_parent_at_split": 439,
+      "area_parent_post_peak": 1034,
+      "area_baseline": 1734,
+      "swelling_ratio": 0.9860454388190519,
+      "pre_split_states": [
+        "balled",
+        "balled",
+        "balled"
+      ],
+      "pre_split_balled_frac": 0.8571428571428571,
+      "parent_centroid": [
+        50.91799544419134,
+        543.6697038724374
+      ],
+      "daughter_track": 21,
+      "daughter_first_frame": 83,
+      "daughter_persistence_frames": 13,
+      "distance_px": 6.397919875828353,
+      "area_daughter_first": 168,
+      "area_daughter_post_peak": 647,
+      "mass_ratio": 0.9830409356725146,
+      "mass_score": 1.0,
+      "persist_score": 1.0,
+      "balled_score": 0.9285714285714286,
+      "swelling_score": 0.0,
+      "prox_score": 0.886557520385243,
+      "score": 0.4116159916074343,
+      "daughter_centroid": [
+        45.07142857142857,
+        541.0714285714286
+      ]
+    },
+    {
+      "frame": 54,
+      "peak_frame": 49,
+      "parent_track": 12,
+      "area_peak": 1075,
+      "area_parent_at_split": 365,
+      "area_parent_post_peak": 407,
+      "area_baseline": 1040,
+      "swelling_ratio": 1.0329585855674066,
+      "pre_split_states": [
+        "transitional",
+        "unknown",
+        "transitional"
+      ],
+      "pre_split_balled_frac": 0.8571428571428571,
+      "parent_centroid": [
+        717.9397260273972,
+        1016.1945205479452
+      ],
+      "daughter_track": 18,
+      "daughter_first_frame": 58,
+      "daughter_persistence_frames": 39,
+      "distance_px": 43.2977122047332,
+      "area_daughter_first": 337,
+      "area_daughter_post_peak": 384,
+      "mass_ratio": 0.7358139534883721,
+      "mass_score": 1.0,
+      "persist_score": 1.0,
+      "balled_score": 0.9285714285714286,
+      "swelling_score": 0.06591717113481321,
+      "prox_score": 0.5359188217850361,
+      "score": 0.26522092743482506,
+      "daughter_centroid": [
+        725.3412462908012,
+        973.5341246290801
+      ]
+    }
+  ],
+  "track_lineage": [
+    {
+      "track_index": 17,
+      "parent_track_index": 11,
+      "division_frame": 54,
+      "division_score": 0.26522092743482506
+    },
+    {
+      "track_index": 20,
+      "parent_track_index": 4,
+      "division_frame": 81,
+      "division_score": 0.4116159916074343
+    }
+  ]
 }

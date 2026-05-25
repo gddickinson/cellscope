@@ -99,6 +99,9 @@ def detect_hybrid_cpsam_multi(frames, progress_fn=None,
                                use_fallback=True,
                                use_deepsea=True,
                                use_gap_fill=True,
+                               use_sam2_video_gap_fill=None,
+                               max_gap_frames=None,
+                               min_track_length=3,
                                use_tta=False,
                                use_mirror_pad="auto",
                                use_cpsam_cy5_union=True,
@@ -220,25 +223,50 @@ def detect_hybrid_cpsam_multi(frames, progress_fn=None,
                                        pad_px:pad_px + W_]
             else:
                 cy5_masks, _, _ = m.eval(cy5_frame, **eval_kwargs)
-            # NMS-union: for each Cy5-detected cell, add to raw_labels
-            # if it doesn't overlap any existing DIC cell ≥ IoU 0.3.
+            # Method D v2 NMS (2026-05-23): smarter merging.
+            # For each Cy5-detected cell:
+            #   - Find any DIC cells it overlaps (IoU > 0 with at
+            #     least one).
+            #   - If the strongest overlap has IoU ≥ 0.5 AND the
+            #     DIC mask is at least as large as the Cy5 mask
+            #     → drop Cy5 as duplicate of DIC.
+            #   - If the strongest overlap has IoU ≥ 0.5 AND the
+            #     Cy5 mask is ≥ 1.5× larger than DIC → REPLACE the
+            #     DIC mask with the Cy5 mask (Cy5 found the more
+            #     complete cell; DIC was a fragment).
+            #   - Otherwise add Cy5 as a new cell.
+            # v1 dropped any Cy5 with IoU ≥ 0.3 — too aggressive,
+            # the partial DIC mask always won.
             existing_max = int(raw_labels[i].max())
             for cid in range(1, int(cy5_masks.max()) + 1):
                 cy5_m = cy5_masks == cid
-                if cy5_m.sum() < min_area_px: continue
-                # Quick IoU vs each existing DIC label
-                duplicate = False
+                cy5_area = int(cy5_m.sum())
+                if cy5_area < min_area_px: continue
+                # Find strongest-overlapping DIC label
+                best_did = 0
+                best_iou = 0.0
+                best_dic_area = 0
                 for did in range(1, existing_max + 1):
                     dic_m = raw_labels[i] == did
                     if not dic_m.any(): continue
-                    inter = np.logical_and(cy5_m, dic_m).sum()
+                    inter = int(np.logical_and(cy5_m, dic_m).sum())
                     if inter == 0: continue
-                    union = np.logical_or(cy5_m, dic_m).sum()
-                    if inter / union >= 0.3:
-                        duplicate = True; break
-                if duplicate: continue
+                    union = int(np.logical_or(cy5_m, dic_m).sum())
+                    iou = inter / union
+                    if iou > best_iou:
+                        best_iou = iou
+                        best_did = did
+                        best_dic_area = int(dic_m.sum())
+                if best_iou >= 0.5:
+                    # Significant overlap — decide who wins
+                    if cy5_area >= 1.5 * best_dic_area:
+                        # Cy5 mask significantly larger — replace DIC
+                        raw_labels[i][raw_labels[i] == best_did] = 0
+                        raw_labels[i][cy5_m] = best_did
+                    # else: DIC wins, drop Cy5
+                    continue
+                # Low or no overlap — add as new cell
                 existing_max += 1
-                # Only place pixels not already occupied
                 free = (raw_labels[i] == 0) & cy5_m
                 if free.sum() < min_area_px: continue
                 raw_labels[i][free] = existing_max
@@ -349,7 +377,8 @@ def detect_hybrid_cpsam_multi(frames, progress_fn=None,
         min_area_px=min_area_px,
         max_hop_px=150,
         spawn_new_tracks=True,
-        min_track_length=3,
+        min_track_length=min_track_length,
+        max_gap_frames=max_gap_frames,
         frames=frames,
     )
     log.info("Found %d tracks (max %d cells/frame)", len(tracks), max_cells)
@@ -360,11 +389,14 @@ def detect_hybrid_cpsam_multi(frames, progress_fn=None,
         if progress_fn:
             progress_fn("Filling track gaps", 80)
         from core.pipeline_defaults import DEFAULTS as _PD
+        eff_sam2 = (use_sam2_video_gap_fill
+                     if use_sam2_video_gap_fill is not None
+                     else _PD.use_sam2_video_gap_fill)
         n_filled = fill_track_gaps(
             tracks, frames, min_area=min_area_px,
             search_radius=150,
             project_root=project_root,
-            use_sam2_video=_PD.use_sam2_video_gap_fill,
+            use_sam2_video=eff_sam2,
             progress_fn=lambda msg, pct: progress_fn(
                 msg, int(80 + 15 * pct / 100)) if progress_fn else None)
         if n_filled:
@@ -375,7 +407,8 @@ def detect_hybrid_cpsam_multi(frames, progress_fn=None,
     from core.track_postprocess import postprocess_tracks
     if progress_fn:
         progress_fn("Post-processing tracks", 95)
-    pp = postprocess_tracks(tracks, frames=frames)
+    pp = postprocess_tracks(tracks, frames=frames,
+                              min_frames=min_track_length)
     if (pp.get("fps_rejected") or pp.get("tracks_removed")
             or pp.get("edge_slivers_dropped")
             or pp.get("edge_sliver_frames_zeroed")):

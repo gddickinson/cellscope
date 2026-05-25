@@ -217,7 +217,7 @@ def main():
     params = {
         "mode": "multi",
         "use_cy5_fusion": True,
-        "cy5_filter_mode": "multi_metric",
+        "cy5_filter_mode": "persistence_guard",
         "min_area_px": 200,
     }
     save_project(PROJECT_FILE, recording, detect_result, per_cell,

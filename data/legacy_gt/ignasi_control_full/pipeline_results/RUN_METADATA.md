@@ -1,9 +1,9 @@
 # RUN_METADATA — C1-IC293__1_MMStack_Pos0-WT.ome-1cropped.tif
 
 **Schema version**: 1.0.0
-**Started**: 2026-05-21T07:53:21
-**Finished**: 2026-05-21T07:53:21
-**Runtime**: 669 s
+**Started**: 2026-05-25T11:25:16
+**Finished**: 2026-05-25T11:25:16
+**Runtime**: 579 s
 **Pipeline**: `hybrid_cpsam_multi` (mode = multi)
 
 ## Source recording
@@ -25,7 +25,7 @@
 ## Parameters deviating from defaults
 
   - **auto_selected_pipeline**: `cpsam` (not in defaults)
-  - **cy5_filter_mode**: `None` (default `multi_metric`)
+  - **cy5_filter_mode**: `None` (default `persistence_guard`)
   - **downsample**: `1` (not in defaults)
   - **downsample_reason**: `auto: max dim 759 < 900; cells would be too small at ds≥2` (not in defaults)
   - **downsample_spec**: `auto` (not in defaults)
@@ -45,7 +45,7 @@
 
 ## Reproducibility
 
-- **git commit**: `9dd8c371336e`
+- **git commit**: `dfae5cb3132c`
 - **rerun command**:
 
 ```bash

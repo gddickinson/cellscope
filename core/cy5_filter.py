@@ -401,15 +401,167 @@ def consensus_filter(tracks):
     }
 
 
+def _track_motion_and_shape(t):
+    """Return (mean_velocity_px_per_frame, median_consecutive_iou).
+
+    Velocity is the mean per-frame centroid displacement. Shape IoU is
+    the median of consecutive-frame mask overlaps. Used to detect
+    static, shape-stable phantom tracks (vignette artefacts / stuck
+    debris that survive any lifetime threshold but actively fail Cy5).
+
+    Returns (0.0, 1.0) for tracks with <2 active frames (no motion
+    measurable) — treated as static by callers.
+    """
+    stack = t.get("stack")
+    if stack is None:
+        return (0.0, 1.0)
+    active_frames = []
+    centroids = []
+    for fi in range(stack.shape[0]):
+        m = stack[fi].astype(bool)
+        if not m.any():
+            continue
+        ys, xs = np.where(m)
+        centroids.append((fi, float(ys.mean()), float(xs.mean())))
+        active_frames.append((fi, m))
+    if len(centroids) < 2:
+        return (0.0, 1.0)
+    ys = np.array([c[1] for c in centroids])
+    xs = np.array([c[2] for c in centroids])
+    per_step = np.sqrt(np.diff(ys) ** 2 + np.diff(xs) ** 2)
+    velocity = float(per_step.mean()) if len(per_step) else 0.0
+    ious = []
+    for i in range(len(active_frames) - 1):
+        fi1, m1 = active_frames[i]
+        fi2, m2 = active_frames[i + 1]
+        if fi2 - fi1 != 1:
+            continue
+        inter = int(np.logical_and(m1, m2).sum())
+        union = int(np.logical_or(m1, m2).sum())
+        if union > 0:
+            ious.append(inter / union)
+    shape_iou = float(np.median(ious)) if ious else 1.0
+    return (velocity, shape_iou)
+
+
+def persistence_guard_filter(tracks, min_lifetime=35,
+                              score_threshold=0.15,
+                              io_ratio_threshold=1.10,
+                              frac_pos_threshold=0.15,
+                              min_passing=2,
+                              static_velocity_px=3.0,
+                              static_shape_iou=0.85):
+    """Three-stage filter to recover weak-Cy5 real cells without
+    keeping persistent vignette / debris phantoms:
+
+      1. multi_metric pass (≥ `min_passing` of 3 Cy5 thresholds) →
+         KEEP. Real cells with informative SiR-actin signal.
+      2. mm-fail AND lifetime < `min_lifetime` → DROP.
+         Short transient detection — not enough evidence.
+      3. mm-fail AND lifetime ≥ `min_lifetime`:
+            - If track is STATIC (mean per-frame centroid displacement
+              < `static_velocity_px` AND median consecutive-frame mask
+              IoU > `static_shape_iou`) → DROP. Phantom signature:
+              vignette artefacts and stuck debris are static AND
+              shape-stable. Real cells either move or deform.
+            - Otherwise → KEEP. Long-lived moving/deforming cell with
+              weak fluorescence (GOF/OT/DMSO conditions).
+
+    Calibration: 13-recording GT audit (989 GT cells). multi_metric
+    alone drops 70 real cells (-7.1% recall) — overly strict in
+    weak-Cy5 conditions. Pure persistence_guard at ml=35 recovers
+    +97 cells but adds +102 phantoms (notably 1 in Pos51_Y1 that
+    survives any lifetime threshold). Adding the static-track gate
+    drops the phantom without losing any GT-matched real cells with
+    measurable motion.
+
+    Returns (kept, dropped, info).
+    """
+    kept, dropped = [], []
+    n_long_kept = 0
+    n_short_pass = 0
+    n_short_drop = 0
+    n_static_drop = 0
+    for t in tracks:
+        stack = t.get("stack")
+        if stack is not None:
+            n_valid = int((stack.sum(axis=tuple(range(1, stack.ndim)))
+                            > 0).sum())
+        else:
+            n_valid = 0
+        score = _track_score(t)
+        io = _track_metric(t, "cy5_io_ratio")
+        fp = _track_metric(t, "cy5_fraction_positive")
+        passed = ((score > score_threshold)
+                   + (io > io_ratio_threshold)
+                   + (fp > frac_pos_threshold))
+        # Always keep tracks that pass multi-metric Cy5 (real cell
+        # signature)
+        if passed >= min_passing:
+            kept.append(t)
+            n_short_pass += (1 if n_valid < min_lifetime else 0)
+            n_long_kept += (1 if n_valid >= min_lifetime else 0)
+            continue
+        # mm < min_passing → need other evidence
+        if n_valid < min_lifetime:
+            t = dict(t)
+            t["drop_reason"] = (
+                f"short ({n_valid} frames) and only {passed}/3 metrics: "
+                f"score={score:.2f}, io={io:.2f}, fp={fp:.2f}")
+            dropped.append(t)
+            n_short_drop += 1
+            continue
+        # Long-lived but mm<min_passing → check motion + shape
+        # signature. Phantoms (vignette / stuck debris) have BOTH
+        # low velocity AND high frame-to-frame shape stability — real
+        # cells either move OR deform.
+        velocity, shape_iou = _track_motion_and_shape(t)
+        is_static = (velocity < static_velocity_px
+                      and shape_iou > static_shape_iou)
+        if is_static:
+            t = dict(t)
+            t["drop_reason"] = (
+                f"long ({n_valid} frames) but static (vel={velocity:.2f}"
+                f"<{static_velocity_px}, shape_iou={shape_iou:.2f}"
+                f">{static_shape_iou}) and only {passed}/3 Cy5 metrics: "
+                f"score={score:.2f}, io={io:.2f}, fp={fp:.2f}")
+            dropped.append(t)
+            n_static_drop += 1
+            continue
+        # Long-lived AND (moves OR deforms) → real cell, keep
+        kept.append(t)
+        n_long_kept += 1
+    return kept, dropped, {
+        "mode": "persistence_guard",
+        "min_lifetime": min_lifetime,
+        "static_velocity_px": static_velocity_px,
+        "static_shape_iou": static_shape_iou,
+        "n_kept": len(kept),
+        "n_dropped": len(dropped),
+        "n_long_lived_kept": n_long_kept,
+        "n_short_passed_multimetric": n_short_pass,
+        "n_short_dropped": n_short_drop,
+        "n_static_dropped": n_static_drop,
+    }
+
+
 def apply_cy5_filter(tracks, mode="off", threshold=0.15,
-                      mean_threshold=0.05, p95_threshold=0.10):
+                      mean_threshold=0.05, p95_threshold=0.10,
+                      pg_min_lifetime=None,
+                      pg_static_velocity_px=None,
+                      pg_static_shape_iou=None):
     """Dispatch to the requested strategy.
 
     mode ∈ {"off", "conservative", "conservative_strict",
             "threshold", "adaptive", "adaptive_loose",
-            "multi_metric", "temporal_stability"}.
+            "multi_metric", "temporal_stability",
+            "persistence_guard"}.
     Returns (kept, dropped, info). When mode='off' returns
     (tracks, [], {"mode": "off"}).
+
+    For mode='persistence_guard', the three pg_* args override the
+    filter's defaults (35, 3.0, 0.85) when provided. None → use the
+    defaults baked into persistence_guard_filter.
     """
     if mode == "off" or not tracks:
         return tracks, [], {"mode": "off",
@@ -436,6 +588,15 @@ def apply_cy5_filter(tracks, mode="off", threshold=0.15,
         return temporal_stability_filter(tracks)
     if mode == "consensus":
         return consensus_filter(tracks)
+    if mode == "persistence_guard":
+        kwargs = {}
+        if pg_min_lifetime is not None:
+            kwargs["min_lifetime"] = pg_min_lifetime
+        if pg_static_velocity_px is not None:
+            kwargs["static_velocity_px"] = pg_static_velocity_px
+        if pg_static_shape_iou is not None:
+            kwargs["static_shape_iou"] = pg_static_shape_iou
+        return persistence_guard_filter(tracks, **kwargs)
     raise ValueError(f"Unknown mode {mode!r}")
 
 

@@ -3,5 +3,5 @@ Pipeline run on ignasi_control (single-channel)
   cells/frame:      min=2 max=3 mean=2.2
   downsample:       1× (auto: max dim 759 < 900; cells would be too small at ds≥2)
   pipeline:         cpsam
-  runtime:          126s
+  runtime:          101s
   output:           /Users/george/claude_test/cellscope/data/legacy_gt/ignasi_control/pipeline_results

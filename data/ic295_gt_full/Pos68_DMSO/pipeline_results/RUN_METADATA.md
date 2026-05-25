@@ -1,9 +1,9 @@
 # RUN_METADATA — Pos68_DMSO
 
 **Schema version**: 1.0.0
-**Started**: 2026-05-21T07:29:45
-**Finished**: 2026-05-21T07:29:45
-**Runtime**: 8472 s
+**Started**: 2026-05-24T23:16:10
+**Finished**: 2026-05-24T23:16:10
+**Runtime**: 8508 s
 **Pipeline**: `hybrid_cpsam_multi` (mode = multi)
 
 ## Source recording
@@ -17,10 +17,10 @@
 
 ## Results
 
-- **n_tracks**: 15
+- **n_tracks**: 28
 - **n_cy5_fusion_added** (pre-tracking): 15
 - **n_analysis_cells**: 0
-  - fusion source breakdown: both = 10, dic_only = 5
+  - fusion source breakdown: both = 10, dic_only = 18
 
 ## Parameters deviating from defaults
 
@@ -45,7 +45,7 @@
 
 ## Reproducibility
 
-- **git commit**: `9dd8c371336e`
+- **git commit**: `dfae5cb3132c`
 - **rerun command**:
 
 ```bash

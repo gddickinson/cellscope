@@ -38,9 +38,25 @@ def detect_recording(dic_frames, cy5_frames=None,
                       align_channels=True,
                       pipeline_kind="auto",
                       run_cy5_filter=True,
-                      cy5_filter_mode="multi_metric",
+                      cy5_filter_mode="persistence_guard",
                       cy5_filter_threshold=0.15,
+                      cy5_pg_min_lifetime=None,
+                      cy5_pg_static_velocity_px=None,
+                      cy5_pg_static_shape_iou=None,
                       use_mirror_pad=None,
+                      use_deepsea=None,
+                      use_gap_fill=None,
+                      use_sam2_video_gap_fill=None,
+                      max_gap_frames=None,
+                      min_track_length=None,
+                      use_tta=None,
+                      use_cpsam_cy5_union=None,
+                      use_fallback=None,
+                      use_preprocess=None,
+                      use_retry=None,
+                      cy5_fusion_jaccard_thresh=None,
+                      cy5_fusion_max_overlap_frac=None,
+                      cy5_fusion_augment_cpsam=None,
                       progress_fn=None):
     """Run the canonical end-to-end detection.
 
@@ -157,8 +173,16 @@ def detect_recording(dic_frames, cy5_frames=None,
             progress_fn=_emit,
             model_path=auto["model_path"],
             min_area_px=px_thresholds["min_area_px"],
+            use_preprocess=use_preprocess,
+            use_deepsea=use_deepsea,
+            use_retry=use_retry,
+            use_tta=use_tta,
+            min_track_length=min_track_length,
+            max_gap_frames=max_gap_frames,
             cy5_frames=cy5_frames,
-            use_cy5_fusion=use_cy5_fusion)
+            use_cy5_fusion=use_cy5_fusion,
+            cy5_fusion_augment=cy5_fusion_augment_cpsam,
+            cy5_fusion_jaccard_thresh=cy5_fusion_jaccard_thresh)
     else:
         from core.hybrid_cpsam_multi import detect_hybrid_cpsam_multi
         _emit("Detecting with raw cpsam", 10)
@@ -167,19 +191,36 @@ def detect_recording(dic_frames, cy5_frames=None,
         # honor sidecar JSON's "use_mirror_pad" key (e.g. Pos39_OT
         # uses "off" because mirror-padding merges its dividing cell
         # pair into a single mass and the second daughter is lost).
+        # Each kwarg falls back to DEFAULTS when None — lets callers
+        # (GUI, scripts) override individually without having to know
+        # every default.
         effective_mirror_pad = (use_mirror_pad
                                  if use_mirror_pad is not None
                                  else DEFAULTS.use_mirror_pad)
+        eff_deepsea = (use_deepsea if use_deepsea is not None
+                        else DEFAULTS.use_deepsea)
+        eff_gap_fill = (use_gap_fill if use_gap_fill is not None
+                         else DEFAULTS.use_gap_fill)
+        eff_tta = use_tta if use_tta is not None else DEFAULTS.use_tta
+        eff_cpsam_cy5 = (use_cpsam_cy5_union
+                          if use_cpsam_cy5_union is not None
+                          else DEFAULTS.use_cpsam_cy5_union)
+        eff_fallback = (use_fallback if use_fallback is not None
+                         else False)
         result = detect_hybrid_cpsam_multi(
             dic_frames,
             progress_fn=_emit,
             min_area_px=px_thresholds["min_area_px"],
-            use_fallback=False,
-            use_deepsea=DEFAULTS.use_deepsea,
-            use_gap_fill=DEFAULTS.use_gap_fill,
-            use_tta=DEFAULTS.use_tta,
+            use_fallback=eff_fallback,
+            use_deepsea=eff_deepsea,
+            use_gap_fill=eff_gap_fill,
+            use_sam2_video_gap_fill=use_sam2_video_gap_fill,
+            max_gap_frames=max_gap_frames,
+            min_track_length=(min_track_length if min_track_length
+                               is not None else DEFAULTS.min_track_length),
+            use_tta=eff_tta,
             use_mirror_pad=effective_mirror_pad,
-            use_cpsam_cy5_union=DEFAULTS.use_cpsam_cy5_union,
+            use_cpsam_cy5_union=eff_cpsam_cy5,
             cy5_frames=cy5_frames,
             recover_with_cy5=False,
             use_cy5_fusion=use_cy5_fusion)
@@ -218,7 +259,10 @@ def detect_recording(dic_frames, cy5_frames=None,
                                     if valid.any() else 0.0)
         kept, dropped, info = apply_cy5_filter(
             result["tracks"], mode=cy5_filter_mode,
-            threshold=cy5_filter_threshold)
+            threshold=cy5_filter_threshold,
+            pg_min_lifetime=cy5_pg_min_lifetime,
+            pg_static_velocity_px=cy5_pg_static_velocity_px,
+            pg_static_shape_iou=cy5_pg_static_shape_iou)
         result["tracks_raw"] = result["tracks"]
         result["tracks"] = kept
         result["tracks_dropped"] = dropped

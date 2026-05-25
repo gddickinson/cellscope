@@ -139,7 +139,8 @@ class BatchWindow(QMainWindow):
         form.addRow("  Cy5 recovery:", self.use_cy5_recovery)
         self.cy5_filter_mode = QComboBox()
         self.cy5_filter_mode.addItems([
-            "Off", "Conservative", "Conservative_strict",
+            "Off", "Persistence_guard",
+            "Conservative", "Conservative_strict",
             "Adaptive", "Adaptive_loose",
             "Multi_metric", "Composite_score", "Consensus",
             "Temporal_stability", "Threshold"])

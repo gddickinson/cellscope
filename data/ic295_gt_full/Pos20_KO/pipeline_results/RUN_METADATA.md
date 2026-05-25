@@ -1,9 +1,9 @@
 # RUN_METADATA — Pos20_KO
 
 **Schema version**: 1.0.0
-**Started**: 2026-05-21T01:25:23
-**Finished**: 2026-05-21T01:25:23
-**Runtime**: 4135 s
+**Started**: 2026-05-25T05:21:44
+**Finished**: 2026-05-25T05:21:44
+**Runtime**: 4144 s
 **Pipeline**: `hybrid_cpsam_multi` (mode = multi)
 
 ## Source recording
@@ -17,10 +17,10 @@
 
 ## Results
 
-- **n_tracks**: 11
+- **n_tracks**: 13
 - **n_cy5_fusion_added** (pre-tracking): 109
 - **n_analysis_cells**: 0
-  - fusion source breakdown: both = 8, cy5_only = 1, dic_only = 2
+  - fusion source breakdown: both = 8, cy5_only = 1, dic_only = 4
 
 ## Parameters deviating from defaults
 
@@ -45,7 +45,7 @@
 
 ## Reproducibility
 
-- **git commit**: `9dd8c371336e`
+- **git commit**: `dfae5cb3132c`
 - **rerun command**:
 
 ```bash

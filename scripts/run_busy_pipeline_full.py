@@ -284,7 +284,7 @@ def main():
     params_used = {
         **DEFAULTS.as_dict(),     # canonical defaults
         "use_cy5_fusion": True,
-        "cy5_filter_mode": "multi_metric",
+        "cy5_filter_mode": "persistence_guard",
         "model_path": model_path,
     }
     save_project(

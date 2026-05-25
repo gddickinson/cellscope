@@ -58,6 +58,7 @@ class PipelinePanel(QWidget):
     cancel_clicked = pyqtSignal()
     undo_clicked = pyqtSignal()
     clear_all_clicked = pyqtSignal()
+    test_frame_clicked = pyqtSignal()
     mode_changed = pyqtSignal(str)
 
     def __init__(self):
@@ -105,6 +106,18 @@ class PipelinePanel(QWidget):
             "QPushButton:enabled { color: #c22; font-weight: bold; }")
         btn_row.addWidget(self.btn_cancel)
 
+        self.btn_test_frame = QPushButton("🔬 Test on frame")
+        self.btn_test_frame.setToolTip(
+            "Run detection on the CURRENT displayed frame only with\n"
+            "the current GUI parameter settings. Times the run and\n"
+            "extrapolates a total runtime estimate for the full\n"
+            "recording. Skips multi-frame steps (tracking, gap fill,\n"
+            "Cy5 filter). Use this to preview how parameter changes\n"
+            "affect detection before committing to a full run.")
+        self.btn_test_frame.clicked.connect(self.test_frame_clicked.emit)
+        self.btn_test_frame.setEnabled(False)
+        btn_row.addWidget(self.btn_test_frame)
+
         btn_undo = QPushButton("Undo Detect")
         btn_undo.setToolTip("Revert to previous detection result")
         btn_undo.clicked.connect(self.undo_clicked.emit)
@@ -147,6 +160,10 @@ class PipelinePanel(QWidget):
                 self.stages[key].setEnabled(False)
             else:
                 self.stages[key].setEnabled(True)
+        # Test-on-frame is available once detection is reachable
+        self.btn_test_frame.setEnabled(
+            self.stages.get("detect") is not None
+            and self.stages["detect"].isEnabled())
 
     def enable_stage(self, name, enabled=True):
         if name in self.stages:

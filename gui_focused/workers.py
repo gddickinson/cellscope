@@ -115,6 +115,32 @@ class FocusedDetectWorker(QThread):
                     cy5_filter_threshold=self.params.get(
                         "cy5_filter_threshold",
                         _PD.cy5_filter_threshold),
+                    cy5_pg_min_lifetime=self.params.get(
+                        "cy5_pg_min_lifetime"),
+                    cy5_pg_static_velocity_px=self.params.get(
+                        "cy5_pg_static_velocity_px"),
+                    cy5_pg_static_shape_iou=self.params.get(
+                        "cy5_pg_static_shape_iou"),
+                    use_deepsea=self.params.get("use_deepsea"),
+                    use_gap_fill=self.params.get("use_gap_fill"),
+                    use_sam2_video_gap_fill=self.params.get(
+                        "use_sam2_video_gap_fill"),
+                    max_gap_frames=self.params.get("max_gap_frames"),
+                    min_track_length=self.params.get(
+                        "min_track_length"),
+                    use_tta=self.params.get("use_tta"),
+                    use_cpsam_cy5_union=self.params.get(
+                        "use_cpsam_cy5_union"),
+                    use_fallback=self.params.get("use_fallback"),
+                    use_mirror_pad=self.params.get("use_mirror_pad"),
+                    use_preprocess=self.params.get("use_preprocess"),
+                    use_retry=self.params.get("use_retry"),
+                    cy5_fusion_jaccard_thresh=self.params.get(
+                        "cy5_fusion_jaccard_thresh"),
+                    cy5_fusion_max_overlap_frac=self.params.get(
+                        "cy5_fusion_max_overlap_frac"),
+                    cy5_fusion_augment_cpsam=self.params.get(
+                        "cy5_fusion_augment_cpsam"),
                     progress_fn=cb,
                 )
                 auto = result.get("auto", {})

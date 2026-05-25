@@ -295,3 +295,48 @@ Per-recording cache lets it resume; can run overnight + a day.
 * Phases 3–4 (Hungarian Cy5 features + quality flag) are next.
 * Phase 5–6 (subcellular features + mitosis) are speculative but
   likely the strongest biology signal for Piezo1.
+
+## Update (2026-05-25): Cy5 filter calibrated on full 13-GT corpus
+
+The Tier 4 Cy5 multi-metric filter (the "AND-filter" that separates
+real cells from DIC debris) was re-calibrated after a 13-recording GT
+audit revealed it was **dropping 70 of 989 real cells (-7.1% recall)**
+overall, with catastrophic damage on weak-Cy5 conditions: Pos31_GOF
+(-50%), Pos44_OT (-23%), Pos68_DMSO (-22%). SiR-actin staining is
+dimmer in GOF/OT/DMSO than in the validation set used to set the
+original 2-of-3 thresholds.
+
+**Replaced default with `persistence_guard` (v2)** — a 3-stage rule:
+
+1. **Multi-metric pass (≥2/3)** → keep. Real cells with informative
+   Cy5 signal.
+2. **mm-fail AND lifetime < `min_lifetime` (default 35 frames)** →
+   drop. Short transient detection — not enough evidence.
+3. **mm-fail AND lifetime ≥ min_lifetime**:
+   - If **static** (mean per-frame centroid displacement < 3 px
+     AND median consecutive-frame mask IoU > 0.85) → drop.
+     Phantom signature: vignette artefacts and stuck debris are
+     static AND shape-stable.
+   - Otherwise → keep. Long-lived moving/deforming cell with weak
+     fluorescence.
+
+**Validation on full 13-GT corpus**:
+
+| Metric | canon (multi_metric) | persistence_guard v2 | Δ |
+|---|---:|---:|---:|
+| TP | 741 | **828** | +87 |
+| FPf (phantom only) | 53 | 88 | +35 |
+| F1 | 0.783 | **0.802** | +0.019 |
+| F1_focused | 0.836 | **0.874** | +0.038 |
+
+**Per-recording wins**: Pos31_GOF F1_focused 0.478 → 0.811 (+0.333),
+Pos68_DMSO 0.661 → 0.857 (+0.196), Pos21_KO 0.640 → 0.804 (+0.085).
+**Pos51_Y1** (the recording with the strongest persistent vignette
+artifact) recovers fully — F1_focused 0.957 = canon (the phantom is
+killed by the static-track gate, all real cells preserved).
+
+All tunable from the GUI (Cy5 filter dropdown + 3 sub-spinboxes for
+`min_lifetime`, `static_velocity_px`, `static_shape_iou`).
+
+See `core/cy5_filter.py` (`persistence_guard_filter`) and the
+2026-05-23/25 entries in `SESSION_LOG.md` for the full investigation.

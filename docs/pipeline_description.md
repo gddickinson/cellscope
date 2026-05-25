@@ -10,7 +10,7 @@ migration, morphology, and edge dynamics.
 
 ## Cell Detection
 
-### Primary detector: Cellpose-SAM (cpsam)
+### Primary detector: Cellpose-SAM (cpsam) — auto-routed
 
 CellScope uses Cellpose-SAM (cpsam), a Cellpose variant that replaces
 the CNN backbone with a Vision Transformer (ViT) image encoder from
@@ -19,9 +19,19 @@ large corpus of natural and microscopy images, provides strong
 generalization to diverse cell types and imaging modalities without
 per-experiment fine-tuning.
 
+**Auto-select between raw cpsam and cpsam_dic**: a probe samples
+the first 11 frames at the chosen detection resolution, counts cells
+per frame, and uses the 75th-percentile count:
+
+- < 1.5 cells/frame → **cpsam_dic** (DIC fine-tune, single-cell-
+  biased — produces tighter boundaries on isolated cells)
+- ≥ 1.5 cells/frame → **raw cpsam** (multi-cell ViT default —
+  better at touching cells; cpsam_dic merges them)
+
 Detection runs at default parameters (no diameter hint, no threshold
-tuning) on each frame independently, producing per-cell instance
-segmentation masks.
+tuning) on each frame independently. The cpsam input is mirror-padded
+by 50 px when detection-min-dim ≥ 1024 (auto-enabled) to handle cells
+at the FoV edge.
 
 ### DeepSea union refinement
 
@@ -42,8 +52,8 @@ automatic debris filtering.
 ### Fallback detection
 
 For frames where cpsam returns insufficient cell area (below a
-configurable threshold, default 500 px), the pipeline falls back to
-a secondary detector:
+configurable threshold, default `min_area_px=200` from DEFAULTS),
+the pipeline falls back to a secondary detector:
 
 1. Cellpose (CNN backbone, cellpose 3.x) with tuned parameters
    (cellprob_threshold=-2.0, flow_threshold=0.0)
@@ -64,9 +74,12 @@ identity using the Hungarian algorithm (scipy linear_sum_assignment):
 
 - Cost matrix: Euclidean distance between centroids
 - Maximum allowed hop: 150 px × gap length (scales for missing frames)
-- Gap tolerance: tracks survive up to 10 consecutive unmatched frames
+- Gap tolerance: tracks survive up to `max_gap_frames` (default 15)
+  consecutive unmatched frames — covers ~10 frames of biological
+  transitions at 10-min/frame intervals
 - New tracks spawn for unmatched detections (cells entering the
   field of view)
+- Tracks shorter than `min_track_length` (default 3) are dropped
 
 ### Division detection
 
@@ -78,13 +91,41 @@ track is tagged as a daughter with a parent_id link.
 ### Gap filling
 
 After tracking, internal gaps (frames where a tracked cell was
-transiently undetected) are filled by:
+transiently undetected) are filled by a four-phase cascade:
 
-1. Interpolating the expected centroid from flanking frames
-2. Re-running cpsam with test-time augmentation (4 rotations)
-3. Selecting the detection closest to the expected position
-4. If cpsam fails, falling back to the cellpose+MedSAM+DeepSea
-   secondary pipeline
+1. **Phase 1** — re-run cpsam with test-time augmentation
+   (`augment=True`, 4 rotations) on the gap frame, select detection
+   nearest the interpolated centroid
+2. **Phase 2** — if Phase 1 fails, fall back to cellpose
+   + MedSAM + DeepSea (CP3 subprocess)
+3. **Phase 3** — SAM2 video propagation from a flanking frame
+   (memory attention follows cells through transitions where
+   cpsam/cellpose can't detect them). Toggleable via
+   `use_sam2_video_gap_fill` (default on; +1s per gap frame)
+4. **Phase 4** — translation-only fill from the nearest flanking
+   detection as a last resort
+
+Tested fill rate: 100% on production recordings (32/32 gaps on
+Pos3-WT, 9/9 on Pos2-WT, 41/41 across all GT recordings).
+
+### Cy5 false-positive filter (multichannel only)
+
+When a Cy5 fluorescence channel is present, the post-tracking
+**persistence_guard** filter (default) removes false-positive
+tracks using a three-stage rule:
+
+1. **Pass** if the track passes ≥2 of 3 Cy5 cellularity metrics
+   (score, inside/outside ratio, fraction positive)
+2. **Drop** if short (lifetime < 35 frames) AND not passing the
+   metrics — transient detections without Cy5 evidence
+3. For long tracks that fail the Cy5 metrics, **drop only if
+   STATIC** (mean per-frame centroid displacement < 3 px AND
+   median consecutive-frame mask IoU > 0.85) — phantom signature:
+   vignette artefacts and stuck debris are static AND shape-stable
+
+Calibrated on a 13-recording GT corpus (989 GT cells). Achieves
+F1_focused = 0.874 vs 0.836 for the original strict multi_metric
+filter. All thresholds GUI-tunable.
 
 ## Per-Cell Analysis
 

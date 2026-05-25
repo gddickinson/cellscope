@@ -1,6 +1,51 @@
 {
   "recording": "Pos31_GOF",
-  "n_candidates": 0,
-  "candidates": [],
-  "track_lineage": []
+  "n_candidates": 1,
+  "candidates": [
+    {
+      "frame": 16,
+      "peak_frame": 14,
+      "parent_track": 1,
+      "area_peak": 1846,
+      "area_parent_at_split": 452,
+      "area_parent_post_peak": 1567,
+      "area_baseline": 610,
+      "swelling_ratio": 3.02226588081205,
+      "pre_split_states": [
+        "transitional",
+        "transitional",
+        "balled"
+      ],
+      "pre_split_balled_frac": 0.8571428571428571,
+      "parent_centroid": [
+        33.53761061946903,
+        48.174778761061944
+      ],
+      "daughter_track": 2,
+      "daughter_first_frame": 17,
+      "daughter_persistence_frames": 19,
+      "distance_px": 8.764782764063082,
+      "area_daughter_first": 307,
+      "area_daughter_post_peak": 903,
+      "mass_ratio": 1.3380281690140845,
+      "mass_score": 0.6619718309859155,
+      "persist_score": 1.0,
+      "balled_score": 0.9285714285714286,
+      "swelling_score": 1.0,
+      "prox_score": 0.850849737686377,
+      "score": 0.5230072331251271,
+      "daughter_centroid": [
+        36.3485342019544,
+        39.872964169381106
+      ]
+    }
+  ],
+  "track_lineage": [
+    {
+      "track_index": 1,
+      "parent_track_index": 0,
+      "division_frame": 16,
+      "division_score": 0.5230072331251271
+    }
+  ]
 }

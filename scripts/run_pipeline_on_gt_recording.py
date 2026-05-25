@@ -149,7 +149,7 @@ def main():
         align_channels=not args.no_alignment,
         pipeline_kind="auto",
         run_cy5_filter=True,
-        cy5_filter_mode="multi_metric",
+        cy5_filter_mode="persistence_guard",
         cy5_filter_threshold=0.15,
         use_mirror_pad=use_mirror_pad_override,
         progress_fn=lambda m, p: log.info("  detect[%d%%]: %s", p, m))
@@ -221,7 +221,7 @@ def main():
     from core.run_metadata import write_run_metadata
     params_used = {**DEFAULTS.as_dict(),
                    "use_cy5_fusion": has_cy5,
-                   "cy5_filter_mode": ("multi_metric" if has_cy5
+                   "cy5_filter_mode": ("persistence_guard" if has_cy5
                                         else None),
                    "model_path": model_path,
                    "auto_selected_pipeline": pipeline_kind,

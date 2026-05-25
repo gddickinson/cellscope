@@ -1,26 +1,26 @@
-# RUN_METADATA — Pos30_GOF
+# RUN_METADATA — Pos39_OT
 
 **Schema version**: 1.0.0
-**Started**: 2026-05-25T08:33:38
-**Finished**: 2026-05-25T08:33:38
-**Runtime**: 4818 s
+**Started**: 2026-05-25T10:00:01
+**Finished**: 2026-05-25T10:00:01
+**Runtime**: 5176 s
 **Pipeline**: `hybrid_cpsam_multi` (mode = multi)
 
 ## Source recording
 
-- **video_path**: `/Users/george/claude_test/cellscope/data/ic295_gt_full/Pos30_GOF/IC295__1_MMStack_Pos30-GOF.ome.tif`
+- **video_path**: `/Users/george/claude_test/cellscope/data/ic295_gt_full/Pos39_OT/IC295__1_MMStack_Pos39-OT.ome.tif`
 - **n_frames**: 97
 - **has Cy5 channel**: True
 - **um_per_px**: 0.6523
 - **time_interval_min**: 10.0
-- **checksum**: `sha256-64mb:dddf48b9e9259a73`
+- **checksum**: `sha256-64mb:7707e55ffe8decfa`
 
 ## Results
 
-- **n_tracks**: 9
-- **n_cy5_fusion_added** (pre-tracking): 33
+- **n_tracks**: 15
+- **n_cy5_fusion_added** (pre-tracking): 13
 - **n_analysis_cells**: 0
-  - fusion source breakdown: both = 4, dic_only = 5
+  - fusion source breakdown: both = 6, dic_only = 9
 
 ## Parameters deviating from defaults
 
@@ -49,12 +49,12 @@
 - **rerun command**:
 
 ```bash
-conda run -n cellpose4 python scripts/run_pipeline_on_gt_recording.py data/ic295_gt_full/Pos30_GOF
+conda run -n cellpose4 python scripts/run_pipeline_on_gt_recording.py data/ic295_gt_full/Pos39_OT
 ```
 
 ## Output directory
 
-`/Users/george/claude_test/cellscope/data/ic295_gt_full/Pos30_GOF/pipeline_results`
+`/Users/george/claude_test/cellscope/data/ic295_gt_full/Pos39_OT/pipeline_results`
 
 ---
 *Generated automatically. If this file is missing alongside results,

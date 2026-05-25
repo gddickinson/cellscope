@@ -9,8 +9,8 @@ CellScope detects cell boundaries, tracks cells across frames, and quantifies mi
 
 ## Key Features
 
-- **Auto-selecting detection backbone** — for each recording the pipeline samples 5 frames, counts cells, and picks `cpsam_dic` (DIC fine-tune, single-cell-biased) when the median is <1.5 cells/frame, or raw `cpsam` (ViT, handles touching cells) for crowded fields.
-- **Multi-channel (DIC + Cy5) pipeline** — F-actin / SiR-actin Cy5 channel used to filter DIC false positives (multi-metric cellularity test) and recover cells DIC missed (Tier 1–4 fail-safes).
+- **Auto-selecting detection backbone** — for each recording the pipeline samples 11 frames, counts cells, and picks `cpsam_dic` (DIC fine-tune, single-cell-biased) when the 75th-percentile count is <1.5 cells/frame, or raw `cpsam` (ViT, handles touching cells) for crowded fields.
+- **Multi-channel (DIC + Cy5) pipeline** — F-actin / SiR-actin Cy5 channel used to filter DIC false positives via `persistence_guard` (default — keeps moving/deforming long-lived tracks even with weak Cy5; drops static phantom tracks regardless of lifetime; F1_focused +0.038 vs the original strict multi_metric on the 13-GT corpus) and recover cells DIC missed (Tier 1–4 fail-safes).
 - **DIC↔Cy5 channel alignment** — sub-pixel offset measured per recording via cellpose-centroid matching, applied before detection.
 - **Four-phase track gap fill** — cpsam(augment=True) → CP3 + MedSAM + DeepSea fallback → **SAM2 video propagation** → translation-only fill. 100% gap-fill rate on tested recordings.
 - **Cell-state classification** — per cell-frame: balled (mitotic / rounded) vs attached (spread) vs transitional, with per-state motility metrics (removes the dividing-cell composition confound).
@@ -38,9 +38,9 @@ Recording (.tif / .mp4)              ← single- or multi-channel
 │  3. Convert µm thresholds → per-recording px        │
 │     (min_area_um2 → min_area_px from um_per_px)     │
 │  4. Auto-pipeline-select                            │
-│     - sample 5 frames, count cells via cpsam_dic    │
-│     - median <1.5 → cpsam_dic (tighter boundaries)  │
-│     - median ≥1.5 → raw cpsam (handles touching)    │
+│     - sample 11 frames, count cells via raw cpsam   │
+│     - p75 <1.5 → cpsam_dic (tighter boundaries)     │
+│     - p75 ≥1.5 → raw cpsam (handles touching)       │
 └─────────────┬───────────────────────────────────────┘
               │
               ▼
@@ -61,8 +61,10 @@ Recording (.tif / .mp4)              ← single- or multi-channel
 │  - Cy5 recovery (Tier 2): crop+re-detect at Cy5+    │
 │    regions not covered by DIC mask                  │
 │  - Cy5 false-positive filter (Tier 4) — default     │
-│    "multi-metric": drop tracks failing ≥2/3 of      │
-│    {z-score, inside/outside ratio, % positive}      │
+│    "persistence_guard": keep if mm≥2/3 OR (long AND │
+│    moving); drops static phantom tracks even when   │
+│    long-lived; preserves weak-Cy5 real cells in     │
+│    GOF/OT/DMSO conditions                           │
 └─────────────┬───────────────────────────────────────┘
               │
               ▼
@@ -206,6 +208,18 @@ The main workflow: **Load → Detect → Edit Masks → Analyze → Export**
 - **20 graph types** including trajectory, MSD, edge kymograph, VAMPIRE shape modes
 - **Export dialog** — masks (.npz), metrics (.json), plots (PNG/SVG/PDF), MP4 overlay video, per-cell CSV, per-state CSV, RUN_METADATA.{md,json}
 
+### 🔬 Test on frame — preview detection before a full run
+
+Tune parameters interactively without waiting for a 1-3 hour full-recording detect: pick a frame, click **🔬 Test on frame**, and get a detection preview + a density-aware runtime estimate for the full recording.
+
+![Test on frame — loaded](docs/figures/gui_test_on_frame_loaded.png)
+*Recording loaded (Pos68_DMSO, dense multichannel DIC+Cy5). The **🔬 Test on frame** button (toolbar, between Cancel and Undo Detect) becomes enabled once a recording is loaded. The parameter panel on the right exposes every wired pipeline knob: detection backbone, refinement steps, gap-fill cascade, Cy5 fusion + filter mode, persistence_guard sub-parameters (min_lifetime, static-velocity, static-shape-IoU).*
+
+![Test on frame — result](docs/figures/gui_test_on_frame_result.png)
+*Frame 80 after clicking Test on frame: 14 cells detected (colored overlay), with the runtime extrapolation in the status bar — `Frame 80: 14 cell(s) in 39.74s → est. full run (97 frames): ~2.7 h (detect ~1.1 h × 2.5 dense post-proc)`. The post-processing multiplier (1.5× / 2.0× / 2.5× for sparse / medium / dense scenes) accounts for tracking + gap-fill overhead, calibrated against canonical full-pipeline runs.*
+
+Every parameter in the right-hand panel is plumbed end-to-end — toggling `DeepSea refinement`, changing `cy5_filter_mode` to `Multi-metric` or `Off`, or tweaking `max_gap_frames` all produce measurable differences in the next Test-on-frame click. (Three latent bugs where the GUI silently dropped user values onto hardcoded `DEFAULTS` were uncovered + fixed during real-recording testing of this feature in 2026-05-25.)
+
 ![Edge velocity kymograph](docs/figures/graph_kymograph.png)
 *Edge velocity kymograph: angular sector × time, red = protrusion, blue = retraction.*
 
@@ -266,10 +280,10 @@ For recordings with both DIC and a fluorescent F-actin probe (e.g. SiR-actin in 
 3. **Detection on DIC** — auto-selected cpsam_dic or raw cpsam.
 4. **Cy5 fusion (Tier 1)** — optionally also run cpsam directly on Cy5 as a parallel detection and merge into DIC labels (recovers cells visible in fluorescence but missed by the conservative DIC model).
 5. **Cy5 recovery (Tier 2)** — find Cy5+ regions not covered by any DIC mask, crop the DIC there, re-run cpsam(TTA) to recover cells the base model missed.
-6. **Cy5 multi-metric filter (Tier 4)** — drop tracks where the Cy5 signal does not pass the cellularity test (default: ≥2/3 of {z-score, inside/outside ring ratio, fraction-positive coverage}). Tracks failing all 3 are debris / vignette artefacts.
+6. **Cy5 false-positive filter (Tier 4)** — drop tracks that look like phantoms (vignette artefacts, stuck debris). **Default: `persistence_guard`** — three-stage rule: (a) keep if ≥2/3 of the cellularity metrics pass {z-score, inside/outside ring ratio, fraction-positive coverage}; (b) drop short tracks (<35 frames) that fail; (c) for long tracks failing the metrics, drop only if STATIC (vel<3 px/frame AND median consecutive-frame mask IoU>0.85) — phantom signature. Real cells either move or deform, so the rule preserves weak-Cy5 cells in GOF/OT/DMSO conditions while killing persistent vignette artefacts.
 7. **Track gap fill** — Cy5 evidence at the interpolated centroid feeds Tier 3 (cpsam on Cy5 crop).
 
-**Cy5 filter modes** (selectable in the GUI dropdown): off / conservative / conservative-strict / adaptive / adaptive-loose / **multi-metric (default)** / composite-score / consensus / temporal-stability / manual-threshold. Multi-metric is the default — track is REAL if ≥2/3 of {z-score, inside/outside ring ratio, fraction-positive coverage} pass. Tune interactively with `scripts/cy5_filter_tuner.py` (live overlay updates as you slide).
+**Cy5 filter modes** (selectable in the GUI dropdown): off / **persistence_guard (default)** / conservative / conservative-strict / adaptive / adaptive-loose / multi-metric (the original, stricter filter) / composite-score / consensus / temporal-stability / manual-threshold. The persistence_guard sub-parameters (`min_lifetime`, `static_velocity_px`, `static_shape_iou`) are also GUI-tunable when the mode is selected. Tune interactively with `scripts/cy5_filter_tuner.py` (live overlay updates as you slide) or use the in-GUI **🔬 Test on frame** button to preview filter effects on a single frame.
 
 ### Use multichannel from the GUI
 
