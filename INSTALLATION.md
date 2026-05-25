@@ -16,12 +16,13 @@ CellScope uses **two conda environments**:
 
 | Env | Cellpose | Purpose |
 |---|---|---|
-| `cellpose`  | 3.1.1.1 | GUI + analysis pipeline + CP3 fine-tunes (cellpose_dic, cellpose_combined_robust, …) |
-| `cellpose4` | 4.1.1   | cpsam ViT (default cpsam + the **cpsam_dic** fine-tune — current best on DIC) |
+| `cellpose4` ★ | 4.1.1 | **Default — launch all GUIs + run scripts from here.** cpsam ViT (default cpsam + the **cpsam_dic** fine-tune — current best on DIC). The auto-select pipeline uses both backbones, both of which need cellpose 4.x. |
+| `cellpose` | 3.1.1.1 | CP3 fallback fine-tunes (cellpose_dic, cellpose_combined_robust, …) + MedSAM. Invoked automatically via subprocess for Phase-2 gap fill, MedSAM refinement, etc. |
 
-The main GUI runs from the `cellpose` env. Whenever the pipeline needs
-cpsam, it subprocess-delegates to `cellpose4` automatically — you never
-have to switch envs by hand.
+The main GUI runs from the `cellpose4` env. Whenever the pipeline needs
+a CP3 model (e.g. cellpose+MedSAM+DeepSea fallback in the 4-phase gap
+fill cascade), it subprocess-delegates to `cellpose` automatically —
+you never have to switch envs by hand.
 
 ## Requirements
 
@@ -82,7 +83,7 @@ Two separate downloads, both handled by one command:
 Run:
 
 ```bash
-conda run -n cellpose python download_models.py
+conda run -n cellpose4 python download_models.py
 ```
 
 The script:
@@ -110,7 +111,7 @@ python download_models.py --force          # re-download even if present
 GPU via MPS works out of the box — no extra steps. Verify:
 
 ```bash
-conda run -n cellpose python -c "import torch; print('MPS:', torch.backends.mps.is_available())"
+conda run -n cellpose4 python -c "import torch; print('MPS:', torch.backends.mps.is_available())"
 ```
 
 ### NVIDIA (Linux / Windows)
@@ -128,7 +129,7 @@ conda run -n cellpose4 pip install torch==2.7.0 torchvision==0.22.0 \
 Replace `cu121` with `cu118` to match your CUDA version. Verify:
 
 ```bash
-conda run -n cellpose python -c "import torch; print('CUDA:', torch.cuda.is_available())"
+conda run -n cellpose4 python -c "import torch; print('CUDA:', torch.cuda.is_available())"
 ```
 
 ### CPU only
@@ -139,7 +140,7 @@ detects missing GPU and falls back automatically.
 ## Step 5: Verify and launch
 
 ```bash
-conda activate cellpose
+conda activate cellpose4
 python main_suite.py
 ```
 
@@ -148,14 +149,17 @@ specialised tools:
 
 | Tool | Direct launch | Purpose |
 |---|---|---|
-| Detection & Analysis | `python main_focused.py` | Single-recording pipeline (load → detect → edit → analyse → export) |
+| Detection & Analysis | `python main_focused.py` | Single-recording pipeline (load → detect → edit → analyse → export). Includes the **🔬 Test on frame** button for quick parameter-tuning previews on the currently displayed frame. |
 | Batch Processing | `python main_batch.py` | Multiple recordings + group summaries |
 | Tracking & Comparison | `python main_tracking.py` | Per-cell tracking + group statistics (t-test, ANOVA) |
 | Mask Editor | `python main_editor.py` | View/edit/create cell masks |
 | Model Training | `python main_training.py` | Fine-tune cellpose on your own GT |
 
-You **always run from the `cellpose` env**, never `cellpose4`. The
-pipeline handles cpsam invocation via subprocess.
+You **always run from the `cellpose4` env** (cellpose 4.1.1 +
+cpsam ViT). Both detection backbones (`cpsam_dic` and raw `cpsam`)
+need cellpose 4.x. The pipeline subprocess-delegates to the
+`cellpose` env automatically when it needs a CP3 model (e.g. for
+the Phase-2 cellpose+MedSAM+DeepSea fallback in track gap fill).
 
 ## Data format
 
@@ -247,7 +251,7 @@ from _paths import setup_imports; setup_imports()
 
 Verify GPU detection: `Settings > System Info` in the GUI, or
 ```bash
-conda run -n cellpose python -c "import torch; print('CUDA:', torch.cuda.is_available()); print('MPS:', torch.backends.mps.is_available())"
+conda run -n cellpose4 python -c "import torch; print('CUDA:', torch.cuda.is_available()); print('MPS:', torch.backends.mps.is_available())"
 ```
 
 ### DeepSea / MedSAM not found
@@ -257,7 +261,7 @@ auto-downloads from HuggingFace (`flaviagiammarino/medsam-vit-base`,
 ~375 MB) on first use. Check with:
 
 ```bash
-conda run -n cellpose python download_models.py --check-only
+conda run -n cellpose4 python download_models.py --check-only
 ```
 
 ### `gdown` errors during model download
