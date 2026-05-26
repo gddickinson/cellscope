@@ -104,6 +104,80 @@ def merge_nearby_fragments(labels, max_gap_px=15, min_area=100):
     return labels
 
 
+def merge_touching_splits(labels, area_ratio=0.3, dilate_px=2):
+    """Merge cells that touch each other when one is much smaller.
+
+    Catches cpsam over-segmentation cases that ``merge_nearby_fragments``
+    misses because the fragment is bigger than its size threshold.
+    Rationale: real adjacent cells have comparable sizes; a split
+    fragment is much smaller than the cell it broke off from. If two
+    cells share any boundary (or are within ``dilate_px``) and the
+    smaller one is < ``area_ratio`` of the larger, absorb it.
+
+    Args:
+        labels: (N, H, W) int32 label stack
+        area_ratio: smaller/larger threshold. 0.3 = merge if the
+            smaller cell is less than 30% of the larger.
+        dilate_px: pixels of dilation to use when testing adjacency.
+            1-2 px catches truly touching cells; larger values are
+            handled by ``merge_nearby_fragments``.
+
+    Returns:
+        (N, H, W) int32 with split fragments absorbed.
+    """
+    n_merged = 0
+    for i in range(len(labels)):
+        if labels[i].max() == 0:
+            continue
+        # Multi-pass: merging two cells can make a third pair eligible.
+        # Cap at 5 passes so we never loop forever on degenerate input.
+        for _ in range(5):
+            unique = sorted(set(np.unique(labels[i])) - {0})
+            if len(unique) < 2:
+                break
+            areas = {lab: int((labels[i] == lab).sum())
+                      for lab in unique}
+            # Sort smaller first so we always try to absorb the
+            # smaller of each adjacent pair into the larger.
+            order = sorted(unique, key=lambda L: areas[L])
+            did_merge = False
+            for lab in order:
+                if labels[i][labels[i] == lab].size == 0:
+                    continue   # already absorbed in this pass
+                small = labels[i] == lab
+                if not small.any():
+                    continue
+                dilated = ndimage.binary_dilation(
+                    small, iterations=dilate_px)
+                # Find any other label touching the dilated region
+                touching = set(np.unique(labels[i][dilated])) - {0, lab}
+                if not touching:
+                    continue
+                # Pick the largest touching neighbor
+                neighbor = max(
+                    touching, key=lambda L: areas.get(L, 0))
+                if areas.get(neighbor, 0) == 0:
+                    continue
+                ratio = areas[lab] / areas[neighbor]
+                if ratio < area_ratio:
+                    small_area = areas[lab]
+                    labels[i][small] = neighbor
+                    areas[neighbor] += small_area
+                    areas.pop(lab)
+                    n_merged += 1
+                    did_merge = True
+                    log.debug("Frame %d: merged split %d (%d px, "
+                              "ratio=%.2f) into cell %d (%d px)",
+                              i, lab, small_area, ratio,
+                              neighbor, areas[neighbor])
+            if not did_merge:
+                break
+    if n_merged:
+        log.info("Merged %d touching splits into larger neighbors",
+                 n_merged)
+    return labels
+
+
 def enforce_cell_count(labels, expected_cells, min_area=200):
     """Keep only the top-N cells per frame by area.
 
@@ -173,17 +247,33 @@ def add_velocity_prediction(tracks, n_history=5):
 
 
 def preprocess_detection(labels, expected_cells=0, min_area=200,
-                          close_iterations=3, merge_gap=15):
+                          close_iterations=3, merge_gap=15,
+                          split_area_ratio=0.3):
     """Full detection post-processing pipeline.
 
     1. Morphological closing to bridge split gaps
-    2. Merge small nearby fragments
-    3. Enforce expected cell count
+    2. Merge small nearby fragments (absolute area threshold)
+    3. Merge touching split fragments (relative area threshold —
+       catches medium-sized fragments that step 2 leaves alone)
+    4. Enforce expected cell count
+
+    ``split_area_ratio`` controls step 3: a touching neighbor is
+    absorbed if its area is below this fraction of the larger cell's.
+    Default 0.3 catches obvious splits without merging legitimate
+    adjacent cells of comparable size. Set to 0 to disable step 3.
 
     Returns processed labels + summary dict.
     """
     labels = close_split_cells(labels, close_iterations)
-    labels = merge_nearby_fragments(labels, merge_gap, min_area)
+    # Step 2: absorb very small fragments anywhere within merge_gap
+    # of a larger cell. Use the caller's min_area as the upper bound
+    # for "fragment" (was hardcoded to 100, which missed substantial
+    # split pieces). Multiply by 2 so we catch fragments up to 2x the
+    # global min_area threshold.
+    labels = merge_nearby_fragments(labels, merge_gap, min_area * 2)
+    if split_area_ratio > 0:
+        labels = merge_touching_splits(
+            labels, area_ratio=split_area_ratio)
     labels = enforce_cell_count(labels, expected_cells, min_area)
 
     # Recompact label IDs
