@@ -189,6 +189,14 @@ class FocusedMainWindow(QMainWindow):
         act_load_proj.setShortcut("Ctrl+Shift+O")
         act_load_proj.triggered.connect(self._on_load_project)
         file_menu.addAction(act_load_proj)
+        act_load_pr = QAction("Open Pipeline Results...", self)
+        act_load_pr.setShortcut("Ctrl+Shift+R")
+        act_load_pr.setStatusTip(
+            "Open a pipeline_results/ folder produced by a batch run "
+            "— loads masks, source map, and (if present) the "
+            "pre-Cy5-filter dropped-cell overlay.")
+        act_load_pr.triggered.connect(self._on_load_pipeline_results)
+        file_menu.addAction(act_load_pr)
         file_menu.addSeparator()
         act_export = QAction("Export Results...", self)
         act_export.setShortcut("Ctrl+Shift+S")
@@ -833,6 +841,10 @@ class FocusedMainWindow(QMainWindow):
     def _on_load_project(self):
         from gui_focused.project_handlers import on_load_project
         on_load_project(self)
+
+    def _on_load_pipeline_results(self):
+        from gui_focused.project_handlers import on_load_pipeline_results
+        on_load_pipeline_results(self)
 
     def _on_cancel(self):
         if self._worker and self._worker.isRunning():
