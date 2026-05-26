@@ -96,6 +96,13 @@ def main():
     p.add_argument("--no-alignment", action="store_true",
                    help="Skip automatic DIC↔Cy5 alignment "
                    "correction. Default is to measure + apply.")
+    p.add_argument("--no-save-unfiltered", action="store_true",
+                   help="Skip writing masks_unfiltered.npz + "
+                   "filter_decisions.json. By default, when the Cy5 "
+                   "filter (persistence_guard) runs we save the "
+                   "pre-filter label stack and a per-track decision "
+                   "JSON so users can inspect which cells were "
+                   "dropped and why.")
     args = p.parse_args()
     folder = os.path.abspath(args.folder)
     if not os.path.isdir(folder):
@@ -191,6 +198,19 @@ def main():
             "fusion_source_stack"].astype(np.uint8)
     np.savez_compressed(os.path.join(out_dir, "masks.npz"), **save_dict)
     log.info("Wrote %s/masks.npz", out_dir)
+
+    # Pre-Cy5-filter snapshot — only written when persistence_guard
+    # ran AND populated tracks_raw (single-channel recordings skip
+    # both). Lets the GUI surface which cells were dropped.
+    if not args.no_save_unfiltered:
+        from output.results import save_unfiltered_detections
+        counts = save_unfiltered_detections(out_dir, detect)
+        if counts is not None:
+            n_raw, n_kept, n_dropped = counts
+            log.info(
+                "Wrote %s/masks_unfiltered.npz + "
+                "filter_decisions.json (%d raw → %d kept, "
+                "%d dropped)", out_dir, n_raw, n_kept, n_dropped)
 
     # Division-lineage sidecar — sets parent_id on tracks +
     # exports divisions.json listing detected events

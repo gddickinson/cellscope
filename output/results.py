@@ -44,6 +44,69 @@ def write_recording_results(result, out_dir):
     return out_dir
 
 
+def save_unfiltered_detections(out_dir, detect):
+    """Write pre-Cy5-filter snapshot for inspection.
+
+    Produces (only if persistence_guard ran AND populated
+    ``tracks_raw``):
+      masks_unfiltered.npz  — int32 label stack from pre-filter
+                              tracks (IDs 1..N_raw, renumbered).
+      filter_decisions.json — per-raw-track decision + reason +
+                              source channel, plus aggregate counts.
+
+    Returns the (n_raw, n_kept, n_dropped) tuple, or None if there
+    was nothing to save (single-channel recording, filter off, etc.).
+    Safe to call unconditionally.
+    """
+    tracks_raw = detect.get("tracks_raw")
+    if not tracks_raw or detect.get("labels") is None:
+        return None
+    from core.cy5_filter import rebuild_label_stack
+    raw_labels = rebuild_label_stack(
+        tracks_raw, detect["labels"].shape)
+    np.savez_compressed(
+        os.path.join(out_dir, "masks_unfiltered.npz"),
+        labels=raw_labels)
+    kept_obj_ids = {id(t) for t in (detect.get("tracks") or [])}
+    # tracks_dropped items are shallow dict copies of raw tracks,
+    # but their "stack" ndarray is the same object as in tracks_raw.
+    drop_reason_by_stack_id = {}
+    for dt in (detect.get("tracks_dropped") or []):
+        s = dt.get("stack")
+        if s is not None and "drop_reason" in dt:
+            drop_reason_by_stack_id[id(s)] = dt["drop_reason"]
+    decisions = []
+    for raw_id, t in enumerate(tracks_raw, start=1):
+        stack = t.get("stack")
+        n_active = (int((stack.sum(axis=tuple(range(1, stack.ndim)))
+                          > 0).sum())
+                     if stack is not None else 0)
+        entry = {
+            "raw_id": int(raw_id),
+            "kept": id(t) in kept_obj_ids,
+            "n_frames": n_active,
+            "source": t.get("source"),
+        }
+        if not entry["kept"]:
+            entry["drop_reason"] = drop_reason_by_stack_id.get(
+                id(stack), "unknown")
+        decisions.append(entry)
+    n_raw = len(tracks_raw)
+    n_kept = sum(1 for d in decisions if d["kept"])
+    n_dropped = n_raw - n_kept
+    with open(os.path.join(out_dir, "filter_decisions.json"),
+               "w") as f:
+        json.dump({
+            "filter_mode": "persistence_guard",
+            "filter_info": detect.get("cy5_filter_info"),
+            "n_raw": n_raw,
+            "n_kept": n_kept,
+            "n_dropped": n_dropped,
+            "decisions": decisions,
+        }, f, indent=2, default=str)
+    return (n_raw, n_kept, n_dropped)
+
+
 def _build_metrics_dict(result):
     """Convert result dict to JSON-serializable metrics."""
     es = result["edge_summary"]

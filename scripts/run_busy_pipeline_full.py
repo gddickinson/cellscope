@@ -236,6 +236,18 @@ def main():
     np.savez_compressed(os.path.join(OUT_DIR, "masks.npz"),
                          **save_dict)
 
+    # Pre-Cy5-filter snapshot (no-op for single-channel runs).
+    try:
+        from output.results import save_unfiltered_detections
+        unf = save_unfiltered_detections(OUT_DIR, detect)
+        if unf is not None:
+            n_raw, n_kept, n_dropped = unf
+            log.info("Wrote masks_unfiltered.npz + "
+                     "filter_decisions.json (%d raw, %d kept, "
+                     "%d dropped)", n_raw, n_kept, n_dropped)
+    except Exception as e:
+        log.warning("Unfiltered save failed: %s", e)
+
     # ---- 5. metrics.json + per-cell metrics ----
     def _build_metrics(r):
         out = {}

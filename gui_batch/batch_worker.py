@@ -263,6 +263,26 @@ class BatchAnalysisWorker(QThread):
                     os.makedirs(rec_dir, exist_ok=True)
                     write_recording_results(result, rec_dir)
 
+                    # Pre-Cy5-filter snapshot — only if persistence_guard
+                    # (or whichever Cy5 filter) ran on this recording.
+                    # Lets the GUI overlay dropped cells later.
+                    try:
+                        from output.results import (
+                            save_unfiltered_detections)
+                        unf = save_unfiltered_detections(rec_dir, det)
+                        if unf is not None:
+                            n_raw, n_kept, n_dropped = unf
+                            self.log_event.emit(
+                                "info",
+                                f"  Unfiltered: {n_raw} raw, "
+                                f"{n_kept} kept, {n_dropped} dropped "
+                                f"(masks_unfiltered.npz + "
+                                f"filter_decisions.json)")
+                    except Exception as e:
+                        self.log_event.emit(
+                            "warn",
+                            f"  Unfiltered save failed: {e}")
+
                     # Division-lineage sidecar (cheap, always write)
                     divisions = det.get("divisions", []) or []
                     tracks = det.get("tracks", []) or []

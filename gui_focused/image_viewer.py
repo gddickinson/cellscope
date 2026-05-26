@@ -100,6 +100,11 @@ class ImageViewer(QWidget):
         self.masks = None
         self.source_stack = None  # (N, H, W) uint8 fusion-source codes
         self.color_by_source = False
+        # Pre-Cy5-filter labels (cells dropped by persistence_guard).
+        # Same shape as `masks`; rendered semi-transparent magenta when
+        # `show_dropped` is on. Lets users assess what the filter cut.
+        self.dropped_labels = None
+        self.show_dropped = False
         self.current_frame = 0
         self.brightness = 0.0
         self.contrast = 1.0
@@ -240,6 +245,18 @@ class ImageViewer(QWidget):
         self.chk_source.setVisible(False)
         self.chk_source.toggled.connect(self._on_toggle_source)
         view_row.addWidget(self.chk_source)
+
+        self.chk_dropped = QCheckBox("Dropped ⓘ")
+        self.chk_dropped.setToolTip(
+            "Overlay cells that the Cy5 persistence_guard filter\n"
+            "dropped (rendered semi-transparent magenta with a\n"
+            "dashed contour). Lets you assess which detections the\n"
+            "filter cut so you can adjust filter parameters for\n"
+            "future runs.\n\nAvailable after running detection with\n"
+            "Cy5 filter ON, or after loading masks_unfiltered.npz.")
+        self.chk_dropped.setVisible(False)
+        self.chk_dropped.toggled.connect(self._on_toggle_dropped)
+        view_row.addWidget(self.chk_dropped)
 
         # --- Channel toggle (shown only when fluorescence is loaded) ---
         self._channel_divider = QFrame()
@@ -403,9 +420,14 @@ class ImageViewer(QWidget):
         import cv2
         img = self._apply_bc(self.frames[idx])
         has_mask = (self.masks is not None and self.masks[idx].any())
-        if not has_mask:
+        has_dropped = (self.show_dropped
+                        and self.dropped_labels is not None
+                        and idx < len(self.dropped_labels)
+                        and self.dropped_labels[idx].any())
+        if not has_mask and not has_dropped:
             return None
-        is_multi = self.masks.dtype != bool and self.masks[idx].max() > 1
+        is_multi = (has_mask and self.masks.dtype != bool
+                     and self.masks[idx].max() > 1)
         rgb = np.stack([img, img, img], axis=-1).astype(np.float32)
 
         # If source colouring is on AND a source stack is loaded, use
@@ -413,7 +435,27 @@ class ImageViewer(QWidget):
         use_source = (self.color_by_source
                       and self.source_stack is not None)
 
-        if self.show_mask:
+        # Dropped-cell overlay — only the cells the Cy5 filter
+        # rejected. Drawn BEFORE kept masks so the kept colour wins
+        # when the two overlap (they shouldn't, but be defensive).
+        if has_dropped:
+            dropped_frame = self.dropped_labels[idx]
+            # Suppress dropped pixels under a kept cell (avoids
+            # double-coloured regions if the filter just shrank a
+            # track without removing it).
+            if has_mask:
+                kept_mask = self.masks[idx] > 0
+                drop_mask_any = (dropped_frame > 0) & ~kept_mask
+            else:
+                drop_mask_any = dropped_frame > 0
+            if self.show_mask and drop_mask_any.any():
+                # Magenta fill, 60% of normal opacity (dimmer than kept)
+                a = self.mask_opacity * 0.6
+                rgb[drop_mask_any] = (
+                    rgb[drop_mask_any] * (1 - a)
+                    + np.array([255, 0, 255]) * a)
+
+        if self.show_mask and has_mask:
             if is_multi:
                 from gui.mask_editor_multicell import cell_color
                 for lab in range(1, int(self.masks[idx].max()) + 1):
@@ -436,7 +478,7 @@ class ImageViewer(QWidget):
 
         rgb = np.clip(rgb, 0, 255).astype(np.uint8)
 
-        if self.show_contour:
+        if self.show_contour and has_mask:
             if is_multi:
                 from gui.mask_editor_multicell import cell_color
                 for lab in range(1, int(self.masks[idx].max()) + 1):
@@ -456,6 +498,19 @@ class ImageViewer(QWidget):
                 contours, _ = cv2.findContours(
                     m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
                 cv2.drawContours(rgb, contours, -1, (0, 255, 0), 1)
+
+        # Dropped-cell contour — magenta, 2 px so it reads as
+        # distinct from the kept-cell contour (1 px green).
+        if self.show_contour and has_dropped:
+            dropped_frame = self.dropped_labels[idx]
+            for lab in range(1, int(dropped_frame.max()) + 1):
+                m = dropped_frame == lab
+                if not m.any():
+                    continue
+                contours, _ = cv2.findContours(
+                    m.astype(np.uint8), cv2.RETR_EXTERNAL,
+                    cv2.CHAIN_APPROX_NONE)
+                cv2.drawContours(rgb, contours, -1, (255, 0, 255), 2)
 
         return rgb
 
@@ -586,6 +641,23 @@ class ImageViewer(QWidget):
 
     def _on_toggle_source(self, checked):
         self.color_by_source = checked
+        self._redraw()
+
+    def _on_toggle_dropped(self, checked):
+        self.show_dropped = checked
+        self._redraw()
+
+    def set_dropped_labels(self, labels):
+        """Attach pre-Cy5-filter labels (N, H, W) int32 — same shape
+        as the kept-cell stack. Cells present here but NOT in the
+        kept stack are what the filter dropped. Enables the
+        "Dropped" checkbox. Pass None to clear."""
+        self.dropped_labels = labels
+        has_drop = labels is not None
+        self.chk_dropped.setVisible(has_drop)
+        if not has_drop and self.show_dropped:
+            self.show_dropped = False
+            self.chk_dropped.setChecked(False)
         self._redraw()
 
     def set_source_stack(self, source_stack):

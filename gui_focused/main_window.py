@@ -481,6 +481,19 @@ class FocusedMainWindow(QMainWindow):
         if hasattr(self.viewer, "set_source_stack"):
             self.viewer.set_source_stack(
                 result.get("fusion_source_stack"))
+        # Push dropped-cell labels (from Cy5 persistence_guard) to
+        # the viewer — enables the "Dropped" overlay toggle so users
+        # can see what the filter cut. Only meaningful when the Cy5
+        # filter ran (multichannel recordings).
+        if hasattr(self.viewer, "set_dropped_labels"):
+            dropped_tracks = result.get("tracks_dropped") or []
+            if dropped_tracks and result.get("labels") is not None:
+                from core.cy5_filter import rebuild_label_stack
+                self.viewer.set_dropped_labels(
+                    rebuild_label_stack(
+                        dropped_tracks, result["labels"].shape))
+            else:
+                self.viewer.set_dropped_labels(None)
         self.viewer.nav_bar.set_status(
             result["masks"], result.get("missed_frames"))
         elapsed = time.time() - getattr(self, "_detect_t0", time.time())
@@ -771,6 +784,21 @@ class FocusedMainWindow(QMainWindow):
         masks = self.detect_result.get("labels",
                                        self.detect_result["masks"])
         self.viewer.update_masks(masks)
+        # Restore dropped overlay + source attribution for the
+        # previous detection (if it had them).
+        if hasattr(self.viewer, "set_dropped_labels"):
+            prev_dropped = self.detect_result.get("tracks_dropped") or []
+            if prev_dropped and self.detect_result.get("labels") is not None:
+                from core.cy5_filter import rebuild_label_stack
+                self.viewer.set_dropped_labels(
+                    rebuild_label_stack(
+                        prev_dropped,
+                        self.detect_result["labels"].shape))
+            else:
+                self.viewer.set_dropped_labels(None)
+        if hasattr(self.viewer, "set_source_stack"):
+            self.viewer.set_source_stack(
+                self.detect_result.get("fusion_source_stack"))
         self.viewer.nav_bar.set_status(
             self.detect_result["masks"],
             self.detect_result.get("missed_frames"))
@@ -784,6 +812,10 @@ class FocusedMainWindow(QMainWindow):
         self._prev_detect_result = None
         self.analysis_result = None
         self.viewer.update_masks(None)
+        if hasattr(self.viewer, "set_dropped_labels"):
+            self.viewer.set_dropped_labels(None)
+        if hasattr(self.viewer, "set_source_stack"):
+            self.viewer.set_source_stack(None)
         self.viewer.nav_bar.clear()
         self.analysis.clear()
         self.roi.clear()
