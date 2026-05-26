@@ -9,9 +9,19 @@ import numpy as np
 from scipy import ndimage as ndi
 
 
-def _refine_single_cell(cell_mask, deepsea_mask, expand_px=20):
+def _refine_single_cell(cell_mask, deepsea_mask, expand_px=20,
+                          forbidden_mask=None):
     """Refine one cell's mask using the DeepSea prediction, clipped
-    to the cell's expanded bbox to prevent merging with neighbors."""
+    to the cell's expanded bbox to prevent merging with neighbors.
+
+    ``forbidden_mask`` (optional) marks pixels belonging to OTHER
+    cpsam cells; DeepSea expansion is not allowed to enter those
+    pixels. Without this guard, when DeepSea sees two touching cells
+    as one big blob, the first cell's refinement engulfs the second
+    via fill_holes + largest_CC, and the second cell ends up with
+    just a leftover fragment — exactly the over-merge users hit on
+    test2 frame 16.
+    """
     if not cell_mask.any():
         return cell_mask
     H, W = cell_mask.shape
@@ -23,13 +33,27 @@ def _refine_single_cell(cell_mask, deepsea_mask, expand_px=20):
 
     crop_cell = cell_mask[r0:r1, c0:c1]
     crop_ds = deepsea_mask[r0:r1, c0:c1]
+    if forbidden_mask is not None:
+        # Subtract other-cell pixels from the DeepSea contribution so
+        # this cell can grow into background but not into a neighbour.
+        crop_ds = crop_ds & ~forbidden_mask[r0:r1, c0:c1]
     union = crop_cell | crop_ds
     union = ndi.binary_fill_holes(union)
 
     lbl, n = ndi.label(union)
     if n > 1:
-        sizes = ndi.sum(union, lbl, range(1, n + 1))
-        union = (lbl == int(np.argmax(sizes)) + 1)
+        # Pick the component that contains the original cpsam mask
+        # rather than blindly the largest, so an isolated big DeepSea
+        # blob next to a small real cell doesn't steal the label.
+        keeper = None
+        for k in range(1, n + 1):
+            if (crop_cell & (lbl == k)).any():
+                keeper = k
+                break
+        if keeper is None:
+            sizes = ndi.sum(union, lbl, range(1, n + 1))
+            keeper = int(np.argmax(sizes)) + 1
+        union = (lbl == keeper)
 
     out = np.zeros_like(cell_mask)
     out[r0:r1, c0:c1] = union
@@ -55,11 +79,16 @@ def refine_frame_labels_with_deepsea(image, label_frame, expand_px=20):
 
     ds_mask = _deepsea_predict(image)
     out = np.zeros_like(label_frame)
+    # Precompute the "other cells" mask once per call so we don't
+    # rebuild it for every label.
+    all_cells = label_frame > 0
     for lab in range(1, int(label_frame.max()) + 1):
         cell = label_frame == lab
         if not cell.any():
             continue
-        refined = _refine_single_cell(cell, ds_mask, expand_px)
+        forbidden = all_cells & ~cell
+        refined = _refine_single_cell(
+            cell, ds_mask, expand_px, forbidden_mask=forbidden)
         # Avoid overwriting already-assigned pixels (first cell wins)
         out[refined & (out == 0)] = lab
     return out
