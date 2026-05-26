@@ -118,9 +118,14 @@ class ParamsPanel(QWidget):
         form.addRow("Expected cells:", cell_row)
 
         self.search_radius = QSpinBox()
-        self.search_radius.setRange(50, 500)
+        self.search_radius.setRange(20, 500)
         self.search_radius.setValue(_PD.search_radius_px)
-        self.search_radius.setToolTip("Max centroid hop for tracking (multi-cell)")
+        self.search_radius.setToolTip(
+            "Max centroid hop (pixels) the multi-cell tracker will "
+            "allow between consecutive frames. Default 150 suits "
+            "fast-moving cells; for slow keratinocytes at long frame "
+            "intervals, tighten to 30-50 to prevent ID swaps "
+            "between nearby cells.")
         form.addRow("Search radius (px):", self.search_radius)
 
         self.min_track_len = QSpinBox()

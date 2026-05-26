@@ -49,6 +49,7 @@ def detect_recording(dic_frames, cy5_frames=None,
                       use_sam2_video_gap_fill=None,
                       max_gap_frames=None,
                       min_track_length=None,
+                      max_hop_px=None,
                       use_tta=None,
                       use_cpsam_cy5_union=None,
                       use_fallback=None,
@@ -165,6 +166,7 @@ def detect_recording(dic_frames, cy5_frames=None,
 
     # ---- 6. Run detection ----
     use_cy5_fusion = has_cy5
+    eff_max_hop = max_hop_px if max_hop_px is not None else 150
     if pipeline_kind == "cpsam_dic":
         from core.hybrid_dic import detect_hybrid_dic_multi
         _emit(f"Detecting with cpsam_dic", 10)
@@ -179,6 +181,7 @@ def detect_recording(dic_frames, cy5_frames=None,
             use_tta=use_tta,
             min_track_length=min_track_length,
             max_gap_frames=max_gap_frames,
+            max_hop_px=eff_max_hop,
             cy5_frames=cy5_frames,
             use_cy5_fusion=use_cy5_fusion,
             cy5_fusion_augment=cy5_fusion_augment_cpsam,
@@ -218,6 +221,7 @@ def detect_recording(dic_frames, cy5_frames=None,
             max_gap_frames=max_gap_frames,
             min_track_length=(min_track_length if min_track_length
                                is not None else DEFAULTS.min_track_length),
+            max_hop_px=eff_max_hop,
             use_tta=eff_tta,
             use_mirror_pad=effective_mirror_pad,
             use_cpsam_cy5_union=eff_cpsam_cy5,

@@ -264,7 +264,8 @@ def detect_hybrid_dic_multi(frames, progress_fn=None,
                             cy5_fusion_augment=None,
                             cy5_fusion_jaccard_thresh=None,
                             min_track_length=None,
-                            max_gap_frames=None):
+                            max_gap_frames=None,
+                            max_hop_px=150):
     # All defaults come from core.pipeline_defaults — single source of
     # truth shared with the GUI. Callers may override any value by
     # passing it explicitly; None means "use the canonical default".
@@ -439,7 +440,7 @@ def detect_hybrid_dic_multi(frames, progress_fn=None,
     tracks = track_all_cells(
         refined,
         min_area_px=min_area_px,
-        max_hop_px=150,
+        max_hop_px=max_hop_px,
         spawn_new_tracks=True,
         min_track_length=min_track_length,
         max_gap_frames=max_gap_frames,
@@ -457,7 +458,7 @@ def detect_hybrid_dic_multi(frames, progress_fn=None,
         from core.pipeline_defaults import DEFAULTS as _PD
         n_filled = fill_track_gaps(
             tracks, frames, min_area=min_area_px,
-            search_radius=150,
+            search_radius=max_hop_px,
             project_root=project_root,
             use_sam2_video=_PD.use_sam2_video_gap_fill,
             progress_fn=lambda msg, pct: progress_fn(

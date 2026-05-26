@@ -128,6 +128,11 @@ class FocusedDetectWorker(QThread):
                     max_gap_frames=self.params.get("max_gap_frames"),
                     min_track_length=self.params.get(
                         "min_track_length"),
+                    # The GUI's "Search radius (px)" widget controls
+                    # the multi-cell tracker's max centroid hop —
+                    # tighten it for slow keratinocytes to suppress
+                    # ID switches across nearby cells.
+                    max_hop_px=self.params.get("search_radius"),
                     use_tta=self.params.get("use_tta"),
                     use_cpsam_cy5_union=self.params.get(
                         "use_cpsam_cy5_union"),

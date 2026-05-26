@@ -202,6 +202,21 @@ class FocusedMainWindow(QMainWindow):
         act_export.setShortcut("Ctrl+Shift+S")
         act_export.triggered.connect(self._on_export)
         file_menu.addAction(act_export)
+        act_screenshot = QAction("Save Screenshot...", self)
+        act_screenshot.setShortcut("Ctrl+Shift+P")
+        act_screenshot.setStatusTip(
+            "Save a PNG of the current window (with overlays, "
+            "controls, log) — useful for sharing detection results.")
+        act_screenshot.triggered.connect(self._on_save_screenshot)
+        file_menu.addAction(act_screenshot)
+        act_screenshot_view = QAction("Save Viewer Screenshot...", self)
+        act_screenshot_view.setShortcut("Ctrl+Alt+P")
+        act_screenshot_view.setStatusTip(
+            "Save a PNG of just the image viewer (current frame + "
+            "overlays), without the parameter panel or log.")
+        act_screenshot_view.triggered.connect(
+            self._on_save_viewer_screenshot)
+        file_menu.addAction(act_screenshot_view)
         file_menu.addSeparator()
         act_quit = QAction("Quit", self)
         act_quit.setShortcut("Ctrl+Q")
@@ -896,6 +911,63 @@ class FocusedMainWindow(QMainWindow):
     def _on_load_pipeline_results(self):
         from gui_focused.project_handlers import on_load_pipeline_results
         on_load_pipeline_results(self)
+
+    def _on_save_screenshot(self):
+        """Save a PNG of the full window (window contents incl.
+        toolbars, parameter panel, log)."""
+        self._save_screenshot_of(self, default_suffix="window")
+
+    def _on_save_viewer_screenshot(self):
+        """Save a PNG of just the image viewer (current frame with
+        overlays — no controls). Re-renders to a higher-DPI offscreen
+        canvas so the saved figure is publication-quality, not
+        constrained to the on-screen pixel size."""
+        rec_name = (self.recording or {}).get("name", "viewer") \
+            if self.recording else "viewer"
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Save Viewer Screenshot",
+            f"{rec_name}_frame{self.viewer.current_frame}.png",
+            "PNG (*.png)")
+        if not path:
+            return
+        if not path.lower().endswith(".png"):
+            path += ".png"
+        # Save the matplotlib figure directly — much higher quality
+        # than grabbing the on-screen canvas.
+        try:
+            self.viewer.fig.savefig(
+                path, dpi=200, bbox_inches="tight",
+                facecolor=self.viewer.fig.get_facecolor())
+        except Exception as e:
+            QMessageBox.warning(self, "Screenshot Error", str(e))
+            return
+        self.logger.log("info", f"Saved viewer screenshot: {path}")
+        self.status.showMessage(f"Saved: {os.path.basename(path)}",
+                                 5000)
+
+    def _save_screenshot_of(self, widget, default_suffix="screenshot"):
+        rec_name = (self.recording or {}).get("name", default_suffix) \
+            if self.recording else default_suffix
+        idx = self.viewer.current_frame if self.viewer.frames is not None \
+            else 0
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Save Screenshot",
+            f"{rec_name}_{default_suffix}_f{idx}.png",
+            "PNG (*.png)")
+        if not path:
+            return
+        if not path.lower().endswith(".png"):
+            path += ".png"
+        try:
+            pixmap = widget.grab()
+            if not pixmap.save(path, "PNG"):
+                raise RuntimeError("QPixmap.save returned False")
+        except Exception as e:
+            QMessageBox.warning(self, "Screenshot Error", str(e))
+            return
+        self.logger.log("info", f"Saved screenshot: {path}")
+        self.status.showMessage(f"Saved: {os.path.basename(path)}",
+                                 5000)
 
     def _on_cancel(self):
         if self._worker and self._worker.isRunning():
