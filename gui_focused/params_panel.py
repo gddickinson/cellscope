@@ -95,7 +95,6 @@ class ParamsPanel(QWidget):
         # values there, not here.
         from core.pipeline_defaults import DEFAULTS as _PD
 
-        from PyQt5.QtWidgets import QComboBox
         self.downsample = QComboBox()
         self.downsample.addItem("Auto", "auto")
         self.downsample.addItem("Off (full resolution)", "off")
