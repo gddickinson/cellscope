@@ -220,10 +220,32 @@ def merge_label_frames(dic_frame, cy5_frame, min_area_px=200,
             if nearest_dist <= max_centroid_dist_px:
                 source[out == nearest_dic_id] = SRC_BOTH
                 continue
+        # ANY overlap with an existing DIC label? Then the Cy5 mask
+        # is most likely the same cell shifted/grown, not a separate
+        # neighbour. Without this guard we'd carve out the Cy5 mask's
+        # non-overlapping pixels as a new fragment ID adjacent to the
+        # DIC cell — exactly the over-segmentation users saw. Instead,
+        # absorb the Cy5 mask's background-only pixels into the DIC
+        # label it overlaps most, so the resulting cell grows to
+        # include the Cy5 evidence.
+        if (cm & (out > 0)).any():
+            # Find the DIC label with the most overlap with cm
+            overlapping = out[cm]
+            overlapping = overlapping[overlapping > 0]
+            if overlapping.size:
+                vals, counts = np.unique(overlapping, return_counts=True)
+                best_dic = int(vals[counts.argmax()])
+                new_pixels = cm & (out == 0)
+                if new_pixels.any():
+                    out[new_pixels] = best_dic
+                    source[new_pixels] = SRC_BOTH
+                # Promote the DIC label to "both" since Cy5 corroborates
+                source[out == best_dic] = SRC_BOTH
+                continue
+        # No overlap at all — safe to add as a Cy5-only cell
         cov = (cm & (out > 0)).sum() / max(cm.sum(), 1)
         if cov > max_overlap_frac:
             continue
-        # New cell from Cy5 — write into background pixels only
         new_pixels = cm & (out == 0)
         out[new_pixels] = nxt
         source[new_pixels] = SRC_CY5_ONLY
