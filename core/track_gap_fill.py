@@ -62,8 +62,20 @@ def _interpolate_centroid(track, frame_idx, n_frames):
     return (cy, cx)
 
 
-def _pick_nearest_cell(labels, expected_centroid, search_radius, min_area):
-    """From a label image, pick the cell nearest expected_centroid."""
+def _pick_nearest_cell(labels, expected_centroid, search_radius,
+                        min_area, expected_area=None,
+                        area_ratio_low=0.3, area_ratio_high=3.0):
+    """From a label image, pick the cell nearest expected_centroid.
+
+    When ``expected_area`` is provided, candidates whose area is
+    outside ``[expected_area * area_ratio_low,
+    expected_area * area_ratio_high]`` are rejected. Without this
+    guard, a phantom track (e.g. 200 px) whose gap-fill candidate
+    list contains the real cell nearby (2500 px) would inherit the
+    big cell's mask, inflating the phantom's lifetime past the
+    Cy5 persistence_guard threshold and leaving a fragment in the
+    final output — exactly the test2 frame-16 cell-4 bug.
+    """
     if labels.max() == 0:
         return None
     ey, ex = expected_centroid
@@ -71,8 +83,14 @@ def _pick_nearest_cell(labels, expected_centroid, search_radius, min_area):
     best_mask = None
     for lab in range(1, int(labels.max()) + 1):
         cell = labels == lab
-        if cell.sum() < min_area:
+        area = int(cell.sum())
+        if area < min_area:
             continue
+        if expected_area is not None and expected_area > 0:
+            lo = expected_area * area_ratio_low
+            hi = expected_area * area_ratio_high
+            if area < lo or area > hi:
+                continue
         ys, xs = np.where(cell)
         cy, cx = ys.mean(), xs.mean()
         dist = ((cy - ey)**2 + (cx - ex)**2)**0.5
@@ -83,19 +101,37 @@ def _pick_nearest_cell(labels, expected_centroid, search_radius, min_area):
 
 
 def _try_primary_cpsam(image, expected_centroid, search_radius, min_area,
-                       cpsam_model=None):
+                       cpsam_model=None, expected_area=None):
     """Attempt 1: cpsam(augment=True). Returns mask or None.
 
     `cpsam_model` is an optional pre-loaded model, so we don't reload
     the ViT-H weights on every gap frame. Falls back to creating a
     fresh model if not supplied (kept for backwards compat).
+
+    `expected_area` (optional) constrains the chosen mask to be
+    within a factor of the track's typical size — see
+    `_pick_nearest_cell` docstring.
     """
     from cellpose import models
     m = cpsam_model if cpsam_model is not None else models.CellposeModel(
         gpu=True)
     masks_i, _, _ = m.eval(image, augment=True)
     return _pick_nearest_cell(masks_i, expected_centroid,
-                              search_radius, min_area)
+                              search_radius, min_area,
+                              expected_area=expected_area)
+
+
+def _track_median_area(track, n_frames):
+    """Median per-frame area of a track over its active frames.
+    Returns 0 if the track has no active frames."""
+    areas = []
+    stack = track.get("stack")
+    if stack is None:
+        return 0.0
+    for f in range(n_frames):
+        if stack[f].any():
+            areas.append(float(stack[f].sum()))
+    return float(np.median(areas)) if areas else 0.0
 
 
 def _try_cp3_fallback_batch(images, project_root):
@@ -187,16 +223,42 @@ def fill_track_gaps(tracks, frames, min_area=300,
         centroid = _interpolate_centroid(track, frame_idx, n_frames)
         if centroid is None:
             continue
+        # Match candidates against the track's typical size so a
+        # phantom track (e.g. 200 px) doesn't get fattened by the
+        # real cell next door (e.g. 2500 px).
+        expected_area = _track_median_area(track, n_frames)
 
         cell_mask = _try_primary_cpsam(
             frames[frame_idx], centroid,
             search_radius=search_radius, min_area=min_area,
-            cpsam_model=cpsam_model)
+            cpsam_model=cpsam_model,
+            expected_area=expected_area)
         if cell_mask is not None:
+            # Don't add a mask that overlaps/touches an already-tracked
+            # cell in this frame — that's the cell-3+cell-4 fragment
+            # pattern (cpsam(augment) finds a small detection right
+            # next to an existing big cell, gap fill calls it a new
+            # cell, persistence_guard keeps it).
+            from scipy import ndimage as ndi
+            dilated = ndi.binary_dilation(cell_mask, iterations=3)
+            collision = False
+            for other_idx, other_t in enumerate(tracks):
+                if other_idx == tid:
+                    continue
+                other_stack = other_t.get("stack")
+                if (other_stack is not None
+                        and other_stack[frame_idx].any()
+                        and (dilated & other_stack[frame_idx]).any()):
+                    collision = True
+                    break
+            if collision:
+                # This frame is already covered by another track;
+                # leave the gap rather than introduce a fragment.
+                continue
             track["stack"][frame_idx] = cell_mask
             filled += 1
         else:
-            pending.append((tid, frame_idx, centroid))
+            pending.append((tid, frame_idx, centroid, expected_area))
 
     log.info("Phase 1 filled %d/%d gaps; %d pending for Phase 2",
              filled, total_gaps, len(pending))
@@ -212,10 +274,10 @@ def fill_track_gaps(tracks, frames, min_area=300,
         progress_fn(
             f"Gap fill phase 2: CP3 fallback on {len(pending)} "
             f"frames (one subprocess)", 60)
-    pending_frames = np.stack([frames[fi] for _, fi, _ in pending])
+    pending_frames = np.stack([frames[fi] for _, fi, _, _ in pending])
     fallback_masks = _try_cp3_fallback_batch(pending_frames, project_root)
 
-    for j, (tid, frame_idx, centroid) in enumerate(pending):
+    for j, (tid, frame_idx, centroid, expected_area) in enumerate(pending):
         m = fallback_masks[j]
         if not m.any():
             continue
@@ -226,7 +288,29 @@ def fill_track_gaps(tracks, frames, min_area=300,
         ey, ex = centroid
         if ((cy - ey)**2 + (cx - ex)**2) ** 0.5 > search_radius:
             continue
-        if int(m.sum()) < min_area:
+        area = int(m.sum())
+        if area < min_area:
+            continue
+        # Same size-similarity guard as Phase 1 — don't let a
+        # different (real) cell next door inflate a phantom track.
+        if expected_area > 0 and (area < expected_area * 0.3
+                                    or area > expected_area * 3.0):
+            continue
+        # Same overlap/touch guard as Phase 1 — don't introduce a
+        # fragment beside an existing tracked cell.
+        from scipy import ndimage as ndi
+        dilated = ndi.binary_dilation(m, iterations=3)
+        collision = False
+        for other_idx, other_t in enumerate(tracks):
+            if other_idx == tid:
+                continue
+            other_stack = other_t.get("stack")
+            if (other_stack is not None
+                    and other_stack[frame_idx].any()
+                    and (dilated & other_stack[frame_idx]).any()):
+                collision = True
+                break
+        if collision:
             continue
         tracks[tid]["stack"][frame_idx] = m
         filled += 1
@@ -283,8 +367,9 @@ def _propagate_masks_into_gaps(tracks, n_frames, search_radius=150):
 
     Returns the total count of frames propagated across all tracks.
     """
+    from scipy import ndimage as ndi
     n_propagated = 0
-    for track in tracks:
+    for ti, track in enumerate(tracks):
         track.setdefault("propagated_frames", set())
         gaps = _find_internal_gaps(track, n_frames)
         for fi in gaps:
@@ -308,19 +393,41 @@ def _propagate_masks_into_gaps(tracks, n_frames, search_radius=150):
             if cent is None:
                 continue
             src_mask = track["stack"][src_frame]
-            sys, sxs = np.where(src_mask)
-            src_cy, src_cx = sys.mean(), sxs.mean()
+            sys_, sxs = np.where(src_mask)
+            src_cy, src_cx = sys_.mean(), sxs.mean()
             dy = int(round(cent[0] - src_cy))
             dx = int(round(cent[1] - src_cx))
             # Translate the source mask by (dy, dx)
             new_mask = np.zeros_like(src_mask)
             H, W = new_mask.shape
-            new_ys = sys + dy
+            new_ys = sys_ + dy
             new_xs = sxs + dx
             valid = ((new_ys >= 0) & (new_ys < H)
                      & (new_xs >= 0) & (new_xs < W))
             new_mask[new_ys[valid], new_xs[valid]] = True
             if new_mask.sum() < 20:    # too tiny / off-screen
+                continue
+            # Don't propagate onto a region already occupied by
+            # another track — that's the fragmentation pattern users
+            # see (cell 4's frame-15 mask carried into frame 16
+            # where cell 3 took over the location; the visible
+            # output then shows track 4 as scattered specks where
+            # track 3's mask doesn't quite cover, because
+            # _build_tracked_labels resolves overlaps via "first
+            # track wins"). Reject if the propagated mask would
+            # collide with any other track's mask in the target frame.
+            dilated = ndi.binary_dilation(new_mask, iterations=3)
+            collision = False
+            for other_idx, other_t in enumerate(tracks):
+                if other_idx == ti:
+                    continue
+                other_stack = other_t.get("stack")
+                if (other_stack is not None
+                        and other_stack[fi].any()
+                        and (dilated & other_stack[fi]).any()):
+                    collision = True
+                    break
+            if collision:
                 continue
             track["stack"][fi] = new_mask
             track["propagated_frames"].add(fi)

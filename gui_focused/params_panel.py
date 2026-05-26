@@ -95,6 +95,23 @@ class ParamsPanel(QWidget):
         # values there, not here.
         from core.pipeline_defaults import DEFAULTS as _PD
 
+        from PyQt5.QtWidgets import QComboBox
+        self.downsample = QComboBox()
+        self.downsample.addItem("Auto", "auto")
+        self.downsample.addItem("Off (full resolution)", "off")
+        self.downsample.addItem("2× (faster, loses fine boundaries)",
+                                 "2")
+        self.downsample.addItem("3× (much faster, lossy)", "3")
+        self.downsample.setCurrentIndex(0)
+        self.downsample.setToolTip(
+            "How much to downsample before cpsam detection.\n"
+            "Auto picks 1× for ≤1024² recordings (default 1100 px\n"
+            "threshold), 2× for larger. Set to Off if cells are\n"
+            "tightly touching and cpsam is fusing them at the auto\n"
+            "factor — at full resolution the boundary between\n"
+            "neighbouring cells stays resolvable.")
+        form.addRow("Downsample:", self.downsample)
+
         self.min_area = QSpinBox()
         self.min_area.setRange(50, 10000)
         self.min_area.setValue(_PD.min_area_px)
@@ -723,6 +740,7 @@ class ParamsPanel(QWidget):
         return {
             "modality": modality_map.get(self.modality.currentText(), "auto"),
             "dic_model_path": dic_model_path,
+            "downsample": self.downsample.currentData(),
             "min_area_px": self.min_area.value(),
             "expected_cells": self.expected_cells.value(),
             "search_radius": self.search_radius.value(),

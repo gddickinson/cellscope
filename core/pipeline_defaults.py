@@ -134,7 +134,12 @@ def should_use_mirror_pad(use_mirror_pad, det_frame_shape):
 # Conclusion: max-dim 800-1000 is the empirical breakpoint. Below
 # that, downsampling pushes cells under cpsam's ~30 px diameter
 # prior and the model misses them.
-DOWNSAMPLE_SMALL_PX = 900    # below this: don't downsample
+DOWNSAMPLE_SMALL_PX = 1100   # below this: don't downsample. Raised
+                              # from 900 so 1024² recordings keep
+                              # full resolution by default — at 2×,
+                              # cpsam fuses touching cells whose ~30-px
+                              # original diameter shrinks below 20 px
+                              # (test2 DMSO_busy cells 3+4 case).
 DOWNSAMPLE_LARGE_PX = 1500   # above this: ds=2 is a clear win
 
 

@@ -464,6 +464,68 @@ def reject_edge_sliver_detections(
             "frames_zeroed": frames_zeroed}
 
 
+def absorb_touching_fragments(tracks, n_frames, area_ratio=0.3,
+                                dilate_px=2):
+    """Per-frame, if track A's mask is much smaller than a touching
+    track B's mask, absorb A's pixels into B and zero A in that frame.
+
+    Catches cpsam over-segmentations that survive tracking + gap fill:
+    one cell gets two track IDs in some frames (a big body and a
+    tiny adjacent fragment) but separate identities in other frames.
+    Pre-tracking ``merge_touching_splits`` only fixes the per-frame
+    label stack at detection time — it can't fix a fragment that
+    re-emerges after tracking + gap fill assigned IDs.
+
+    Runs per frame. A small-track frame absorbed here just zeros
+    that one frame in the small track's stack; the small track
+    survives in other frames where it wasn't a fragment.
+    """
+    from scipy import ndimage as ndi
+    n_absorbed = 0
+    for fi in range(n_frames):
+        present = [(ti, t) for ti, t in enumerate(tracks)
+                    if t.get("stack") is not None
+                    and ti < len(tracks) and t["stack"][fi].any()]
+        if len(present) < 2:
+            continue
+        # Iterate smallest-first so chain absorptions resolve cleanly
+        present.sort(key=lambda p: int(p[1]["stack"][fi].sum()))
+        for small_idx, small_t in present:
+            small_mask = small_t["stack"][fi]
+            if not small_mask.any():
+                continue   # already absorbed this pass
+            small_area = int(small_mask.sum())
+            dilated = ndi.binary_dilation(
+                small_mask, iterations=dilate_px)
+            # Find touching neighbours among OTHER present tracks
+            best_neighbour = None
+            best_area = 0
+            for other_idx, other_t in present:
+                if other_idx == small_idx:
+                    continue
+                other_mask = other_t["stack"][fi]
+                if not other_mask.any():
+                    continue
+                if not (dilated & other_mask).any():
+                    continue
+                other_area = int(other_mask.sum())
+                if other_area > best_area:
+                    best_area = other_area
+                    best_neighbour = other_t
+            if best_neighbour is None or best_area == 0:
+                continue
+            ratio = small_area / best_area
+            if ratio < area_ratio:
+                # Absorb small into best_neighbour
+                best_neighbour["stack"][fi] |= small_mask
+                small_t["stack"][fi][:] = False
+                n_absorbed += 1
+    if n_absorbed:
+        log.info("Absorbed %d per-frame touching fragments "
+                 "into larger neighbours", n_absorbed)
+    return n_absorbed
+
+
 def postprocess_tracks(tracks, frames=None,
                         overlap_threshold=0.3, iou_threshold=0.05,
                         min_frames=3):
