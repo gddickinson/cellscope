@@ -24,11 +24,15 @@ def on_save_project(win):
         roi_mask=win.roi.roi_mask if win.roi.has_roi() else None)
     win.logger.log("info", f"Project saved: {path}")
     win.status.showMessage(f"Project saved: {os.path.basename(path)}")
+    win._dirty = False
 
 
 def on_load_project(win, path=None):
     """Load a .cellscope project. If `path` is None, prompt via file
     dialog; otherwise load the given file directly (used by drag-drop)."""
+    if not win._confirm_discard(
+            "Loading a project will replace them."):
+        return
     if path is None:
         path, _ = QFileDialog.getOpenFileName(
             win, "Open Project", "",
@@ -67,6 +71,8 @@ def on_load_project(win, path=None):
     win.logger.log("info", f"Project loaded: {path}")
     win.status.showMessage(
         f"Project loaded: {os.path.basename(path)}")
+    # Loaded state IS the saved state.
+    win._dirty = False
 
 
 def on_load_pipeline_results(win, path=None):
@@ -81,6 +87,9 @@ def on_load_pipeline_results(win, path=None):
     if it exists; otherwise prompts the user to locate the video.
     """
     import json
+    if not win._confirm_discard(
+            "Loading pipeline_results will replace them."):
+        return
     if path is None:
         path = QFileDialog.getExistingDirectory(
             win, "Open Pipeline Results", "")
@@ -189,6 +198,7 @@ def on_load_pipeline_results(win, path=None):
     label = os.path.basename(os.path.dirname(pr_dir)) or os.path.basename(pr_dir)
     win.status.showMessage(f"Loaded pipeline_results: {label}")
     win.logger.log("info", f"Loaded pipeline_results from {pr_dir}")
+    win._dirty = False
 
 
 def on_scan_cells(win):

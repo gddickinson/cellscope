@@ -39,6 +39,10 @@ class FocusedMainWindow(QMainWindow):
         self.detect_result = None
         self.analysis_result = None
         self._prev_detect_result = None   # for undo
+        # Tracks unsaved detection / analysis / edit results so we can
+        # warn the user on close (or before they overwrite state by
+        # loading another recording / clearing).
+        self._dirty = False
         self.mode = "single"
         self.logger = RunLogger()
         self._worker = None
@@ -364,6 +368,9 @@ class FocusedMainWindow(QMainWindow):
         self.params.set_context("detect", mode)
 
     def _on_load(self):
+        if not self._confirm_discard(
+                "Loading a new recording will discard them."):
+            return
         path, _ = QFileDialog.getOpenFileName(
             self, "Open Recording", "",
             "Video/Image (*.mp4 *.avi *.mov *.tif *.tiff)")
@@ -409,6 +416,8 @@ class FocusedMainWindow(QMainWindow):
         self.pipeline.enable_stage("detect", True)
         self.status.showMessage(f"Loaded: {name} ({n} frames){cy5_note}")
         self.params.set_from_recording(self.recording)
+        # Fresh recording = clean slate (no in-memory results yet).
+        self._dirty = False
         # Enable Cy5 recovery toggle if recording has fluo channel
         has_cy5 = self.recording.get("cy5_frames") is not None
         if hasattr(self.params, "set_cy5_available"):
@@ -526,6 +535,7 @@ class FocusedMainWindow(QMainWindow):
         self.pipeline.btn_cancel.setEnabled(False)
         self.pipeline.enable_stage("edit", True)
         self.pipeline.enable_stage("analyze", True)
+        self._dirty = True
         # Surface the Analysis tab now so users can configure VAMPIRE,
         # state classification, and per-metric toggles BEFORE clicking
         # Analyze. The tab is always visible, but auto-switching gives
@@ -755,6 +765,7 @@ class FocusedMainWindow(QMainWindow):
                         f"Masks received: {n_frames} frames, "
                         f"{n_cells} cell IDs")
         self.status.showMessage("Edited masks applied")
+        self._dirty = True
 
     def _on_analyze(self):
         if self.detect_result is None:
@@ -786,7 +797,46 @@ class FocusedMainWindow(QMainWindow):
         self.pipeline.enable_stage("export", True)
         self.progress_bar.setVisible(False)
         self.status.showMessage("Analysis complete")
+        self._dirty = True
         self._worker = None
+
+    # --- Unsaved-results tracking ---
+
+    def _mark_dirty(self):
+        self._dirty = True
+
+    def _mark_saved(self):
+        self._dirty = False
+
+    def _confirm_discard(self, action_desc):
+        """Prompt the user when an action is about to discard unsaved
+        results. Returns True if they confirmed (proceed); False if
+        they cancelled."""
+        if not self._dirty:
+            return True
+        from PyQt5.QtWidgets import QMessageBox
+        choice = QMessageBox.question(
+            self, "Unsaved results",
+            f"You have unsaved detection / analysis results.\n\n"
+            f"{action_desc}\n\n"
+            f"Save them as a project first?",
+            QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel,
+            QMessageBox.Save)
+        if choice == QMessageBox.Cancel:
+            return False
+        if choice == QMessageBox.Save:
+            self._on_save_project()
+            # If user cancelled the save dialog, _dirty is still True
+            if self._dirty:
+                return False
+        return True
+
+    def closeEvent(self, event):
+        if not self._confirm_discard(
+                "Closing CellScope will lose them."):
+            event.ignore()
+            return
+        event.accept()
 
     def _on_export(self):
         from gui_focused.export_dialog import ExportDialog
@@ -815,6 +865,11 @@ class FocusedMainWindow(QMainWindow):
             dlg.detect_params_used = {}
         dlg.exec_()
         self.pipeline.set_stage_status("export", "done")
+        # ExportDialog returns whether anything was actually written —
+        # but for simplicity treat any close of the dialog as a save
+        # checkpoint. Users who cancel will not re-trigger this since
+        # they can just re-click Export.
+        self._dirty = False
 
     def _on_scan_cells(self):
         from gui_focused.project_handlers import on_scan_cells
@@ -882,6 +937,10 @@ class FocusedMainWindow(QMainWindow):
         self.status.showMessage("Detection undone")
 
     def _on_clear_all(self):
+        if not self._confirm_discard(
+                "Clear All will discard the current detection / "
+                "analysis state."):
+            return
         self.detect_result = None
         self._prev_detect_result = None
         self.analysis_result = None
@@ -899,6 +958,7 @@ class FocusedMainWindow(QMainWindow):
             self.pipeline.set_stage_status("load", "done")
             self.pipeline.enable_stage("detect", True)
         self.status.showMessage("All results cleared — ready to re-detect")
+        self._dirty = False
 
     def _on_save_project(self):
         from gui_focused.project_handlers import on_save_project
