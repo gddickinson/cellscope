@@ -168,8 +168,11 @@ class PipelinePanel(QWidget):
     def enable_stage(self, name, enabled=True):
         if name in self.stages:
             self.stages[name].setEnabled(enabled)
+            if name == "detect":
+                self.btn_test_frame.setEnabled(enabled)
 
     def reset_all(self):
         for key in self.stages:
             self.stages[key].set_status("idle")
             self.stages[key].setEnabled(key == "load")
+        self.btn_test_frame.setEnabled(False)
