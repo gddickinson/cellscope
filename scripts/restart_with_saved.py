@@ -12,7 +12,8 @@ Run:
 import os
 import sys
 
-CELLSCOPE_ROOT = "/Users/george/claude_test/cellscope"
+CELLSCOPE_ROOT = os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__)))
 PROJECT = "/Users/george/Desktop/test.cellscope"
 
 os.chdir(CELLSCOPE_ROOT)

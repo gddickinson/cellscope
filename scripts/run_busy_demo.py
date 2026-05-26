@@ -10,7 +10,8 @@ import os
 import sys
 import time
 
-CELLSCOPE_ROOT = "/Users/george/claude_test/cellscope"
+CELLSCOPE_ROOT = os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__)))
 
 # Ensure cellscope is importable AND that relative-path lookups
 # (data/models/cellpose_dic, etc.) resolve correctly. The detection

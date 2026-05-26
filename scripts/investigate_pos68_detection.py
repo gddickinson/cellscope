@@ -34,7 +34,8 @@ import cv2
 from PIL import Image
 from skimage import measure
 
-CELLSCOPE_ROOT = "/Users/george/claude_test/cellscope"
+CELLSCOPE_ROOT = os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__)))
 os.chdir(CELLSCOPE_ROOT)
 sys.path.insert(0, CELLSCOPE_ROOT)
 

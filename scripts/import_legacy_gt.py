@@ -30,7 +30,8 @@ import argparse
 import numpy as np
 from skimage import io as skio
 
-CELLSCOPE_ROOT = "/Users/george/claude_test/cellscope"
+CELLSCOPE_ROOT = os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__)))
 os.chdir(CELLSCOPE_ROOT)
 sys.path.insert(0, CELLSCOPE_ROOT)
 

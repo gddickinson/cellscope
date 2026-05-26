@@ -22,3 +22,9 @@ dependencies:
     - numpy==2.0.2
     - tifffile>=2023.2.28
     - psutil
+    # core/medsam_deepsea_union.py:_deepsea_predict needs skimage.
+    # cellpose 4.x doesn't pull it in transitively the way cellpose
+    # 3.x did, so we add it explicitly. Caught on the IC295 mini
+    # batch run (2026-05-26) — DeepSea per-cell refinement crashed
+    # with ModuleNotFoundError: skimage.
+    - scikit-image>=0.25

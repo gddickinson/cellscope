@@ -62,9 +62,12 @@ def _run_cp3_fallback(frames, project_root):
             input_path=inp,
             output_path=outp,
         )
+        # Timeout=1800: 600s was too tight when this subprocess hits
+        # a cold MPS env (model weights download / JIT compile on
+        # first call). See core/channel_alignment.py for the same fix.
         result = subprocess.run(
             ["conda", "run", "-n", CELLPOSE_ENV, "python", "-c", script],
-            capture_output=True, text=True, timeout=600,
+            capture_output=True, text=True, timeout=1800,
             cwd=project_root,
         )
         if "FALLBACK_OK" not in result.stdout:

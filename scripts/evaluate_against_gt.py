@@ -39,7 +39,8 @@ import matplotlib.pyplot as plt
 from collections import defaultdict
 from scipy.optimize import linear_sum_assignment
 
-CELLSCOPE_ROOT = "/Users/george/claude_test/cellscope"
+CELLSCOPE_ROOT = os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, CELLSCOPE_ROOT)
 
 

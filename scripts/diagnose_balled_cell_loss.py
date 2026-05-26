@@ -23,7 +23,8 @@ from skimage import measure
 from scipy.ndimage import (
     label as cc_label, binary_fill_holes, binary_opening)
 
-CELLSCOPE_ROOT = "/Users/george/claude_test/cellscope"
+CELLSCOPE_ROOT = os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__)))
 os.chdir(CELLSCOPE_ROOT)
 sys.path.insert(0, CELLSCOPE_ROOT)
 
