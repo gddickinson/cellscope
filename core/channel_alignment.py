@@ -116,9 +116,15 @@ def _run_cpsam_pair_subprocess(dic_frames, cy5_frames,
         np.savez_compressed(inp, dic=dic_frames, cy5=cy5_frames)
         script = _DIC_CPSAM_PROBE.format(
             input_path=inp, output_path=outp)
+        # Timeout=1800: 10 cpsam calls on 2048² frames take ~5 min on
+        # MPS GPU, but the FIRST call in a fresh `cellpose4` env also
+        # downloads ~360 MB of ViT weights AND JIT-compiles for MPS —
+        # together easily blowing past 10 min. After warm-up, normal
+        # alignment is well under 600s. 1800s gives cold-start
+        # headroom on slower networks / older hardware.
         proc = subprocess.run(
             ["conda", "run", "-n", env_name, "python", "-c", script],
-            capture_output=True, text=True, timeout=600,
+            capture_output=True, text=True, timeout=1800,
             cwd=project_root)
         if "PROBE_OK" not in proc.stdout:
             raise RuntimeError(
