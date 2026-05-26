@@ -523,6 +523,26 @@ class FocusedMainWindow(QMainWindow):
             f"Detection: {n_det}/{n_total} frames, {elapsed:.1f}s | "
             f"{self.recording.get('name', '')} | "
             f"{self.recording.get('um_per_px', '?')} um/px")
+        # Mode-vs-density mismatch warning (mirrors _on_test_frame).
+        # Look at the max distinct cell count across all frames in
+        # the labels stack — catches recordings the single-cell
+        # pipeline collapsed but where Test on frame would have
+        # warned.
+        labels = result.get("labels")
+        if (self.mode == "single" and labels is not None
+                and labels.ndim == 3):
+            max_cells = int(max(
+                (np.unique(labels[i][labels[i] > 0]).size
+                 for i in range(len(labels))), default=0))
+            if max_cells >= 3:
+                self.logger.log(
+                    "warn",
+                    f"Pipeline mode is 'Single Cell' but detection "
+                    f"found up to {max_cells} distinct cells per "
+                    f"frame. The single-cell pipeline likely "
+                    f"under-detected — switch Pipeline mode to "
+                    f"'Multi Cell (hybrid_cpsam_multi)' and re-run "
+                    f"Detect for proper multi-cell results.")
         self._worker = None
 
     def _on_test_frame(self):
@@ -548,22 +568,39 @@ class FocusedMainWindow(QMainWindow):
         if self.roi.active and self.roi.roi_mask is not None:
             one_frame = self.roi.apply_to_frames(one_frame)
         params = self.params.get_detect_params()
-        # Honor the modality selector — same logic as _on_detect.
-        # For DIC recordings cpsam_dic (single-cell ViT fine-tune)
-        # finds sparse cells that the multi-cell cpsam misses; for
-        # phase-contrast / auto-detected dense recordings, cpsam
-        # is the right choice. Letting pipeline_kind="auto" probe
-        # also works on a single frame (probe accepts N≥1).
+        # Honor the modality selector AND the pipeline mode (single /
+        # multi cell) so the test faithfully previews what Detect
+        # will produce. Previously test passed pipeline_kind="auto"
+        # for modality=Auto, which probes via raw cpsam (multi-cell
+        # capable). Detect, in contrast, resolves modality via
+        # detect_modality() first and — for single-cell + dic — locks
+        # to the legacy single-cell hybrid_dic path. That divergence
+        # let test report many cells while Detect produced garbage on
+        # a multi-cell scene the user had configured as single-cell.
         modality = params.get("modality", "auto")
-        if modality == "dic":
-            test_pipeline_kind = "cpsam_dic"
-        elif modality == "phase_contrast":
-            test_pipeline_kind = "cpsam"
+        if modality == "auto":
+            from core.modality import detect_modality
+            # Match _on_detect's resolution exactly (uses full stack,
+            # not one frame, so the call is identical).
+            modality = detect_modality(frames)
+            self.logger.log(
+                "info", f"Auto-detected modality: {modality}")
+        if self.mode == "single":
+            # Single-cell paths: cpsam_dic for DIC, raw cpsam for the
+            # rest. Both branches in detect_recording match what
+            # _on_detect's hybrid_{dic,cpsam} legacy paths produce
+            # closely enough that the cell count is predictive.
+            test_pipeline_kind = ("cpsam_dic" if modality == "dic"
+                                   else "cpsam")
         else:
-            test_pipeline_kind = "auto"  # probe even on 1 frame
+            # Multi-cell: let unified_detection's auto-probe choose
+            # between cpsam_dic and raw cpsam based on scene density.
+            # Same path _on_detect uses for multi mode.
+            test_pipeline_kind = "auto"
         self.logger.log(
             "info",
             f"Test detect on frame {idx} (1/{n_total}); "
+            f"mode={self.mode} modality={modality} "
             f"pipeline_kind={test_pipeline_kind}…")
         self.status.showMessage(
             f"Testing frame {idx}…", 0)
@@ -651,6 +688,20 @@ class FocusedMainWindow(QMainWindow):
                f"{density} post-proc)")
         self.status.showMessage(msg, 15000)
         self.logger.log("info", msg)
+        # Mode-vs-density mismatch warning. Single-cell mode + many
+        # cells means Detect will run a single-cell pipeline that
+        # collapses or rejects the extras and produces garbage on a
+        # multi-cell scene. Surface this loudly while the user is
+        # still iterating.
+        if self.mode == "single" and n_cells >= 3:
+            self.logger.log(
+                "warn",
+                f"Pipeline mode is 'Single Cell' but {n_cells} cells "
+                f"were detected on this frame. The single-cell "
+                f"pipeline will likely produce poor results on this "
+                f"recording — switch Pipeline mode to "
+                f"'Multi Cell (hybrid_cpsam_multi)' for multi-cell "
+                f"detection + tracking.")
 
     def _on_edit(self):
         if self.detect_result is None:
