@@ -10,6 +10,114 @@ Format: **DATE — short title** with bullets describing what changed
 
 ---
 
+## 2026-05-27 — HTTP remote-control RPC for all 6 GUIs
+
+Commits `000860b`, `928e2e2`, `b1764a1`. New `gui_focused/remote_control.py`
+exposes a stdlib HTTP server (BaseHTTPRequestHandler) inside the Qt event
+loop. `CELLSCOPE_REMOTE=<port>` env var enables it on launch; commands are
+dispatched cross-thread via `pyqtSignal(dict, object)` so handlers run on
+the GUI thread.
+
+Coverage:
+- `main_focused.py` (port 8765) — full handler set: load_recording,
+  load_pipeline_results, load_project, clear_all, set_param, set_frame,
+  set_view, set_mode, detect, test_frame, analyze, save_screenshot,
+  save_project, export
+- `main_editor.py` (8767), `main_batch.py` (8766), `main_training.py`
+  (8769), `main_tracking.py` (8770), `main_suite.py` (8771): minimal
+  `attach_minimal()` wiring — status + log endpoints. Suite is tkinter,
+  not Qt; its server runs in a daemon thread.
+
+Purpose: lets external scripts and agents drive the GUI for automated
+testing, regression checks, and reproducible screenshots without
+QTest-style internal widget manipulation. Used to exercise every endpoint
+during the deployment readiness check.
+
+Key implementation note: `RemoteControlServer(QObject)` tolerates
+non-QObject parents via `super().__init__(parent if isinstance(parent,
+QObject) else None)` — `EditorWindow` is a QMainWindow but some test
+fixtures construct lighter parents.
+
+## 2026-05-27 — Hungarian tracker: IoU + area in cost matrix
+
+Commit `60ea19c`. `core/multi_cell.track_all_cells` cost matrix now
+combines:
+- `w_dist · raw_distance` (always; default 1.0)
+- `w_iou · (1 - iou) · max_hop_px` (default 0.5 — strongest non-distance
+  signal; mask overlap is highly discriminative for touching cells)
+- `w_area · |Δarea|/baseline · max_hop_px` (default 0.3 — penalises
+  identity-swap candidates with very different cell size)
+
+New `DEFAULTS.track_w_dist / track_w_iou / track_w_area` plumbed through
+`unified_detection` → `hybrid_*_multi` → `track_all_cells`. Validation on
+Pos7-WT GT (mini-side): **ID consistency 0.88 → 0.97** with no change to
+DET / SEG / IoU. No GUI changes — defaults work out of the box.
+
+The mini's diagnosis was that bouncing was sustained drift, not single-
+frame bounce, so `smooth_bouncing_ids` (commit `225064c`, wired into
+`postprocess_tracks`) helped some but not enough; the cost-matrix change
+was the structural fix.
+
+## 2026-05-27 — Cluster of bug fixes uncovered by the mini IC295 batch run
+
+Commits `bb84460`, `971c62f`, `b7aca1d`, `4f1c374`, `f0ff603`, `b1764a1`.
+The mini's first GT batch attempt crashed in several places that the local
+single-recording dev workflow never touched.
+
+- `parse_n_channels` silently defaulted to 1 channel when
+  `_metadata.txt` was absent; tifffile then crashed several layers deep on
+  3-channel TIFFs. Fixed in `core/multichannel.py` with a fallback chain:
+  metadata.txt → `.ome.json` `n_channels` (authoritative) → OME-XML SizeC
+  (heuristic).
+- `save_unfiltered_detections` crashed with shape mismatch when
+  downsample > 1: `tracks_raw` is a mixed-shape list (kept references
+  stay upscaled, dropped copies stay downsampled). First two attempts
+  (`4f1c374`, `b7aca1d`) chased the wrong list; root fix iterates
+  `tracks_raw + tracks` with `id()` dedupe.
+- `Downsample` dropdown launch crash from `UnboundLocalError`: a local
+  `from PyQt5.QtWidgets import QComboBox` inside `_build_detection_page`
+  shadowed the module-level import. Removed.
+- Test-on-frame button stayed greyed after loading a recording.
+- Two-cell fusion artifact (commit `ba858a1`): gap-fill Phase 4 was
+  blindly translating the last-known mask forward into frames where it
+  overlapped another track. Added collision rejection. Companion fix:
+  `DOWNSAMPLE_SMALL_PX` 900 → 1100 so 1024² recordings stay at 1× by
+  default — cpsam's merging bias on the downsampled version was a
+  contributor.
+
+## 2026-05-27 — Other quality-of-life landings
+
+Mixed commit cluster from the deployment-readiness cycle.
+
+- `35e4b53` — screenshot menu actions; `search_radius` wired through
+  to multi-cell tracker.
+- `b8519b7` — 🔬 Test on frame predicts Detect path; warns when current
+  mode (single/multi) doesn't match recording density.
+- `7795409` — `Open Pipeline Results…` loader in the focused GUI loads
+  existing batch outputs (masks.npz + run metadata) without re-running.
+- `3952cd3` — persists pre-Cy5-filter detections to disk and renders
+  dropped cells in the viewer for audit.
+- `24d15fe` — close / clear / reload warn when results are unsaved.
+- `0c0d939` — DeepSea per-cell refinement: forbidden_mask parameter
+  prevents a cell expanding into its neighbour's pixels.
+- `5a59f88` — DIC↔Cy5 fusion no longer carves a fragment out of the
+  DIC label when the Cy5 mask overlaps; it absorbs into the existing
+  DIC label instead. Removed the spurious fragment class that surfaced
+  in Pos68_DMSO.
+- `391b7ea` — merge touching split fragments to fix cpsam
+  over-segmentation (`core/detection_postprocess.merge_touching_splits`).
+- `85b83e1` — `reject_static_edge_blob_tracks` in
+  `core/track_postprocess.py` kills vignette / illumination artefacts
+  near FoV edges that pass other filters.
+- `ece9780` — `main_suite._find_conda` walks install roots and prefers
+  one with `envs/cellpose4`. Fixes mini deployments with both
+  `~/anaconda3` and `~/miniconda3` where `cellpose4` only exists in the
+  latter.
+- `1f56774` — IC295 batch aggregation + genotype-comparison scripts
+  for the mini run.
+- `714e803` — `channel_alignment` cpsam-pair subprocess timeout
+  600s → 1800s for 2048² recordings.
+
 ## 2026-05-25 — Doc audit across all 5 top-level docs
 
 Synced README, INTERFACE, PROJECT_STATUS, INSTALLATION, CLAUDE with

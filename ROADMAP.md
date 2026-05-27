@@ -1,6 +1,36 @@
 # CellScope — Roadmap
 
-*Updated: 2026-05-01*
+*Updated: 2026-05-27*
+
+## Status snapshot (2026-05-27)
+
+The project has moved through Tiers 1–3 enough to deploy. Current focus
+is the **IC295 GT batch run on the lab Mac mini** (10 multichannel
+recordings, started 2026-05-26 with the post-IoU+area-tracker pipeline
+v2) — that's the gating evidence for "ship to the lab" + the paper
+figure cohort.
+
+What landed since 2026-05-25 (all under the deployment-readiness theme):
+
+- **HTTP remote-control RPC on all 6 GUIs** (`CELLSCOPE_REMOTE=<port>`,
+  ports 8765–8771). Lets external scripts / agents drive every GUI for
+  automated testing and reproducible screenshots. See `CLAUDE.md` +
+  `gui_focused/remote_control.py`.
+- **Hungarian tracker IoU + area cost** (commit `60ea19c`). Pos7-WT
+  GT ID consistency 0.88 → 0.97 with no DET / SEG / IoU regression.
+  Three weights live in `DEFAULTS.track_w_dist / track_w_iou /
+  track_w_area`. Ships as new defaults; no GUI changes needed.
+- **9 portability + correctness fixes** from the first mini batch run:
+  multichannel sidecar fallbacks, downsample-aware
+  `save_unfiltered_detections`, two-cell fusion artefact (Phase-4
+  collision rejection + auto-downsample 900 → 1100 px threshold),
+  vignette-blob track rejection, touching-split fragment merging, conda
+  install picker, cpsam-pair subprocess timeout bump.
+
+Section 1.3 + 1.4 (end-to-end run + quality dashboard) are now being
+realised in production rather than as roadmap items — the mini batch
+provides the corpus, and `scripts/evaluate_against_gt.py` +
+`pipeline_results/run_summary.txt` provide the dashboard.
 
 The project has matured through three stages: a single-cell DIC analyser
 (reproducing Holt et al. 2021), a multi-cell tracking + GUI suite, and a
@@ -114,10 +144,13 @@ Annotate 30 frames × 3 cells per genotype manually. Use to:
 - Provide citable per-domain numbers in the paper
 **Effort:** ~1 day annotation + ~2 h evaluation.
 
-### 3.4 ID-switch mitigation
-Add appearance features to Hungarian cost, OR migrate to BTrack tuned
-for slow-frame DIC.
-**Effort:** ~3 days.
+### 3.4 ID-switch mitigation ✅ (initial pass landed 2026-05-27)
+Hungarian cost matrix now combines distance + mask IoU + area difference
+(commit `60ea19c`; weights `track_w_dist=1.0`, `track_w_iou=0.5`,
+`track_w_area=0.3` in `DEFAULTS`). Validation on Pos7-WT GT lifted ID
+consistency 0.88 → 0.97 with no DET / SEG / IoU regression. If touching-
+cell ID swaps still surface in the new mini batch results, the next step
+is BTrack tuned for slow-frame DIC.
 
 ### 3.5 Brightness-augmented retrain — setup done; training pending
 Setup done 2026-04-30. Workflow + scripts in

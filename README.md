@@ -223,6 +223,24 @@ The smaller CP3 fine-tunes (`cellpose_dic`, `cellpose_dic_v3`, `cellpose_combine
 
 All five GUIs **read identical defaults** from `core/pipeline_defaults.py::DEFAULTS` — analysing the same recording through any GUI produces the same result.
 
+### Remote control (every GUI)
+
+Launch any GUI with `CELLSCOPE_REMOTE=<port>` and it exposes an HTTP RPC server for scripted testing, agent-driven workflows, and reproducible screenshots. Default ports: focused 8765 (full handler set), batch 8766, editor 8767, training 8769, tracking 8770, suite 8771.
+
+```bash
+CELLSCOPE_REMOTE=8765 python main_focused.py &
+curl -s http://127.0.0.1:8765/status | jq
+curl -s -X POST http://127.0.0.1:8765/load_recording \
+    -H 'Content-Type: application/json' \
+    -d '{"path": "data/examples/test_small_multichannel/test_small_multichannel.ome.tif"}'
+curl -s -X POST http://127.0.0.1:8765/detect
+curl -s -X POST http://127.0.0.1:8765/export \
+    -H 'Content-Type: application/json' \
+    -d '{"out_dir": "/tmp/run1", "save_masks": true, "save_metrics": true}'
+```
+
+Focused GUI endpoints: `status`, `log`, `load_recording`, `load_pipeline_results`, `load_project`, `clear_all`, `set_param`, `set_frame`, `set_view`, `set_mode`, `detect`, `test_frame`, `analyze`, `save_screenshot`, `save_project`, `export`. See `gui_focused/remote_control.py` and `CLAUDE.md` for the full spec.
+
 ## Detection & Analysis GUI
 
 The main workflow: **Load → Detect → Edit Masks → Analyze → Export**
@@ -274,6 +292,8 @@ All graphs come from one tracked cell in a real 97-frame phase-contrast keratino
 
 ![Tracked trajectories](docs/figures/multi_trajectories.png)
 *Per-cell migration paths over a 60-frame window. Colour = cell, circle = start, square = end.*
+
+The Hungarian cost matrix combines distance, mask IoU, and area difference (weights `track_w_dist=1.0`, `track_w_iou=0.5`, `track_w_area=0.3` — all in `DEFAULTS`). Mask overlap is highly discriminative for touching cells, and area is a strong identity signal across drift. **Validated on Pos7-WT GT: ID consistency 0.88 → 0.97** vs distance-only, with no change to DET / SEG / IoU.
 
 **Tracker benchmark on CTC DIC-C2DH-HeLa**:
 

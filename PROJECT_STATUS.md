@@ -1,6 +1,6 @@
 # CellScope — Project Status
 
-*Last updated: 2026-05-25*
+*Last updated: 2026-05-27*
 
 ![CellScope pipeline](docs/figures/hero.png)
 
@@ -301,6 +301,28 @@ from 4 experiments (85, 100, 126, 135, 240).
 
 ## Recently Completed
 
+- **HTTP remote-control RPC on all 6 GUIs** (2026-05-27) — `CELLSCOPE_REMOTE=<port>`
+  exposes a stdlib HTTP server inside the Qt event loop. Focused GUI gets
+  the full 16-endpoint handler set (load_recording / detect / test_frame /
+  analyze / export / etc.); batch / editor / training / tracking get
+  `attach_minimal` (status + log). Suite (tkinter) runs the server in a
+  daemon thread. Cross-thread dispatch via `pyqtSignal(dict, object)`.
+  Used to drive the deployment-readiness systems test.
+- **Hungarian tracker: IoU + area cost** (2026-05-27) — cost matrix
+  augmented with mask overlap and area-difference terms. `track_w_dist`
+  / `track_w_iou` / `track_w_area` plumbed through DEFAULTS. **Pos7-WT
+  GT ID consistency 0.88 → 0.97** without affecting DET / SEG / IoU.
+- **Mini batch portability fixes** (2026-05-27) — 9 bugs surfaced by the
+  IC295 batch run on the Mac mini: `parse_n_channels` silently defaulting
+  to 1 channel without `_metadata.txt` sidecar (now falls back to
+  `.ome.json` or OME-XML SizeC); `save_unfiltered_detections` shape
+  mismatch when downsample > 1 (root fix: iterate `tracks_raw + tracks`
+  with id() dedupe); two-cell fusion artifact from Phase-4 mask
+  propagation collision; auto-downsample threshold 900 → 1100 so 1024²
+  stays at 1×; `merge_touching_splits` for cpsam over-segmentation;
+  `reject_static_edge_blob_tracks` for vignette artefacts;
+  `main_suite._find_conda` walks install roots and prefers one with
+  `envs/cellpose4`; cpsam-pair subprocess timeout 600 → 1800s.
 - **Persistence_guard v2 Cy5 filter** (2026-05-25) — replaced the
   strict `multi_metric` default after a 13-GT audit showed it was
   dropping 70 of 989 real cells. Validation: +0.038 F1_focused

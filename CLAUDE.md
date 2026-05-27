@@ -238,6 +238,47 @@ Important physical defaults:
 For a hypothetical 0.4 µm/px microscope, the converter gives
 `min_area_px=531, cell_diameter_px=75` — automatically scaled.
 
+## Remote control RPC
+
+Every CellScope GUI exposes an HTTP RPC server when launched with
+`CELLSCOPE_REMOTE=<port>` set in the environment. Use it for automated
+testing, agent-driven workflows, and reproducible screenshots without
+QTest-style internal widget manipulation.
+
+Default port assignments (one per GUI so they can run concurrently):
+
+| GUI | Port | Module |
+|---|---:|---|
+| `main_focused.py` | 8765 | `gui_focused/remote_control.py` (full handler set) |
+| `main_batch.py` | 8766 | `attach_minimal()` |
+| `main_editor.py` | 8767 | `attach_minimal()` |
+| `main_training.py` | 8769 | `attach_minimal()` |
+| `main_tracking.py` | 8770 | `attach_minimal()` |
+| `main_suite.py` | 8771 | tkinter, daemon-thread server |
+
+```bash
+CELLSCOPE_REMOTE=8765 python main_focused.py &
+curl -s http://127.0.0.1:8765/status | jq
+curl -s -X POST http://127.0.0.1:8765/load_recording \
+    -H 'Content-Type: application/json' \
+    -d '{"path": "data/examples/test_small_multichannel/test_small_multichannel.ome.tif"}'
+curl -s -X POST http://127.0.0.1:8765/detect
+```
+
+Focused GUI endpoints: `status`, `log`, `load_recording`,
+`load_pipeline_results`, `load_project`, `clear_all`, `set_param`,
+`set_frame`, `set_view`, `set_mode`, `detect`, `test_frame`, `analyze`,
+`save_screenshot`, `save_project`, `export`.
+
+Implementation: stdlib `BaseHTTPRequestHandler` inside the Qt event loop.
+Cross-thread dispatch via `pyqtSignal(dict, object)` so handlers run on
+the GUI thread. `RemoteControlServer(QObject)` tolerates non-QObject
+parents (cells through `super().__init__(parent if isinstance(parent,
+QObject) else None)`).
+
+When adding a new GUI feature that needs scripted testing, add an
+RPC endpoint alongside the user-facing action and document it here.
+
 ## Track gap-fill cascade
 
 When the Hungarian tracker assigns identity, a track may have internal
