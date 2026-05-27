@@ -1,5 +1,0 @@
-Pipeline run on ignasi_3_cells_control_IC293_Pos3 (single-channel)
-  tracks: 3
-  cells/frame: min=3 max=3 mean=3.0
-  runtime: 496s
-  output: /Users/george/claude_test/cellscope/data/legacy_gt/ignasi_3_cells_control_IC293_Pos3/pipeline_results

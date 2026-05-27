@@ -1,0 +1,14 @@
+{
+  "name": "test_small_multichannel",
+  "um_per_px": 1.3046,
+  "time_interval_min": 10.0,
+  "condition": "DMSO",
+  "cell_type": "keratinocyte (SiR-actin labelled)",
+  "n_channels": 2,
+  "channels": {
+    "0": "Cy5 (F-actin)",
+    "1": "DIC"
+  },
+  "source": "central 384x384 crop of multichannel_DIC_Cy5_DMSO_busy, first 25 frames \u2014 for fast systems testing",
+  "n_frames": 25
+}

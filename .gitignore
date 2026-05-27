@@ -28,6 +28,17 @@ data/examples/**/*.tiff
 data/examples/**/*.mp4
 data/examples/**/*.avi
 
+# Exception: the small multichannel test fixture (7.4 MB) ships with
+# the repo so the lab-install validation + remote-control RPC smoke
+# test have a working multichannel recording on a fresh clone.
+!data/examples/test_small_multichannel/test_small_multichannel.ome.tif
+
+# Debug / problem-frame screenshots accumulated under example dirs
+# during ad-hoc diagnosis sessions.
+data/examples/**/cell*_problem.png
+data/examples/**/cell*_zoom.png
+data/examples/**/debug_*.png
+
 # Generated analysis output in example folders (mirrors top-level
 # results/ exclusion). Keep the recording + sidecar JSON + .cellscope
 # project file, drop computed masks/metrics/diagnostics.
@@ -49,6 +60,26 @@ results/figure_pipelines/*.npz
 
 # GT tarball backups (redundant — live GT is in data/ic295_gt_full/)
 data/gt_backups/
+
+# GT audit subdirs — frozen snapshots of `pipeline_results/` from
+# prior pipeline iterations (method_d_attempt, pre_mirror_pad,
+# pre_persistence_guard, old_cpsam_dic, padded_v1, etc.). Useful
+# locally as scientific provenance; never ship to git. The canonical
+# current run is `pipeline_results/` (no suffix).
+data/ic295_gt_full/**/pipeline_results_*/
+data/legacy_gt/**/pipeline_results_*/
+
+# GT mask backups saved alongside the canonical masks.npz when a
+# pipeline default changes (e.g. masks_pre_v2.npz next to masks.npz).
+data/ic295_gt_full/**/masks_pre_*.npz
+data/legacy_gt/**/masks_pre_*.npz
+data/ic295_gt_full/**/*_pre_v2.npz
+data/legacy_gt/**/*_pre_v2.npz
+
+# Top-level convenience symlinks to the external drive (resolve only
+# on the maintainer's machine; broken on any other clone).
+/fiji_export_test
+/results
 
 # OS files
 .DS_Store

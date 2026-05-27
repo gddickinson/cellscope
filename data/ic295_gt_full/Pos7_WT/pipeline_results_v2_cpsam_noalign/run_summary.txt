@@ -1,8 +1,0 @@
-Pipeline run on Pos7_WT
-
-Detection:        32 raw tracks
-Cy5 fusion added: 111 cells
-Cy5 filter kept:  17 / 32
-Cells per frame:  min=8 max=17 mean=12.6
-Runtime:          32364s
-Output dir:       /Users/george/claude_test/cellscope/data/ic295_gt_full/Pos7_WT/pipeline_results
