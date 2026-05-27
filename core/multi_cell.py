@@ -186,10 +186,47 @@ def track_all_cells(masks, min_area_px=200, max_hop_px=150,
                         for t in alive])
         gap_capped = np.minimum(gap, 2)[:, None]
 
-        # Cost matrix: centroid distance, with capped gap scaling
+        # Cost matrix: centroid distance + mask IoU + area similarity.
+        # All three terms are scaled to [0, max_hop_px] so weights are
+        # comparable. IoU + area help with sustained ID drift between
+        # adjacent cells where centroid distance alone picks the wrong
+        # match — e.g. test2/Pos7-WT cells 5/6 and 11/?, where a cell
+        # consistently inherits its neighbour's track ID for many
+        # frames in a row (smooth_bouncing_ids can't fix sustained
+        # drift; the assignment has to be right at the source).
         raw_dists = cdist(prev_cents, cur_cents)
         allowed = max_hop_px * gap_capped
-        cost = np.where(raw_dists <= allowed, raw_dists, LARGE)
+        cost = w_dist * raw_dists
+        if w_iou > 0 or w_area > 0:
+            prev_masks = [t["stack"][t["last_seen_frame"]]
+                          for t in alive]
+            cur_masks = [c[2] for c in cells]
+            prev_areas = np.array(
+                [int(m.sum()) for m in prev_masks], dtype=np.float64)
+            cur_areas = np.array(
+                [int(m.sum()) for m in cur_masks], dtype=np.float64)
+            if w_iou > 0:
+                iou_mat = np.zeros((len(alive), len(cells)),
+                                    dtype=np.float64)
+                for pi, pm in enumerate(prev_masks):
+                    for ci, cm in enumerate(cur_masks):
+                        inter = int(np.logical_and(pm, cm).sum())
+                        if inter == 0:
+                            continue
+                        union = (prev_areas[pi] + cur_areas[ci]
+                                  - inter)
+                        if union > 0:
+                            iou_mat[pi, ci] = inter / union
+                # 1-IoU scaled to distance domain (so 0 IoU = +max_hop)
+                cost = cost + w_iou * (1.0 - iou_mat) * max_hop_px
+            if w_area > 0:
+                # area mismatch in [0, 1], scaled to distance domain
+                area_mismatch = (
+                    np.abs(prev_areas[:, None] - cur_areas[None, :])
+                    / np.maximum(np.maximum(
+                        prev_areas[:, None], cur_areas[None, :]), 1.0))
+                cost = cost + w_area * area_mismatch * max_hop_px
+        cost = np.where(raw_dists <= allowed, cost, LARGE)
 
         # Pad to square matrix so Hungarian handles N_tracks != N_cells
         n_tracks, n_cells = cost.shape
