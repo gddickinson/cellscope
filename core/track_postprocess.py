@@ -464,6 +464,100 @@ def reject_edge_sliver_detections(
             "frames_zeroed": frames_zeroed}
 
 
+def reject_static_edge_blobs(tracks, frame_shape,
+                              edge_band_px=120,
+                              min_edge_frac=0.5,
+                              max_velocity_px=3.0,
+                              min_shape_iou=0.85,
+                              min_area_px=2000):
+    """Drop tracks that look like static vignette / illumination
+    artifacts hugging a field-of-view edge.
+
+    A track is dropped when ALL hold:
+      - Centroid lies within ``edge_band_px`` of an image edge in
+        ≥ ``min_edge_frac`` of its active frames.
+      - Median per-frame centroid displacement < ``max_velocity_px``
+        (real cells move; vignettes don't).
+      - Median consecutive-frame mask IoU > ``min_shape_iou``
+        (the artifact's shape is stable; real cells deform).
+      - Median area ≥ ``min_area_px`` — only catches large blobs;
+        small near-edge tracks are already handled by
+        ``reject_edge_artifact_tracks``.
+
+    The test2 DMSO_busy cell 16 is the prototype: ~7000-9000 px,
+    centroid (250, 108) within 110 px of the left edge of a 1024²
+    frame, present 39/40 frames, centroid wandered ±5 px total
+    across the recording.
+
+    Modifies tracks in-place. Returns count removed.
+    """
+    H, W = frame_shape[-2:]
+    surviving = []
+    n_dropped = 0
+    for t in tracks:
+        stack = t.get("stack")
+        if stack is None:
+            surviving.append(t)
+            continue
+        # Compute per-frame centroid + edge-touch + area
+        active = []
+        for fi in range(len(stack)):
+            m = stack[fi]
+            if not m.any():
+                continue
+            ys, xs = np.where(m)
+            cy, cx = float(ys.mean()), float(xs.mean())
+            on_edge = (cy < edge_band_px or cy > H - edge_band_px
+                        or cx < edge_band_px or cx > W - edge_band_px)
+            active.append({
+                "fi": fi, "cy": cy, "cx": cx, "on_edge": on_edge,
+                "area": int(m.sum()), "mask": m})
+        if len(active) < 3:
+            surviving.append(t)
+            continue
+        edge_frac = sum(1 for a in active if a["on_edge"]) / len(active)
+        median_area = float(np.median([a["area"] for a in active]))
+        if (edge_frac < min_edge_frac
+                or median_area < min_area_px):
+            surviving.append(t)
+            continue
+        # Velocity: median consecutive-frame centroid displacement
+        velocities = []
+        for i in range(1, len(active)):
+            if active[i]["fi"] - active[i - 1]["fi"] > 1:
+                continue
+            dy = active[i]["cy"] - active[i - 1]["cy"]
+            dx = active[i]["cx"] - active[i - 1]["cx"]
+            velocities.append((dy * dy + dx * dx) ** 0.5)
+        if not velocities:
+            surviving.append(t)
+            continue
+        median_vel = float(np.median(velocities))
+        if median_vel >= max_velocity_px:
+            surviving.append(t)
+            continue
+        # Shape stability: median consecutive-frame IoU
+        ious = []
+        for i in range(1, len(active)):
+            if active[i]["fi"] - active[i - 1]["fi"] > 1:
+                continue
+            a, b = active[i - 1]["mask"], active[i]["mask"]
+            inter = int((a & b).sum())
+            union = int((a | b).sum())
+            ious.append(inter / union if union > 0 else 0)
+        median_iou = float(np.median(ious)) if ious else 0.0
+        if median_iou < min_shape_iou:
+            surviving.append(t)
+            continue
+        # Drop
+        log.info("Dropped static-edge blob: median area %.0f, "
+                 "edge_frac %.2f, velocity %.2f, shape_iou %.2f",
+                 median_area, edge_frac, median_vel, median_iou)
+        n_dropped += 1
+    tracks[:] = surviving
+    return n_dropped
+
+
 def absorb_touching_fragments(tracks, n_frames, area_ratio=0.3,
                                 dilate_px=2):
     """Per-frame, if track A's mask is much smaller than a touching
@@ -543,9 +637,11 @@ def postprocess_tracks(tracks, frames=None,
 
     n_edge = 0
     sliver = {"tracks_dropped": 0, "frames_zeroed": 0}
+    n_static = 0
     if frames is not None and tracks:
         n_edge = reject_edge_artifact_tracks(tracks, frames.shape)
         sliver = reject_edge_sliver_detections(tracks, frames.shape)
+        n_static = reject_static_edge_blobs(tracks, frames.shape)
 
     n_removed = remove_empty_tracks(tracks, min_frames)
 
@@ -554,6 +650,7 @@ def postprocess_tracks(tracks, frames=None,
         "edge_artifacts_dropped": n_edge,
         "edge_slivers_dropped": sliver["tracks_dropped"],
         "edge_sliver_frames_zeroed": sliver["frames_zeroed"],
+        "static_edge_blobs_dropped": n_static,
         "tracks_removed": n_removed,
         "tracks_remaining": len(tracks),
     }
