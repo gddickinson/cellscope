@@ -14,7 +14,9 @@ def main():
     video = sys.argv[1] if len(sys.argv) > 1 else None
     win = EditorWindow(video_path=video)
     from gui_focused.remote_control import attach_minimal
-    attach_minimal(win, gui_type="editor", default_port=8767)
+    # EditorWindow is a plain wrapper; attach to the actual QMainWindow
+    # (win.editor) so /save_screenshot grabs the right widget too.
+    attach_minimal(win.editor, gui_type="editor", default_port=8767)
     win.show()
     sys.exit(app.exec_())
 

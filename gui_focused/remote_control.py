@@ -62,7 +62,12 @@ class RemoteControlServer(QObject):
     command_received = pyqtSignal(dict, object)
 
     def __init__(self, parent=None):
-        super().__init__(parent)
+        # Some "window" classes (e.g. gui_editor.EditorWindow) are plain
+        # Python wrappers around a QMainWindow rather than QObjects
+        # themselves. Only pass parent to super if it's actually a QObject,
+        # otherwise hand back to QObject's default (None).
+        super().__init__(parent if isinstance(parent, QObject)
+                          else None)
         self._httpd = None
         self._thread = None
         self._port = None
