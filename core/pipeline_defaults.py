@@ -237,7 +237,7 @@ def _run_probe_subprocess(frames, indices, model_path, min_area_px,
             min_area_px=min_area_px)
         proc = subprocess.run(
             [conda_exe(), "run", "-n", env_name, "python", "-c", script],
-            capture_output=True, text=True, timeout=600,
+            capture_output=True, text=True, timeout=3600,
             cwd=project_root)
         for line in proc.stdout.splitlines():
             if line.startswith("PROBE_OK "):
