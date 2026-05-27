@@ -13,6 +13,8 @@ def main():
     app = QApplication(sys.argv)
     video = sys.argv[1] if len(sys.argv) > 1 else None
     win = EditorWindow(video_path=video)
+    from gui_focused.remote_control import attach_minimal
+    attach_minimal(win, gui_type="editor", default_port=8767)
     win.show()
     sys.exit(app.exec_())
 

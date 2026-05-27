@@ -54,6 +54,231 @@ class FocusedMainWindow(QMainWindow):
         self._build_menu()
         self._connect_signals()
         self.params.set_context("load", self.mode)
+        self._maybe_start_remote_control()
+
+    def _maybe_start_remote_control(self):
+        """Start the HTTP control server if CELLSCOPE_REMOTE is set."""
+        from gui_focused.remote_control import attach
+        handlers = {
+            "/status":              lambda d: self._remote_status(),
+            "/params":              lambda d: self.params.get_detect_params(),
+            "/log":                 lambda d: {"lines": self._remote_log(
+                                        int(d.get("limit", 50)))},
+            "/load_recording":      self._remote_load_recording,
+            "/load_pipeline_results": self._remote_load_pipeline_results,
+            "/load_project":        self._remote_load_project,
+            "/clear_all":           self._remote_clear_all,
+            "/set_param":           self._remote_set_param,
+            "/set_frame":           self._remote_set_frame,
+            "/set_view":            self._remote_set_view,
+            "/detect":              self._remote_detect,
+            "/test_frame":          self._remote_test_frame,
+            "/save_screenshot":     self._remote_save_screenshot,
+            "/save_project":        self._remote_save_project,
+        }
+        self._remote = None
+        attach(self, gui_type="focused", handlers=handlers,
+                default_port=8765, status_logger=self.logger.log)
+
+    # --- Remote control handlers ---
+
+    def _remote_status(self):
+        rec = self.recording or {}
+        s = {
+            "recording_loaded": self.recording is not None,
+            "recording_name": rec.get("name"),
+            "recording_path": rec.get("video_path"),
+            "n_frames": (len(rec.get("frames"))
+                          if self.recording else None),
+            "has_cy5": rec.get("cy5_frames") is not None,
+            "current_frame": (self.viewer.current_frame
+                               if self.viewer.frames is not None
+                               else None),
+            "mode": self.mode,
+            "detect_result_present": self.detect_result is not None,
+            "n_tracks_kept": (len(self.detect_result.get("tracks",
+                                                          []) or [])
+                                if self.detect_result else 0),
+            "dirty": bool(self._dirty),
+        }
+        return s
+
+    def _remote_log(self, limit):
+        events = getattr(self.logger, "events", [])
+        recent = events[-int(limit):]
+        out = []
+        for ev in recent:
+            if hasattr(ev, "to_dict"):
+                out.append(ev.to_dict())
+            elif isinstance(ev, dict):
+                out.append(ev)
+            else:
+                out.append({"kind": getattr(ev, "kind", "?"),
+                             "msg": getattr(ev, "message",
+                                             str(ev)),
+                             "ts": getattr(ev, "ts", None)})
+        return out
+
+    def _remote_load_recording(self, data):
+        path = data.get("path")
+        if not path or not os.path.exists(path):
+            raise ValueError(f"path missing or not found: {path!r}")
+        # Bypass the channel-chooser dialog if dic/fluo specified.
+        dic_ch = data.get("dic_channel")
+        fluo_ch = data.get("fluo_channel")
+        from core.io import load_recording, detect_channels
+        n_ch = (detect_channels(path)
+                 if path.lower().endswith((".tif", ".tiff")) else 1)
+        if n_ch > 1 and dic_ch is None:
+            # Default DIC=ch1, fluo=ch0 (matches cellscope convention)
+            dic_ch, fluo_ch = 1, 0
+        self.recording = load_recording(
+            path, dic_channel=dic_ch, fluo_channel=fluo_ch)
+        n = len(self.recording["frames"])
+        name = self.recording.get("name", os.path.basename(path))
+        self.logger.log(
+            "info", f"Remote loaded {name}: {n} frames"
+            + (" [+ Cy5]" if self.recording.get("cy5_frames")
+                is not None else ""))
+        self.viewer.set_data(
+            self.recording["frames"],
+            fluo_frames=self.recording.get("cy5_frames"))
+        self.detect_result = None
+        self.analysis_result = None
+        self.analysis.clear()
+        self.pipeline.reset_all()
+        self.pipeline.set_stage_status("load", "done")
+        self.pipeline.enable_stage("detect", True)
+        self.params.set_from_recording(self.recording)
+        if hasattr(self.params, "set_cy5_available"):
+            self.params.set_cy5_available(
+                self.recording.get("cy5_frames") is not None)
+        self.params.set_context("detect", self.mode)
+        self._dirty = False
+        return {"ok": True, "n_frames": n, "name": name}
+
+    def _remote_load_pipeline_results(self, data):
+        path = data.get("path")
+        if not path or not os.path.isdir(path):
+            raise ValueError(f"folder missing: {path!r}")
+        from gui_focused.project_handlers import (
+            on_load_pipeline_results)
+        on_load_pipeline_results(self, path=path)
+        return {"ok": True}
+
+    def _remote_load_project(self, data):
+        path = data.get("path")
+        if not path or not os.path.exists(path):
+            raise ValueError(f"project missing: {path!r}")
+        from gui_focused.project_handlers import on_load_project
+        on_load_project(self, path=path)
+        return {"ok": True}
+
+    def _remote_clear_all(self, data):
+        # Bypass the confirm-discard prompt for scripted use:
+        self._dirty = False
+        self._on_clear_all()
+        return {"ok": True}
+
+    def _remote_set_param(self, data):
+        name = data.get("name")
+        value = data.get("value")
+        widget = getattr(self.params, name, None)
+        if widget is None:
+            raise ValueError(f"no params widget named {name!r}")
+        # Try the common setter signatures
+        for setter in ("setValue", "setChecked", "setCurrentText"):
+            fn = getattr(widget, setter, None)
+            if fn is None:
+                continue
+            try:
+                if setter == "setCurrentText":
+                    fn(str(value))
+                elif setter == "setChecked":
+                    fn(bool(value))
+                else:
+                    fn(value)
+                return {"ok": True, "set": setter, "value": value}
+            except Exception:
+                continue
+        raise ValueError(f"don't know how to set {name!r}")
+
+    def _remote_set_frame(self, data):
+        idx = int(data.get("index", 0))
+        n = (len(self.viewer.frames)
+              if self.viewer.frames is not None else 0)
+        if idx < 0 or idx >= n:
+            raise ValueError(f"frame {idx} out of range [0,{n})")
+        self.viewer.frame_slider.setValue(idx)
+        return {"ok": True, "index": idx}
+
+    def _remote_set_view(self, data):
+        control = data.get("control")
+        checked = data.get("checked")
+        mapping = {
+            "mask": self.viewer.chk_mask,
+            "contour": self.viewer.chk_contour,
+            "ids": self.viewer.chk_ids,
+            "tracks": self.viewer.chk_tracks,
+            "source": self.viewer.chk_source,
+            "dropped": self.viewer.chk_dropped,
+        }
+        if control == "channel":
+            val = str(checked).lower()
+            if val == "fluo" and self.viewer.radio_fluo.isVisible():
+                self.viewer.radio_fluo.setChecked(True)
+            elif val == "dic":
+                self.viewer.radio_dic.setChecked(True)
+            else:
+                raise ValueError(
+                    f"channel must be 'dic' or 'fluo', got {val!r}")
+            return {"ok": True, "channel": val}
+        widget = mapping.get(control)
+        if widget is None:
+            raise ValueError(
+                f"unknown view control {control!r}; "
+                f"valid: {list(mapping)} + 'channel'")
+        widget.setChecked(bool(checked))
+        return {"ok": True, "control": control,
+                 "checked": bool(checked)}
+
+    def _remote_detect(self, data):
+        self._on_detect()
+        return {"ok": True, "status": "detection started"}
+
+    def _remote_test_frame(self, data):
+        self._on_test_frame()
+        return {"ok": True}
+
+    def _remote_save_screenshot(self, data):
+        path = data.get("path")
+        if not path:
+            raise ValueError("path required")
+        viewer_only = bool(data.get("viewer_only", False))
+        if viewer_only:
+            self.viewer.fig.savefig(
+                path, dpi=int(data.get("dpi", 200)),
+                bbox_inches="tight",
+                facecolor=self.viewer.fig.get_facecolor())
+        else:
+            pix = self.grab()
+            if not pix.save(path, "PNG"):
+                raise RuntimeError("QPixmap.save returned False")
+        return {"ok": True, "path": path}
+
+    def _remote_save_project(self, data):
+        path = data.get("path")
+        if not path:
+            raise ValueError("path required")
+        from core.project import save_project
+        save_project(
+            path, self.recording, self.detect_result,
+            self.analysis_result, self.params.get_detect_params(),
+            self.mode,
+            roi_mask=self.roi.roi_mask if self.roi.has_roi()
+                else None)
+        self._dirty = False
+        return {"ok": True, "path": path}
 
     def _build_ui(self):
         """Dock-widget layout — every panel is detachable + resizable.

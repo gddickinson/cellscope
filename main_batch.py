@@ -11,6 +11,8 @@ from gui_batch.batch_window import BatchWindow
 def main():
     app = QApplication(sys.argv)
     win = BatchWindow()
+    from gui_focused.remote_control import attach_minimal
+    attach_minimal(win, gui_type="batch", default_port=8768)
     win.show()
     sys.exit(app.exec_())
 

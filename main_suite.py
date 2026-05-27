@@ -127,6 +127,105 @@ class SuiteLauncher:
         self._count_labels = {}
         self._build_ui()
         self._poll_processes()
+        self._maybe_start_remote()
+
+    def _maybe_start_remote(self):
+        """Start a small HTTP server (stdlib) so this launcher can be
+        driven by curl. Tkinter has no signals — but the surface we
+        expose (launch_app, list_apps, status) is stateless or only
+        touches subprocess.Popen, so it runs safely in the HTTP
+        thread without needing tk.after() round-trips."""
+        port_env = os.environ.get("CELLSCOPE_REMOTE", "").strip().lower()
+        if not port_env or port_env in ("0", "false", "off", "no"):
+            return
+        if port_env in ("1", "true", "on", "yes"):
+            port = 8766
+        else:
+            try:
+                port = int(port_env)
+            except ValueError:
+                return
+        import threading, json, queue
+        from http.server import (BaseHTTPRequestHandler, HTTPServer)
+        from urllib.parse import urlparse
+
+        launcher = self
+
+        class _Handler(BaseHTTPRequestHandler):
+            def log_message(self, *_): pass
+
+            def _json(self, status, body):
+                payload = json.dumps(body, default=str).encode()
+                self.send_response(status)
+                self.send_header("Content-Type",
+                                  "application/json")
+                self.send_header("Content-Length",
+                                  str(len(payload)))
+                self.end_headers()
+                self.wfile.write(payload)
+
+            def _read_body(self):
+                n = int(self.headers.get("Content-Length", 0))
+                if not n: return {}
+                raw = self.rfile.read(n)
+                try: return json.loads(raw)
+                except Exception: return {}
+
+            def do_GET(self):
+                p = urlparse(self.path).path
+                if p == "/status":
+                    counts = {s: len(ps) for s, ps in
+                              launcher._processes.items()}
+                    self._json(200, {"gui": "launcher",
+                                      "port": port,
+                                      "apps": [a["title"]
+                                                for a in APPS],
+                                      "running": counts})
+                    return
+                if p == "/list_apps":
+                    self._json(200, {
+                        "apps": [{"title": a["title"],
+                                   "script": a["script"],
+                                   "env": a["env"]}
+                                  for a in APPS]})
+                    return
+                self._json(404, {"error": f"unknown {p}"})
+
+            def do_POST(self):
+                p = urlparse(self.path).path
+                data = self._read_body()
+                if p == "/launch_app":
+                    script = data.get("script")
+                    app = next((a for a in APPS
+                                 if a["script"] == script), None)
+                    if app is None:
+                        self._json(404,
+                            {"error": f"unknown script {script!r}"})
+                        return
+                    script_path = os.path.join(PROJECT_DIR, script)
+                    proc = subprocess.Popen(
+                        [CONDA, "run", "--no-capture-output",
+                         "-n", app["env"], "python", script_path],
+                        cwd=PROJECT_DIR,
+                        env={**os.environ,
+                              "CELLSCOPE_REMOTE": str(
+                                  data.get("remote_port", "1"))})
+                    launcher._processes[script].append(proc)
+                    self._json(200, {"ok": True, "pid": proc.pid,
+                                      "script": script})
+                    return
+                self._json(404, {"error": f"unknown {p}"})
+
+        try:
+            httpd = HTTPServer(("127.0.0.1", port), _Handler)
+        except OSError as e:
+            print(f"launcher remote control: bind failed: {e}")
+            return
+        threading.Thread(
+            target=httpd.serve_forever,
+            daemon=True,
+            name=f"LauncherRemote-{port}").start()
+        print(f"launcher remote control: http://127.0.0.1:{port}")
 
     def _build_ui(self):
         tk.Label(self.root, text="CellScope Suite",
