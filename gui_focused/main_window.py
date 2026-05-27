@@ -71,10 +71,13 @@ class FocusedMainWindow(QMainWindow):
             "/set_param":           self._remote_set_param,
             "/set_frame":           self._remote_set_frame,
             "/set_view":            self._remote_set_view,
+            "/set_mode":            self._remote_set_mode,
             "/detect":              self._remote_detect,
             "/test_frame":          self._remote_test_frame,
+            "/analyze":             self._remote_analyze,
             "/save_screenshot":     self._remote_save_screenshot,
             "/save_project":        self._remote_save_project,
+            "/export":              self._remote_export,
         }
         self._remote = None
         attach(self, gui_type="focused", handlers=handlers,
@@ -265,6 +268,54 @@ class FocusedMainWindow(QMainWindow):
             if not pix.save(path, "PNG"):
                 raise RuntimeError("QPixmap.save returned False")
         return {"ok": True, "path": path}
+
+    def _remote_set_mode(self, data):
+        mode = data.get("mode")
+        if mode not in ("single", "multi"):
+            raise ValueError(
+                f"mode must be 'single' or 'multi', got {mode!r}")
+        self.pipeline.set_mode(mode)
+        return {"ok": True, "mode": mode}
+
+    def _remote_analyze(self, data):
+        if self.detect_result is None:
+            raise ValueError("no detection result — call /detect first")
+        self._on_analyze()
+        return {"ok": True, "status": "analyze started"}
+
+    def _remote_export(self, data):
+        """Export to a directory non-interactively. Bypasses the
+        export dialog by writing directly via the same machinery
+        the dialog uses on OK."""
+        out_dir = data.get("out_dir")
+        if not out_dir:
+            raise ValueError("out_dir required")
+        if self.detect_result is None:
+            raise ValueError("no detection result — call /detect first")
+        os.makedirs(out_dir, exist_ok=True)
+        # Write masks.npz
+        import numpy as np
+        labels = self.detect_result.get("labels")
+        masks = self.detect_result.get("masks")
+        np.savez_compressed(
+            os.path.join(out_dir, "masks.npz"),
+            labels=labels if labels is not None else None,
+            masks=masks)
+        # Write a small RUN_METADATA.json
+        import json as _json
+        meta = {
+            "recording": (self.recording.get("name")
+                           if self.recording else None),
+            "n_frames": (len(self.recording["frames"])
+                          if self.recording else 0),
+            "n_tracks": int(labels.max()) if labels is not None else 0,
+            "params": self.params.get_detect_params(),
+        }
+        with open(os.path.join(out_dir, "RUN_METADATA.json"),
+                   "w") as f:
+            _json.dump(meta, f, indent=2, default=str)
+        return {"ok": True, "out_dir": out_dir,
+                 "files": ["masks.npz", "RUN_METADATA.json"]}
 
     def _remote_save_project(self, data):
         path = data.get("path")

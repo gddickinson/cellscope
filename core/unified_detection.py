@@ -297,15 +297,20 @@ def detect_recording(dic_frames, cy5_frames=None,
         if result.get("fusion_source_stack") is not None:
             result["fusion_source_stack"] = _upscale(
                 result["fusion_source_stack"])
-        # Upscale stacks on BOTH kept and dropped tracks. tracks_raw
-        # shares references with kept tracks (which get upscaled
-        # in-place) but the dropped subset only lives in
-        # tracks_dropped — so without this second loop the dropped
-        # tracks stay at the downsampled resolution while kept ones
-        # jump to the original, leaving tracks_raw a mixed-shape list
-        # that crashes rebuild_label_stack in save_unfiltered_detections.
-        for t in (list(result.get("tracks", []) or [])
-                   + list(result.get("tracks_dropped", []) or [])):
+        # Upscale every track's stack to the original resolution so
+        # downstream code (save_unfiltered_detections, rebuild_label_stack)
+        # sees one consistent shape. tracks_raw entries are the
+        # ORIGINAL track objects — both kept (also referenced by
+        # result["tracks"]) and dropped (the dropped copies in
+        # tracks_dropped are shallow dict copies, NOT the same
+        # objects, so upscaling them wouldn't affect tracks_raw).
+        # The shape-guard prevents double-upscaling shared refs.
+        seen = set()
+        for t in (list(result.get("tracks_raw", []) or [])
+                   + list(result.get("tracks", []) or [])):
+            if id(t) in seen:
+                continue
+            seen.add(id(t))
             if t.get("stack") is not None and t["stack"].shape[-1] != W:
                 t["stack"] = _upscale(
                     t["stack"].astype(np.uint8)).astype(bool)

@@ -43,13 +43,45 @@ from scipy.ndimage import gaussian_filter, binary_dilation
 # ────────────────────────────────────────────────────────────────────
 
 def parse_n_channels(tif_path):
-    """Read N channels from the metadata sidecar, default to 1."""
+    """Read N channels from the metadata sidecar, falling back to
+    the OME-XML embedded in the TIFF, then to the matching JSON
+    sidecar's ``n_channels``, then to 1. Without these fallbacks a
+    multichannel TIFF without a ``_metadata.txt`` silently loads as
+    1 channel and then crashes deep inside tifffile when
+    ``load_recording_multi`` indexes past the end of the page list.
+    """
     sidecar = tif_path.replace(".ome.tif", "_metadata.txt")
-    if not os.path.exists(sidecar):
-        return 1
-    with open(sidecar) as f:
-        m = re.search(r'"Channels"\s*:\s*(\d+)', f.read())
-    return int(m.group(1)) if m else 1
+    if os.path.exists(sidecar):
+        with open(sidecar) as f:
+            m = re.search(r'"Channels"\s*:\s*(\d+)', f.read())
+        if m:
+            return int(m.group(1))
+    # Fallback 1 (authoritative): the .ome.json sidecar's
+    # ``n_channels`` field.
+    json_sidecar = tif_path.replace(".ome.tif", ".ome.json")
+    if os.path.exists(json_sidecar):
+        try:
+            import json as _json
+            with open(json_sidecar) as f:
+                d = _json.load(f)
+            if isinstance(d.get("n_channels"), int):
+                return int(d["n_channels"])
+        except Exception:
+            pass
+    # Fallback 2 (last-resort heuristic): OME-XML SizeC attribute
+    # inside the TIFF. Less reliable than the JSON because plain
+    # tifffile.imwrite of a 3-D stack can produce OME-XML with
+    # SizeC == n_pages (treating each page as a separate channel)
+    # rather than the intended SizeT × SizeC interleaving.
+    try:
+        with tifffile.TiffFile(tif_path) as tf:
+            ome = getattr(tf, "ome_metadata", None) or ""
+            m = re.search(r'SizeC\s*=\s*"(\d+)"', ome)
+            if m:
+                return int(m.group(1))
+    except Exception:
+        pass
+    return 1
 
 
 def parse_n_frames(tif_path, n_channels):
