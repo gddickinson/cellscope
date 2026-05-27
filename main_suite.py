@@ -57,21 +57,37 @@ APPS = [
 MAX_INSTANCES = 1
 
 
-def _find_conda():
-    """Find conda executable, checking common locations on Windows."""
-    conda = shutil.which("conda")
-    if conda:
-        return conda
-    if sys.platform == "win32":
-        for path in [
-            os.path.expanduser("~/anaconda3/Scripts/conda.exe"),
-            os.path.expanduser("~/miniconda3/Scripts/conda.exe"),
-            r"C:\ProgramData\anaconda3\Scripts\conda.exe",
-            r"C:\ProgramData\miniconda3\Scripts\conda.exe",
-        ]:
-            if os.path.exists(path):
-                return path
-    return "conda"
+def _find_conda(target_env="cellpose4"):
+    """Find a conda executable whose envs include ``target_env``.
+
+    Some machines have multiple conda installs (e.g. anaconda3 first
+    on PATH, miniconda3 elsewhere with the cellpose4 env). Using
+    shutil.which alone can pick the wrong one and produce
+    ``EnvironmentLocationNotFound: Not a conda environment:
+    .../envs/cellpose4`` when launching the sub-GUIs. Walk a list of
+    common install roots and prefer one that actually has
+    ``envs/<target_env>``.
+    """
+    candidates = []
+    which = shutil.which("conda")
+    if which:
+        candidates.append(which)
+    home = os.path.expanduser("~")
+    for root in ["~/miniconda3", "~/anaconda3",
+                  "~/opt/anaconda3", "~/opt/miniconda3",
+                  "/opt/miniconda3", "/opt/anaconda3"]:
+        for sub in ["bin/conda", "Scripts/conda.exe"]:
+            p = os.path.join(os.path.expanduser(root), sub)
+            if os.path.exists(p) and p not in candidates:
+                candidates.append(p)
+    # Prefer a conda whose envs/<target_env> directory exists.
+    for c in candidates:
+        prefix = os.path.dirname(os.path.dirname(c))
+        env_dir = os.path.join(prefix, "envs", target_env)
+        if os.path.isdir(env_dir):
+            return c
+    # Nothing matched — fall back to the first found, or "conda".
+    return candidates[0] if candidates else "conda"
 
 
 CONDA = _find_conda()
