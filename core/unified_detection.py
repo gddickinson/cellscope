@@ -297,8 +297,16 @@ def detect_recording(dic_frames, cy5_frames=None,
         if result.get("fusion_source_stack") is not None:
             result["fusion_source_stack"] = _upscale(
                 result["fusion_source_stack"])
-        for t in result.get("tracks", []) or []:
-            if t.get("stack") is not None:
+        # Upscale stacks on BOTH kept and dropped tracks. tracks_raw
+        # shares references with kept tracks (which get upscaled
+        # in-place) but the dropped subset only lives in
+        # tracks_dropped — so without this second loop the dropped
+        # tracks stay at the downsampled resolution while kept ones
+        # jump to the original, leaving tracks_raw a mixed-shape list
+        # that crashes rebuild_label_stack in save_unfiltered_detections.
+        for t in (list(result.get("tracks", []) or [])
+                   + list(result.get("tracks_dropped", []) or [])):
+            if t.get("stack") is not None and t["stack"].shape[-1] != W:
                 t["stack"] = _upscale(
                     t["stack"].astype(np.uint8)).astype(bool)
 
