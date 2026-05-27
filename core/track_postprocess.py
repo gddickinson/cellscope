@@ -622,14 +622,20 @@ def absorb_touching_fragments(tracks, n_frames, area_ratio=0.3,
 
 def postprocess_tracks(tracks, frames=None,
                         overlap_threshold=0.3, iou_threshold=0.05,
-                        min_frames=3):
+                        min_frames=3,
+                        smooth_id_bouncing=True,
+                        id_smoothing_window=5):
     """Full post-processing pipeline.
 
     1. Reject false positives (outlier detections)
     2. Drop small edge-artifact tracks (mounting reflections, specks)
     3. Drop edge-vignette sliver detections (FoV illumination edge
        segmented as a thin near-solid bar)
-    4. Remove empty tracks
+    4. Reject static-edge blobs (vignette / illumination artifacts)
+    5. Smooth bouncing IDs (catch tracks that swap A↔B↔A within a
+       short window by majority-IoU vote within a sliding window).
+       Set ``smooth_id_bouncing=False`` to disable.
+    6. Remove empty tracks
 
     Modifies tracks in-place. Returns summary dict.
     """
@@ -643,6 +649,11 @@ def postprocess_tracks(tracks, frames=None,
         sliver = reject_edge_sliver_detections(tracks, frames.shape)
         n_static = reject_static_edge_blobs(tracks, frames.shape)
 
+    n_bounces = 0
+    if smooth_id_bouncing and len(tracks) >= 2:
+        n_bounces = smooth_bouncing_ids(
+            tracks, window=id_smoothing_window)
+
     n_removed = remove_empty_tracks(tracks, min_frames)
 
     return {
@@ -651,6 +662,7 @@ def postprocess_tracks(tracks, frames=None,
         "edge_slivers_dropped": sliver["tracks_dropped"],
         "edge_sliver_frames_zeroed": sliver["frames_zeroed"],
         "static_edge_blobs_dropped": n_static,
+        "id_bounces_smoothed": n_bounces,
         "tracks_removed": n_removed,
         "tracks_remaining": len(tracks),
     }
