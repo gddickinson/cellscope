@@ -62,8 +62,36 @@ def save_unfiltered_detections(out_dir, detect):
     if not tracks_raw or detect.get("labels") is None:
         return None
     from core.cy5_filter import rebuild_label_stack
-    raw_labels = rebuild_label_stack(
-        tracks_raw, detect["labels"].shape)
+    # tracks_raw stacks are at detect-time resolution. After
+    # downsample, detect["labels"] has been upscaled back to original
+    # but the tracks_raw stacks were NOT (only the kept tracks get
+    # upscaled by unified_detection's final step). Using
+    # detect["labels"].shape here causes a shape-mismatch crash on
+    # any recording where downsample > 1 (mini IC295_batch2 Pos51-Y1,
+    # 2048² → 1024² downsampled, hits this every time). Derive the
+    # shape from the tracks themselves.
+    sample_stack = None
+    for t in tracks_raw:
+        s = t.get("stack")
+        if s is not None:
+            sample_stack = s
+            break
+    if sample_stack is None:
+        return None
+    raw_labels = rebuild_label_stack(tracks_raw, sample_stack.shape)
+    # Upscale raw_labels to the final detect["labels"] resolution if
+    # they differ, so masks_unfiltered.npz aligns with masks.npz for
+    # the GUI overlay.
+    target_shape = detect["labels"].shape
+    if raw_labels.shape != target_shape:
+        import cv2
+        N, H, W = target_shape
+        upscaled = np.empty((N, H, W), dtype=np.int32)
+        for i in range(N):
+            upscaled[i] = cv2.resize(
+                raw_labels[i], (W, H),
+                interpolation=cv2.INTER_NEAREST)
+        raw_labels = upscaled
     np.savez_compressed(
         os.path.join(out_dir, "masks_unfiltered.npz"),
         labels=raw_labels)
