@@ -37,6 +37,7 @@ GUI defaults (cpsam_dic auto-selected + min_area_px=500). One source
 of truth prevents this kind of drift.
 """
 from __future__ import annotations
+from core.conda_run import conda_exe
 
 import os
 from dataclasses import dataclass, asdict
@@ -235,7 +236,7 @@ def _run_probe_subprocess(frames, indices, model_path, min_area_px,
             input_path=inp, model_path=model_path,
             min_area_px=min_area_px)
         proc = subprocess.run(
-            ["conda", "run", "-n", env_name, "python", "-c", script],
+            [conda_exe(), "run", "-n", env_name, "python", "-c", script],
             capture_output=True, text=True, timeout=600,
             cwd=project_root)
         for line in proc.stdout.splitlines():

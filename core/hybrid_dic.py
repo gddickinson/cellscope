@@ -23,6 +23,7 @@ import subprocess
 import tempfile
 import logging
 import numpy as np
+from core.conda_run import conda_exe
 from core.division_annotator import annotate_track_lineage
 
 log = logging.getLogger(__name__)
@@ -96,7 +97,7 @@ def _run_cpsam_dic_labels_subprocess(frames, model_path, project_root,
             augment=str(augment),
         )
         proc = subprocess.run(
-            ["conda", "run", "-n", CELLPOSE4_ENV, "python", "-c", script],
+            [conda_exe(), "run", "-n", CELLPOSE4_ENV, "python", "-c", script],
             capture_output=True, text=True, timeout=7200,
             cwd=project_root,
         )
@@ -128,7 +129,7 @@ def _run_cpsam_dic_subprocess(frames, model_path, project_root,
             augment=str(augment),
         )
         proc = subprocess.run(
-            ["conda", "run", "-n", CELLPOSE4_ENV, "python", "-c", script],
+            [conda_exe(), "run", "-n", CELLPOSE4_ENV, "python", "-c", script],
             capture_output=True, text=True, timeout=7200,
             cwd=project_root,
         )

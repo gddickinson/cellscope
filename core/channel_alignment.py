@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import os
 import logging
+from core.conda_run import conda_exe
 import numpy as np
 
 log = logging.getLogger(__name__)
@@ -123,7 +124,7 @@ def _run_cpsam_pair_subprocess(dic_frames, cy5_frames,
         # alignment is well under 600s. 1800s gives cold-start
         # headroom on slower networks / older hardware.
         proc = subprocess.run(
-            ["conda", "run", "-n", env_name, "python", "-c", script],
+            [conda_exe(), "run", "-n", env_name, "python", "-c", script],
             capture_output=True, text=True, timeout=1800,
             cwd=project_root)
         if "PROBE_OK" not in proc.stdout:

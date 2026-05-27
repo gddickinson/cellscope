@@ -17,6 +17,7 @@ import os
 import subprocess
 import tempfile
 import logging
+from core.conda_run import conda_exe
 import numpy as np
 
 log = logging.getLogger(__name__)
@@ -57,7 +58,7 @@ def _run_cp3_fallback_labels(frames, project_root):
             output_path=outp,
         )
         result = subprocess.run(
-            ["conda", "run", "-n", CELLPOSE_ENV, "python", "-c", script],
+            [conda_exe(), "run", "-n", CELLPOSE_ENV, "python", "-c", script],
             capture_output=True, text=True, timeout=600,
             cwd=project_root,
         )

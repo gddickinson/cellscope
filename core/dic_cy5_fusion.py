@@ -35,6 +35,8 @@ import os
 import subprocess
 import tempfile
 import logging
+
+from core.conda_run import conda_exe
 import numpy as np
 
 log = logging.getLogger(__name__)
@@ -87,7 +89,7 @@ def detect_cpsam_on_cy5(cy5_frames, project_root, augment=False,
             augment=str(augment),
         )
         proc = subprocess.run(
-            ["conda", "run", "-n", CELLPOSE4_ENV, "python", "-c", script],
+            [conda_exe(), "run", "-n", CELLPOSE4_ENV, "python", "-c", script],
             capture_output=True, text=True, timeout=7200,
             cwd=project_root,
         )
