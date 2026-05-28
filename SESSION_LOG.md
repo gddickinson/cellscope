@@ -10,6 +10,35 @@ Format: **DATE — short title** with bullets describing what changed
 
 ---
 
+## 2026-05-28 — Pre-download raw cpsam ViT in download_models.py
+
+`download_models.py` previously fetched only `cpsam_dic` (Drive) +
+the small-models bundle. The **raw default cpsam ViT** (cellpose
+builtin, `~/.cellpose/models/cpsam`, ~1.1 GB) — used by the
+auto-select probe and raw-cpsam detection — was left to cellpose to
+download silently on first inference, with no GUI progress bar. On a
+fresh lab-PC install that first-use download looked exactly like a
+hang (compounded by CPU-only inference; see below).
+
+Fix: new `fetch_cpsam_builtin()` calls cellpose's own
+`models.cache_CPSAM_model_path()` (CP4-only; fetches from HuggingFace
+with a progress bar, idempotent) so the version + cache path always
+match what cellpose expects — no Drive re-hosting. Wired into `main()`
+under `do_cpsam`, surfaced in `report_status()` / `--check-only`, and
+gracefully skips with a hint when run from the CP3 `cellpose` env.
+Also fixed two stale `conda activate cellpose` → `cellpose4` env
+references in the script (cellpose4 is canonical).
+
+Context: diagnosed why the lab PC's "Test on frame" appeared to hang.
+Root cause is CPU-only inference (GPU was admin-locked at install):
+benchmarked cpsam on a 1024² frame — **CPU 297s/frame (922s w/ TTA)
+vs MPS 6.8s (21s): ~44× slower**, effectively non-functional
+interactively, not a bug. A multi-cell Test-on-frame compounds it
+(separate `conda run` probe subprocess + its own CPU inference, then
+in-process detection inference). Fix for the lab PC is enabling the
+GPU; the silent raw-cpsam download was a second, independent hang
+contributor that this commit removes.
+
 ## 2026-05-27 — HTTP remote-control RPC for all 6 GUIs
 
 Commits `000860b`, `928e2e2`, `b1764a1`. New `gui_focused/remote_control.py`

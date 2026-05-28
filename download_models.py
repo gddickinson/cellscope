@@ -14,8 +14,19 @@ Two bundles are hosted on Drive:
        Needed by: every install (this is the best DIC detector and
                   is too large to ship in either zip).
 
-Usage:
-  conda run -n cellpose python download_models.py
+Plus a third model, NOT from Drive:
+
+  3. Raw default cpsam ViT  (~1.1 GB)
+       A cellpose builtin (cached at ~/.cellpose/models/cpsam),
+       fetched via cellpose's own downloader from HuggingFace.
+       Needed by: the auto-select probe + raw-cpsam detection. cellpose
+                  otherwise downloads it silently on first inference
+                  (no GUI progress bar → looks like a hang), so we
+                  pre-fetch it here. Requires the cellpose4 env.
+
+Usage (run from the cellpose4 env so the raw cpsam ViT can be
+pre-fetched via cellpose's CP4-only downloader):
+  conda run -n cellpose4 python download_models.py
   python download_models.py --check-only       # just report what's present
   python download_models.py --bundle-only      # skip cpsam_dic
   python download_models.py --cpsam-only       # skip small-models bundle
@@ -77,6 +88,21 @@ def small_models_ok():
     """All five small-model entries are present."""
     return all(os.path.exists(os.path.join(MODELS_DIR, n))
                for n, _ in SMALL_MODEL_NAMES)
+
+
+def cpsam_builtin_path():
+    """Path cellpose caches the raw default cpsam ViT at, or None if
+    this env's cellpose is too old to expose it (CP4-only)."""
+    try:
+        from cellpose.models import MODEL_DIR
+    except Exception:
+        return None
+    return os.path.join(str(MODEL_DIR), "cpsam")
+
+
+def cpsam_builtin_ok():
+    p = cpsam_builtin_path()
+    return bool(p) and os.path.exists(p) and os.path.getsize(p) >= CPSAM_EXPECTED_MIN
 
 
 def gdown_or_die():
@@ -183,6 +209,56 @@ def fetch_cpsam(url, force=False):
     return True
 
 
+def fetch_cpsam_builtin(force=False):
+    """Pre-download the raw default cpsam ViT (~1.1 GB) into cellpose's
+    own cache.
+
+    This is a cellpose *builtin* model, distinct from our cpsam_dic
+    fine-tune. The auto-select probe and raw-cpsam detection both load
+    it via `CellposeModel(gpu=...)`, and cellpose otherwise fetches it
+    silently on first inference — inside the GUI, with no progress bar,
+    which looks exactly like a hang on a fresh machine. Pre-fetching it
+    here (via cellpose's own downloader, so the version + cache path
+    always match what cellpose expects) makes the first detection fast
+    and the download visible.
+
+    Requires a cellpose 4.x env (the API is CP4-only) — run this script
+    from `cellpose4`. Gracefully skips with a hint otherwise.
+    """
+    try:
+        from cellpose import models as _cp_models
+    except Exception as e:
+        print(f"\n⚠  Skipping raw-cpsam pre-download: cannot import "
+              f"cellpose ({e}).")
+        return False
+    fn = getattr(_cp_models, "cache_CPSAM_model_path", None)
+    if fn is None:
+        print("\n⚠  Skipping raw-cpsam pre-download: this cellpose has no "
+              "cache_CPSAM_model_path.\n   Run download_models.py from the "
+              "cellpose4 env to pre-fetch the raw cpsam ViT.")
+        return False
+
+    if cpsam_builtin_ok() and not force:
+        sz = os.path.getsize(cpsam_builtin_path()) / 1e9
+        print(f"raw cpsam ViT already cached ({sz:.2f} GB) — skipping.")
+        return True
+    if force:
+        p = cpsam_builtin_path()
+        if p and os.path.exists(p):
+            os.remove(p)
+
+    print("\nPre-downloading raw cpsam ViT (~1.1 GB) into cellpose's "
+          "cache…")
+    cached = fn()  # downloads if missing, with a progress bar
+    if not cpsam_builtin_ok():
+        print(f"\nERROR: raw cpsam download produced an unexpectedly small "
+              f"file at {cached}. Re-try.")
+        sys.exit(3)
+    sz = os.path.getsize(cached) / 1e9
+    print(f"✓ raw cpsam ViT cached ({sz:.2f} GB)")
+    return True
+
+
 def report_status():
     print("=== Cellscope model check ===")
     print(f"Models dir: {MODELS_DIR}\n")
@@ -206,6 +282,17 @@ def report_status():
     else:
         print(f"  ✗ cpsam_dic                  MISSING        "
               f"— CP4 ViT (current best DIC). Will download ~1.1 GB.")
+
+    if cpsam_builtin_ok():
+        sz = os.path.getsize(cpsam_builtin_path()) / 1e9
+        print(f"  ✓ cpsam (raw ViT)            ({sz:.2f} GB)  "
+              f"— cellpose builtin (auto-probe + raw-cpsam detection)")
+    elif cpsam_builtin_path() is None:
+        print(f"  ? cpsam (raw ViT)            UNKNOWN        "
+              f"— run from cellpose4 env to check/pre-fetch")
+    else:
+        print(f"  ✗ cpsam (raw ViT)            MISSING        "
+              f"— cellpose builtin. Will download ~1.1 GB on first detect.")
     print()
 
 
@@ -240,11 +327,12 @@ def main():
         fetch_small_bundle(args.bundle_url, force=args.force)
     if do_cpsam:
         fetch_cpsam(args.cpsam_url, force=args.force)
+        fetch_cpsam_builtin(force=args.force)
 
     print()
     report_status()
     print("Ready. Launch with:")
-    print("  conda activate cellpose")
+    print("  conda activate cellpose4")
     print("  python main_suite.py")
 
 
