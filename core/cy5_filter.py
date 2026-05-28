@@ -602,12 +602,26 @@ def apply_cy5_filter(tracks, mode="off", threshold=0.15,
 
 def rebuild_label_stack(tracks, shape, dtype=np.int32):
     """Re-build (N, H, W) int32 label stack from a list of tracks
-    after filtering. Track IDs become 1..len(tracks)."""
+    after filtering. Track IDs become 1..len(tracks).
+
+    Defensive against mixed-resolution track stacks: if a track's
+    per-frame mask doesn't match the target (H, W) — e.g. a
+    downsampled stack that unified_detection's upscale pass missed —
+    it's nearest-neighbour resized to fit rather than raising a
+    broadcast error.
+    """
+    H, W = shape[1], shape[2]
     out = np.zeros(shape, dtype=dtype)
     for tid, t in enumerate(tracks, start=1):
         s = t.get("stack")
         if s is None:
             continue
         for i in range(shape[0]):
-            out[i][s[i] & (out[i] == 0)] = tid
+            si = s[i]
+            if si.shape != (H, W):
+                import cv2
+                si = cv2.resize(
+                    si.astype(np.uint8), (W, H),
+                    interpolation=cv2.INTER_NEAREST).astype(bool)
+            out[i][si & (out[i] == 0)] = tid
     return out
