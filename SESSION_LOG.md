@@ -10,6 +10,29 @@ Format: **DATE — short title** with bullets describing what changed
 
 ---
 
+## 2026-05-29 — `Open Pipeline Results` no longer prompts when the recording is obvious
+
+`on_load_pipeline_results` previously had a single recording-resolution
+path — read `RUN_METADATA.json`'s `video_path` — and prompted the user
+to locate the recording manually if that failed. With the new
+`gt_review/<rec>/pipeline_results/masks.npz` layout (no RUN_METADATA
+sidecar there), every mask load triggered the "The recording referenced
+by RUN_METADATA (unknown) is not accessible — Locate the recording
+file:" prompt, even when the user had *just dragged the recording in*
+or it was sitting right next to the masks folder.
+
+Resolution chain is now:
+  1. `RUN_METADATA.json::source_recording.video_path` (existing).
+  2. **NEW**: a sibling recording in `pr_dir`'s parent
+     (handles `gt_review/<rec>/<rec>.ome.tif` next to
+     `gt_review/<rec>/pipeline_results/masks.npz`).
+  3. **NEW**: the currently-loaded recording, if any — user already
+     told us what to overlay onto by loading it first.
+  4. Prompt (only as a last resort).
+
+Also: when the resolved video matches what's already loaded, skip the
+redundant `_load_path` reload — matters on multi-GB recordings.
+
 ## 2026-05-29 — Multichannel TIFF without `_metadata.txt` no longer loads as a line
 
 `core/io.py::detect_channels` previously fell back from `_metadata.txt`

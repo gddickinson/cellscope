@@ -111,8 +111,14 @@ def on_load_pipeline_results(win, path=None):
             f"pipeline_results/ folder itself.")
         return
 
-    # Resolve the source recording via RUN_METADATA, falling back to
-    # a manual file pick if the recorded path is no longer accessible.
+    # Resolve the source recording. Priority order:
+    #   1. RUN_METADATA.json's source_recording.video_path (if accessible).
+    #   2. A sibling recording in pr_dir's parent (handles the gt_review
+    #      pattern: gt_review/<rec>/<rec>.ome.tif sits next to
+    #      gt_review/<rec>/pipeline_results/masks.npz).
+    #   3. The currently-loaded recording, if any — the user already
+    #      told us what to overlay onto by loading it first.
+    #   4. Prompt the user to locate it.
     meta_path = os.path.join(pr_dir, "RUN_METADATA.json")
     video_path = None
     if os.path.exists(meta_path):
@@ -123,18 +129,49 @@ def on_load_pipeline_results(win, path=None):
         except Exception:
             video_path = None
     if not video_path or not os.path.exists(video_path):
-        prompt = (f"The recording referenced by RUN_METADATA "
-                   f"({video_path or 'unknown'}) is not accessible.\n\n"
-                   f"Locate the recording file:")
-        QMessageBox.information(win, "Locate recording", prompt)
-        video_path, _ = QFileDialog.getOpenFileName(
-            win, "Locate recording", "",
-            "Recording (*.mp4 *.avi *.mov *.tif *.tiff)")
-        if not video_path:
+        import glob
+        parent = os.path.dirname(os.path.abspath(pr_dir))
+        for pat in ("*.ome.tif", "*.tif", "*.tiff",
+                    "*.mp4", "*.avi", "*.mov"):
+            sibs = sorted(glob.glob(os.path.join(parent, pat)))
+            if sibs:
+                video_path = sibs[0]
+                break
+    reuse_current = False
+    if not video_path or not os.path.exists(video_path):
+        if win.recording is not None:
+            reuse_current = True
+        else:
+            prompt = (f"The recording referenced by RUN_METADATA "
+                       f"({video_path or 'unknown'}) is not accessible.\n\n"
+                       f"Locate the recording file:")
+            QMessageBox.information(win, "Locate recording", prompt)
+            video_path, _ = QFileDialog.getOpenFileName(
+                win, "Locate recording", "",
+                "Recording (*.mp4 *.avi *.mov *.tif *.tiff)")
+            if not video_path:
+                return
+    elif win.recording is not None:
+        # Resolved video matches what's already loaded — skip the
+        # redundant reload (matters for multi-GB recordings).
+        cur = win.recording.get("video_path", "")
+        try:
+            if (cur and os.path.realpath(cur)
+                    == os.path.realpath(video_path)):
+                reuse_current = True
+        except Exception:
+            pass
+    if reuse_current:
+        # Replicate the stage reset _load_path would have done.
+        win.analysis_result = None
+        win.analysis.clear()
+        win.pipeline.reset_all()
+        win.pipeline.set_stage_status("load", "done")
+        win.pipeline.enable_stage("detect", True)
+    else:
+        win._load_path(video_path)
+        if win.recording is None:
             return
-    win._load_path(video_path)
-    if win.recording is None:
-        return
 
     # Load masks (+ optional fusion source stack from same archive).
     npz = np.load(masks_path, allow_pickle=True)
