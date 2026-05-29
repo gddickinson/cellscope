@@ -6,6 +6,30 @@ from PyQt5.QtWidgets import QFileDialog, QMessageBox, QApplication
 from PyQt5.QtCore import Qt
 
 
+def _rebuild_tracks_from_labels(labels):
+    """Reconstruct a multi-cell tracks list from an (N, H, W) int32
+    label stack: one track per unique non-zero ID, with `stack` = the
+    per-frame boolean mask and `first_frame` = the first frame the
+    cell appears in. Matches the shape `FocusedAnalyzeWorker` expects
+    (`track["stack"]` + `track["first_frame"]`) so loaded masks can be
+    analyzed without re-running detection."""
+    if labels is None:
+        return []
+    ids = np.unique(labels)
+    ids = ids[ids > 0]
+    tracks = []
+    for cid in ids.tolist():
+        stack = (labels == int(cid))
+        present = stack.any(axis=(1, 2))
+        if not present.any():
+            continue
+        tracks.append({
+            "stack": stack,
+            "first_frame": int(np.argmax(present)),
+        })
+    return tracks
+
+
 def on_save_project(win):
     if win.recording is None:
         return
@@ -185,6 +209,11 @@ def on_load_pipeline_results(win, path=None):
     win.detect_result = {"masks": masks}
     if labels is not None:
         win.detect_result["labels"] = labels
+        # Multi-cell analyze (FocusedAnalyzeWorker) walks
+        # detect_result["tracks"] — when loading from masks.npz there
+        # were no tracks, so analyze reported "0 cells detected".
+        # Rebuild per-cell tracks from the labels stack here.
+        win.detect_result["tracks"] = _rebuild_tracks_from_labels(labels)
     if fusion_src is not None:
         win.detect_result["fusion_source_stack"] = fusion_src
 

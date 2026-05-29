@@ -10,6 +10,26 @@ Format: **DATE — short title** with bullets describing what changed
 
 ---
 
+## 2026-05-29 — Loaded `masks.npz` is now analyzable (multi-cell)
+
+`FocusedAnalyzeWorker`'s multi-cell branch walks
+`self.detect_result["tracks"]` for per-cell analysis. The
+`on_load_pipeline_results` loader populated `detect_result["masks"]`
++ `detect_result["labels"]` but never `tracks`, so clicking Analyze
+on a loaded `masks.npz` reported "0 cells detected" (the worker
+iterates an empty list).
+
+Added a `_rebuild_tracks_from_labels(labels)` helper in
+`gui_focused/project_handlers.py`: one track per unique non-zero
+ID in the (N, H, W) int32 stack, with `track["stack"]` = the
+per-frame boolean mask and `track["first_frame"]` = the first
+frame the cell appears in. Matches what `FocusedAnalyzeWorker`
+expects, so analyze runs end-to-end without re-detecting.
+
+Verified on `gt_review/ignasi_control/pipeline_results/masks.npz`
+(3 cells, 15 frames) — 3 tracks reconstructed with correct shapes
++ first_frames; edge cases (None / all-zeros) return `[]`.
+
 ## 2026-05-29 — `Open Pipeline Results` no longer prompts when the recording is obvious
 
 `on_load_pipeline_results` previously had a single recording-resolution
