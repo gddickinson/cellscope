@@ -10,6 +10,30 @@ Format: **DATE — short title** with bullets describing what changed
 
 ---
 
+## 2026-05-29 — Clean data/ to GT/examples/models only; results → local gt_review/
+
+Decluttered `data/`: removed all pipeline-run + evaluation artifacts
+(`pipeline_results/`, suffixed `pipeline_results_*/`, `evaluation/`,
+`evaluation_old_cpsam_dic/`, `channel_alignment/`, per-recording
+`*_masks.npz` + `*.cellscope`, and top-level `gt_evaluation_summary.md`)
+across `ic295_gt_full` + `legacy_gt`. 196 tracked files removed from git.
+
+`data/` now holds only GT (`gt_masks/`, `GT_FRAMES.txt`, recordings +
+sidecars), the GT registry (`GT_INDEX.md`, `gt_index.json`), examples,
+and models — plus the drive convenience symlinks.
+
+New **local, gitignored `gt_review/`** aggregates everything for viewing
++ analysis in CellScope: per recording, the source recording (symlink to
+the drive) + sidecar + `pipeline_results/masks.npz` (symlink to the mini's
+run on `GeorgeDrive/ignasi/IC295{,_batch2}/processed/<label>/`) + the
+moved `evaluation/` reports. 10 IC295 GT + 3 legacy recordings.
+
+GT was backed up first (`data/gt_backups/gt_2026-05-29_164049.tar.gz`,
+328 files) per the CLAUDE.md GT-protection rule; a scripted dry-run +
+safety assertion confirmed no `gt_masks/`/recording/sidecar was ever in
+the delete set. The removed results remain recoverable from git history
+and (for masks) from the drive.
+
 ## 2026-05-28 — Pre-download raw cpsam ViT in download_models.py
 
 `download_models.py` previously fetched only `cpsam_dic` (Drive) +

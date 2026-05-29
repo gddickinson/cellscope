@@ -61,6 +61,11 @@ results/figure_pipelines/*.npz
 # GT tarball backups (redundant — live GT is in data/ic295_gt_full/)
 data/gt_backups/
 
+# gt_review/ — local aggregation of recordings + drive masks (symlinks)
+# + moved eval reports, for viewing/analysis in CellScope. Full of
+# drive symlinks that don't resolve elsewhere; never ship to git.
+gt_review/
+
 # GT audit subdirs — frozen snapshots of `pipeline_results/` from
 # prior pipeline iterations (method_d_attempt, pre_mirror_pad,
 # pre_persistence_guard, old_cpsam_dic, padded_v1, etc.). Useful
