@@ -1,6 +1,6 @@
 # Evaluation report
 
-**Recording**: `/Users/george/claude_test/cellscope/data/ic295_gt_full/Pos51_Y1`
+**Recording**: `/Users/george/cellscope/data/ic295_gt_full/Pos51_Y1`
 **GT frames evaluated**: 10
 **GT cells (unique IDs)**: 2
 
@@ -12,7 +12,7 @@
 | IoU≥0.5 | 1.3 | 0.0 | 0.0 | 1.00 | 1.00 |
 | IoU≥0.7 | 1.3 | 0.0 | 0.0 | 1.00 | 1.00 |
 
-- **Mean per-cell IoU (matched)**: 0.866
+- **Mean per-cell IoU (matched)**: 0.865
 - **Median per-cell IoU (matched)**: 0.872
 - **Out-of-scope predictions/frame**: 0.0
 

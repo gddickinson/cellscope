@@ -1,6 +1,6 @@
 # Evaluation report
 
-**Recording**: `/Users/george/claude_test/cellscope/data/ic295_gt_full/Pos44_OT`
+**Recording**: `/Users/george/cellscope/data/ic295_gt_full/Pos44_OT`
 **GT frames evaluated**: 10
 **GT cells (unique IDs)**: 7
 

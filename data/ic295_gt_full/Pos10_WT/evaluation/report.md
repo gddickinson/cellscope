@@ -1,6 +1,6 @@
 # Evaluation report
 
-**Recording**: `/Users/george/claude_test/cellscope/data/ic295_gt_full/Pos10_WT`
+**Recording**: `/Users/george/cellscope/data/ic295_gt_full/Pos10_WT`
 **GT frames evaluated**: 10
 **GT cells (unique IDs)**: 3
 
@@ -12,8 +12,8 @@
 | IoU≥0.5 | 2.9 | 0.1 | 1.0 | 0.84 | 0.97 |
 | IoU≥0.7 | 2.9 | 0.1 | 1.0 | 0.84 | 0.97 |
 
-- **Mean per-cell IoU (matched)**: 0.863
-- **Median per-cell IoU (matched)**: 0.891
+- **Mean per-cell IoU (matched)**: 0.867
+- **Median per-cell IoU (matched)**: 0.890
 - **Out-of-scope predictions/frame**: 0.9
 
 `F1_focused` excludes predictions with zero IoU vs *any* GT cell from
@@ -24,15 +24,15 @@ ignasi recordings have 1 GT cell per frame but the field shows 3).
 ## Tracking identity preservation
 
 - **Mean ID consistency** (per GT cell, fraction of frames where it
-  maps to the same pipeline ID): **93.33%**
+  maps to the same pipeline ID): **100.00%**
 - **GT cells with perfect 1.0 consistency**:
-  2 / 3
+  3 / 3
 
 | GT cell | matched in N frames | dominant pred | consistency |
 |---:|---:|---:|---:|
 | 1 | 10 | 2 | 1.00 |
 | 2 | 10 | 1 | 1.00 |
-| 3 | 10 | 3 | 0.80 |
+| 3 | 10 | 3 | 1.00 |
 
 ## Per-frame breakdown
 

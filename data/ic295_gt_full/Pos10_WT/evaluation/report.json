@@ -1,6 +1,6 @@
 {
   "summary": {
-    "folder": "/Users/george/claude_test/cellscope/data/ic295_gt_full/Pos10_WT",
+    "folder": "/Users/george/cellscope/data/ic295_gt_full/Pos10_WT",
     "n_gt_frames": 10,
     "iou_thresholds": [
       0.3,
@@ -38,10 +38,10 @@
       "@0.7": 0.9667
     },
     "mean_out_of_scope_pred_per_frame": 0.9,
-    "mean_iou_of_matched_cells": 0.862819496226392,
-    "median_iou_of_matched_cells": 0.8908490917357306,
-    "mean_id_consistency": 0.9333333333333332,
-    "n_perfect_id_consistency": 2,
+    "mean_iou_of_matched_cells": 0.8674229174594086,
+    "median_iou_of_matched_cells": 0.8895452468267537,
+    "mean_id_consistency": 1.0,
+    "n_perfect_id_consistency": 3,
     "n_gt_cells_total": 3
   },
   "per_frame": [
@@ -399,10 +399,9 @@
       "gt_id": 3,
       "n_frames_matched": 10,
       "dominant_pred_id": 3,
-      "consistency": 0.8,
+      "consistency": 1.0,
       "all_pred_ids": {
-        "3": 8,
-        "4": 2
+        "3": 10
       }
     }
   ]

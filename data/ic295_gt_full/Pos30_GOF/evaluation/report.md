@@ -1,6 +1,6 @@
 # Evaluation report
 
-**Recording**: `/Users/george/claude_test/cellscope/data/ic295_gt_full/Pos30_GOF`
+**Recording**: `/Users/george/cellscope/data/ic295_gt_full/Pos30_GOF`
 **GT frames evaluated**: 10
 **GT cells (unique IDs)**: 7
 
@@ -8,12 +8,12 @@
 
 | Threshold | TP/frame | FN/frame | FP/frame | F1 | F1_focused |
 |---:|---:|---:|---:|---:|---:|
-| IoU≥0.3 | 4.9 | 1.4 | 0.8 | 0.82 | 0.85 |
-| IoU≥0.5 | 4.8 | 1.5 | 0.9 | 0.80 | 0.83 |
-| IoU≥0.7 | 4.8 | 1.5 | 0.9 | 0.80 | 0.83 |
+| IoU≥0.3 | 5.1 | 1.2 | 1.0 | 0.83 | 0.85 |
+| IoU≥0.5 | 4.9 | 1.4 | 1.2 | 0.79 | 0.82 |
+| IoU≥0.7 | 4.8 | 1.5 | 1.3 | 0.78 | 0.80 |
 
-- **Mean per-cell IoU (matched)**: 0.792
-- **Median per-cell IoU (matched)**: 0.859
+- **Mean per-cell IoU (matched)**: 0.759
+- **Median per-cell IoU (matched)**: 0.857
 - **Out-of-scope predictions/frame**: 0.4
 
 `F1_focused` excludes predictions with zero IoU vs *any* GT cell from
@@ -35,8 +35,8 @@ ignasi recordings have 1 GT cell per frame but the field shows 3).
 | 3 | 8 | 3 | 1.00 |
 | 4 | 10 | 4 | 1.00 |
 | 5 | 10 | 5 | 1.00 |
-| 7 | 3 | 6 | 1.00 |
-| 8 | 2 | 6 | 1.00 |
+| 7 | 6 | 6 | 1.00 |
+| 8 | 3 | 6 | 1.00 |
 
 ## Per-frame breakdown
 
@@ -45,12 +45,12 @@ ignasi recordings have 1 GT cell per frame but the field shows 3).
 | F0 | 6 | 5 | 5 | 0 | 1 | 0.91 |
 | F10 | 6 | 7 | 5 | 2 | 1 | 0.77 |
 | F20 | 7 | 7 | 5 | 2 | 2 | 0.71 |
-| F30 | 7 | 6 | 5 | 1 | 2 | 0.77 |
+| F30 | 7 | 7 | 5 | 2 | 2 | 0.71 |
 | F40 | 6 | 7 | 5 | 2 | 1 | 0.77 |
-| F50 | 6 | 5 | 5 | 0 | 1 | 0.91 |
-| F60 | 6 | 5 | 5 | 0 | 1 | 0.91 |
+| F50 | 6 | 6 | 5 | 1 | 1 | 0.83 |
+| F60 | 6 | 6 | 6 | 0 | 0 | 1.00 |
 | F70 | 7 | 6 | 5 | 1 | 2 | 0.77 |
-| F80 | 6 | 4 | 4 | 0 | 2 | 0.80 |
+| F80 | 6 | 5 | 4 | 1 | 2 | 0.73 |
 | F90 | 6 | 5 | 4 | 1 | 2 | 0.73 |
 
 ## Files

@@ -1,6 +1,6 @@
 {
   "summary": {
-    "folder": "/Users/george/claude_test/cellscope/data/ic295_gt_full/Pos44_OT",
+    "folder": "/Users/george/cellscope/data/ic295_gt_full/Pos44_OT",
     "n_gt_frames": 10,
     "iou_thresholds": [
       0.3,
