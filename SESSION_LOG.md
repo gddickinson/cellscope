@@ -10,6 +10,33 @@ Format: **DATE — short title** with bullets describing what changed
 
 ---
 
+## 2026-05-29 — Multichannel TIFF without `_metadata.txt` no longer loads as a line
+
+`core/io.py::detect_channels` previously fell back from `_metadata.txt`
+straight to OME-XML `SizeC` — and many of our `.ome.tif`s don't carry
+`SizeC`. Without the Micro-Manager sidecar the chain returned 1,
+the focused GUI skipped the channel-chooser dialog, and
+`load_video`'s `arr.mean(axis=-1)` collapsed the wrong axis on
+`(N, C, H, W)` arrays, leaving the viewer with a `(N, C, H)` "stack"
+that rendered as a thin horizontal line.
+
+Added a `tifffile.series.axes` lookup in `detect_channels` (before the
+OME-XML fallback): when the series axes string contains `"C"`, that
+dimension's size IS the channel count, read straight from the OME-TIFF
+structure. Verified: IC295 `.ome.tif` returns 3 with and without
+`_metadata.txt`; single-channel example `.tif`s (`axes="QYX"`) still
+return 1.
+
+Deliberately did NOT use `.ome.json::n_channels` as a fallback:
+IC295 sidecars declare 2 (Cy5+DIC) but the physical file has 3
+pages-per-frame (Cy5/DIC/blank), so `.ome.json` would misalign the
+loader's page stride.
+
+Discovered after the `gt_review/` cleanup exposed it (recordings
+there had `.ome.json` but no `_metadata.txt` symlink); pre-existing
+bug, not a regression. `gt_review/` also got `_metadata.txt` symlinks
+to the drive originals as belt-and-suspenders.
+
 ## 2026-05-29 — Drag-drop + menu loader for masks.npz files
 
 Focused GUI: dropping a `.npz` file onto the window now loads it as

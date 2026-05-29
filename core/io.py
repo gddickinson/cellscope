@@ -148,6 +148,20 @@ def detect_channels(tif_path):
     try:
         import tifffile
         with tifffile.TiffFile(tif_path) as tf:
+            # tifffile's series.axes labels each dimension explicitly
+            # (e.g. "TCYX" / "TYX" / "QYX"); when "C" is present, that
+            # dimension's size IS the channel count, read straight from
+            # the OME-TIFF structure. Most reliable signal: works even
+            # when OME-XML SizeC is absent (as it is on stacks our
+            # pipeline writes back), and unaffected by .ome.json
+            # mis-declarations (e.g. IC295 sidecars say n_channels=2
+            # while the physical file has 3 — empty third channel).
+            try:
+                s = tf.series[0]
+                if "C" in s.axes:
+                    return int(s.shape[s.axes.index("C")])
+            except Exception:
+                pass
             ome = getattr(tf, "ome_metadata", None)
             if ome:
                 m = re.search(r'SizeC="(\d+)"', ome)
