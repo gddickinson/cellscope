@@ -10,6 +10,19 @@ Format: **DATE — short title** with bullets describing what changed
 
 ---
 
+## 2026-05-29 — Drag-drop + menu loader for masks.npz files
+
+Focused GUI: dropping a `.npz` file onto the window now loads it as
+pipeline results (parent dir → `on_load_pipeline_results`), alongside
+the existing recording (`.mp4/.avi/.mov/.tif`) and project
+(`.cellscope`) drop targets. Companion `File → Open Masks File…` menu
+item picks the `.npz` directly (the existing `Open Pipeline Results…`
+picks a folder). Both routes funnel into the same loader, so
+`RUN_METADATA`-driven recording resolution + the "discard unsaved
+results?" confirmation work the same as before — handy for the new
+`gt_review/<rec>/pipeline_results/masks.npz` files that have no
+metadata sidecar (the loader will prompt for the recording).
+
 ## 2026-05-29 — Clean data/ to GT/examples/models only; results → local gt_review/
 
 Decluttered `data/`: removed all pipeline-run + evaluation artifacts

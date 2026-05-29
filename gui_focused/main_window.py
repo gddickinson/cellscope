@@ -477,6 +477,13 @@ class FocusedMainWindow(QMainWindow):
             "pre-Cy5-filter dropped-cell overlay.")
         act_load_pr.triggered.connect(self._on_load_pipeline_results)
         file_menu.addAction(act_load_pr)
+        act_load_masks = QAction("Open Masks File...", self)
+        act_load_masks.setStatusTip(
+            "Open a masks.npz file directly — same loader as Open "
+            "Pipeline Results, but picks the file instead of its "
+            "containing folder. Equivalent to dragging the .npz in.")
+        act_load_masks.triggered.connect(self._on_load_masks_file)
+        file_menu.addAction(act_load_masks)
         file_menu.addSeparator()
         act_export = QAction("Export Results...", self)
         act_export.setShortcut("Ctrl+Shift+S")
@@ -703,13 +710,15 @@ class FocusedMainWindow(QMainWindow):
     # Recordings AND .cellscope project files are accepted by drag-drop.
     _DROP_VIDEO_EXTS = (".mp4", ".avi", ".mov", ".tif", ".tiff")
     _DROP_PROJECT_EXTS = (".cellscope",)
+    _DROP_MASKS_EXTS = (".npz",)
 
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls():
             for url in event.mimeData().urls():
                 path = url.toLocalFile().lower()
                 if path.endswith(self._DROP_VIDEO_EXTS
-                                 + self._DROP_PROJECT_EXTS):
+                                 + self._DROP_PROJECT_EXTS
+                                 + self._DROP_MASKS_EXTS):
                     event.acceptProposedAction()
                     return
 
@@ -723,6 +732,13 @@ class FocusedMainWindow(QMainWindow):
                 return
             if low.endswith(self._DROP_VIDEO_EXTS):
                 self._load_path(path)
+                return
+            if low.endswith(self._DROP_MASKS_EXTS):
+                import os
+                from gui_focused.project_handlers import (
+                    on_load_pipeline_results)
+                on_load_pipeline_results(
+                    self, path=os.path.dirname(path))
                 return
 
     def _on_detect(self):
@@ -1247,6 +1263,16 @@ class FocusedMainWindow(QMainWindow):
     def _on_load_pipeline_results(self):
         from gui_focused.project_handlers import on_load_pipeline_results
         on_load_pipeline_results(self)
+
+    def _on_load_masks_file(self):
+        import os
+        from gui_focused.project_handlers import on_load_pipeline_results
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Open Masks File", "",
+            "Masks (*.npz);;All files (*)")
+        if not path:
+            return
+        on_load_pipeline_results(self, path=os.path.dirname(path))
 
     def _on_save_screenshot(self):
         """Save a PNG of the full window (window contents incl.
