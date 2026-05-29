@@ -496,6 +496,33 @@ class FocusedAnalyzeWorker(QThread):
                 self.finished.emit(result)
             else:
                 tracks = self.detect_result.get("tracks", [])
+                # Cell-division annotation: detection pipelines do this
+                # inline (hybrid_cpsam_multi / hybrid_dic). When tracks
+                # come from a loaded masks.npz WITHOUT a divisions.json
+                # sidecar, run it here so analysis surfaces lineage.
+                # Signal: detect_result["divisions"] is absent.
+                if tracks and "divisions" not in self.detect_result:
+                    labels = self.detect_result.get("labels")
+                    if labels is not None:
+                        try:
+                            from core.division_annotator import (
+                                annotate_track_lineage)
+                            um = (self.recording.get("um_per_px")
+                                  if self.recording else 1.0) or 1.0
+                            self.progress.emit(
+                                "Detecting cell divisions...", 0)
+                            cands, n_set = annotate_track_lineage(
+                                tracks, labels, um_per_px=um)
+                            self.detect_result["divisions"] = cands
+                            self.log_event.emit(
+                                "info",
+                                f"Detected {len(cands)} division "
+                                f"candidate(s), {n_set} lineage "
+                                f"link(s) set")
+                        except Exception as e:
+                            self.log_event.emit(
+                                "warn",
+                                f"Division annotation failed: {e}")
                 per_cell = []
                 for tid, track in enumerate(tracks):
                     self.progress.emit(

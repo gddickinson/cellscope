@@ -10,6 +10,36 @@ Format: **DATE — short title** with bullets describing what changed
 
 ---
 
+## 2026-05-29 — Cell-division lineage now populated for loaded masks too
+
+Detection pipelines (`hybrid_cpsam_multi`, `hybrid_dic`) have always
+called `core.division_annotator.annotate_track_lineage` after
+post-processing, setting `parent_id`/`division_frame`/`division_score`
+on daughter tracks and attaching a `divisions` list to the result —
+which `analysis_view._populate_summary_multi` then surfaces as
+"X division(s) detected" + per-cell parent links. But this only fired
+on the detect path; loading `masks.npz` (e.g. from `gt_review/`) left
+all tracks lineage-less, so analyze showed 0 divisions even on
+recordings with known events (Pos39_OT, Pos51_Y1).
+
+Two-stage fix:
+- **`on_load_pipeline_results`** — if a `divisions.json` sidecar is
+  next to the masks (pipeline / export writes one), apply its
+  `track_lineage` table to the rebuilt tracks instantly + store
+  `candidates` on `detect_result["divisions"]`.
+- **`FocusedAnalyzeWorker`** — at the start of the multi-cell branch,
+  if `detect_result` has no `divisions` key (i.e. neither detection
+  nor the load fast-path populated it) and labels are available, call
+  `annotate_track_lineage(tracks, labels, um_per_px)` to compute it
+  before per-cell analysis. ~16 s on a 97-frame 2048² recording on
+  the M1 Max — too slow to do synchronously on every mask drop, but
+  fine inside the already-blocking analyze run.
+
+No UI changes needed — the existing `analysis_view` summary already
+renders lineage from `track_info.parent_id`. Verified on Pos39_OT
+(10 cells): annotate finds 2 division candidates, sets parent_id on
+daughter tracks at indices [7, 8].
+
 ## 2026-05-29 — Loaded `masks.npz` is now analyzable (multi-cell)
 
 `FocusedAnalyzeWorker`'s multi-cell branch walks

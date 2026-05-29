@@ -213,7 +213,39 @@ def on_load_pipeline_results(win, path=None):
         # detect_result["tracks"] — when loading from masks.npz there
         # were no tracks, so analyze reported "0 cells detected".
         # Rebuild per-cell tracks from the labels stack here.
-        win.detect_result["tracks"] = _rebuild_tracks_from_labels(labels)
+        tracks = _rebuild_tracks_from_labels(labels)
+        win.detect_result["tracks"] = tracks
+        # Cell-division lineage: fast path uses the divisions.json
+        # sidecar produced by the pipeline / export (instant). When
+        # absent, annotation is deferred to FocusedAnalyzeWorker —
+        # `find_candidates` takes ~16 s on a 97-frame 2048² stack,
+        # too slow to do synchronously on every mask drop.
+        divisions_path = os.path.join(pr_dir, "divisions.json")
+        if os.path.exists(divisions_path):
+            try:
+                with open(divisions_path) as f:
+                    dj = json.load(f)
+                for entry in dj.get("track_lineage", []) or []:
+                    d = entry.get("track_index")
+                    if d is not None and 0 <= d < len(tracks):
+                        tracks[d]["parent_id"] = entry.get(
+                            "parent_track_index")
+                        tracks[d]["division_frame"] = entry.get(
+                            "division_frame")
+                        tracks[d]["division_score"] = entry.get(
+                            "division_score")
+                win.detect_result["divisions"] = (
+                    dj.get("candidates", []) or [])
+                n_div = sum(1 for t in tracks
+                            if t.get("parent_id") is not None)
+                win.logger.log(
+                    "info",
+                    f"Loaded {n_div} cell division(s) from "
+                    f"divisions.json")
+            except Exception as e:
+                win.logger.log(
+                    "warn",
+                    f"Couldn't parse divisions.json: {e}")
     if fusion_src is not None:
         win.detect_result["fusion_source_stack"] = fusion_src
 
