@@ -202,11 +202,39 @@ def main():
     tracks = rebuild_tracks_from_labels(labels)
     print(f"  {len(tracks)} cells")
 
-    print(f"[divisions] annotate_track_lineage")
-    from core.division_annotator import annotate_track_lineage
-    candidates, n_set = annotate_track_lineage(
-        tracks, labels, um_per_px=um)
-    print(f"  {len(candidates)} candidates, {n_set} lineage links")
+    # Cell-division lineage: fast path via divisions.json sidecar
+    # (written by detect_one); recompute only when missing or unreadable.
+    # Matches the focused GUI loader's logic — saves ~16 s/recording.
+    divisions_path = os.path.join(rec_dir, "pipeline_results",
+                                    "divisions.json")
+    candidates = []
+    loaded_from_sidecar = False
+    if os.path.exists(divisions_path):
+        try:
+            import json as _json
+            with open(divisions_path) as f:
+                dj = _json.load(f)
+            for entry in dj.get("track_lineage", []) or []:
+                d = entry.get("track_index")
+                if d is not None and 0 <= d < len(tracks):
+                    tracks[d]["parent_id"]       = entry.get("parent_track_index")
+                    tracks[d]["division_frame"]  = entry.get("division_frame")
+                    tracks[d]["division_score"] = entry.get("division_score")
+            candidates = dj.get("candidates", []) or []
+            n_set = sum(1 for t in tracks
+                        if t.get("parent_id") is not None)
+            print(f"[divisions] loaded {len(candidates)} candidate(s) "
+                  f"from divisions.json ({n_set} lineage links)")
+            loaded_from_sidecar = True
+        except Exception as e:
+            print(f"[divisions] couldn't parse divisions.json ({e}); "
+                  f"recomputing")
+    if not loaded_from_sidecar:
+        print(f"[divisions] annotate_track_lineage (no sidecar)")
+        from core.division_annotator import annotate_track_lineage
+        candidates, n_set = annotate_track_lineage(
+            tracks, labels, um_per_px=um)
+        print(f"  {len(candidates)} candidates, {n_set} lineage links")
 
     print(f"[analyze] per-cell ({len(tracks)} cells)")
     from core.pipeline import analyze_recording
