@@ -25,6 +25,28 @@ LOGS_DIR         = os.path.join(RUNS_DIR, "logs")
 PROGRESS_FILE    = os.path.join(RUNS_DIR, "progress.json")
 LOCK_FILE        = os.path.join(RUNS_DIR, "lock.txt")
 COMPARE_DIR      = os.path.join(ANALYSIS_ROOT, "compare")
+CACHE_DIR        = os.path.join(ANALYSIS_ROOT, "_cache")
+
+
+def best_video_path(info):
+    """Return the cached local .ome.tif when a complete cache entry
+    exists (`.ome.tif` + `.ome.json` adjacent), otherwise the drive
+    path. Used by `ic295_detect_one` at LOAD time so detection reads
+    from local SSD when the prefetcher has staged the file. The
+    `by_condition/<cond>/<label>/` symlinks always point to the drive
+    (durable across cache eviction)."""
+    tif_name = os.path.basename(info["video_path"])
+    cached_tif = os.path.join(CACHE_DIR, tif_name)
+    if not os.path.exists(cached_tif):
+        return info["video_path"]
+    # .ome.json sidecar is essential for um/px + n_frames; require it
+    # adjacent to the cached TIF so the loader sees the same metadata
+    # it would on the drive. (`_metadata.txt` is now optional — the
+    # tifffile.series.axes fix means channel detection works without it.)
+    json_name = os.path.basename(info["json_sidecar"])
+    if not os.path.exists(os.path.join(CACHE_DIR, json_name)):
+        return info["video_path"]
+    return cached_tif
 
 
 def parse_condition(label):

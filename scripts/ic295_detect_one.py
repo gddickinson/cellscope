@@ -27,7 +27,7 @@ setup_imports()
 
 from scripts.ic295_common import (
     inventory_drive, setup_recording_folder, write_cellscope_project,
-    atomic_write_json,
+    atomic_write_json, best_video_path,
 )
 
 
@@ -113,8 +113,11 @@ def main():
     from output.run_metadata import write_run_metadata
 
     t0 = time.time()
-    print(f"[load] {info['video_path']}")
-    rec = load_recording(info["video_path"],
+    load_path = best_video_path(info)
+    cache_note = (" (LOCAL CACHE)"
+                  if load_path != info["video_path"] else " (drive)")
+    print(f"[load]{cache_note} {load_path}")
+    rec = load_recording(load_path,
                           dic_channel=1, fluo_channel=0)
     frames = rec["frames"]
     cy5    = rec.get("cy5_frames")
