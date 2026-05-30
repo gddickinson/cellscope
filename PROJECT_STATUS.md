@@ -301,6 +301,43 @@ from 4 experiments (85, 100, 126, 135, 240).
 
 ## Recently Completed
 
+- **IC295 batch analysis pipeline** (2026-05-30) — six scripts under
+  `scripts/ic295_*.py` implement the full detect → manual-review →
+  analyze → compare workflow across the 65-recording IC295 dataset.
+  Each recording's results live in a self-contained
+  `ic295_analysis/by_condition/<cond>/<label>/` folder with a
+  `.cellscope` project file (drag-loads into the focused GUI for
+  mask review/editing). Driver has lock + SIGTERM-safe + per-recording
+  subprocess isolation + atomic progress.json + `--retry-failed`.
+  Adopts the 12 existing drive detections instantly; falls through to
+  full `unified_detection.detect_recording` (current defaults) for the
+  other 53. Phase 2 reuses `divisions.json` sidecar as a fast path so
+  it doesn't re-run the ~16 s division scan when detection already
+  produced one. Phase 3 does Kruskal-Wallis across conditions +
+  pairwise Mann-Whitney with Bonferroni correction. See
+  `ic295_analysis/README.md`.
+- **Cell-division lineage now flows through `masks.npz` load**
+  (2026-05-29) — `FocusedAnalyzeWorker` was reporting "0 cells
+  detected" on loaded masks because `tracks` weren't being rebuilt
+  from `labels`; now they are, and `annotate_track_lineage` is run at
+  analyze time (with the `divisions.json` sidecar as a fast path).
+  Existing `analysis_view._populate_summary_multi` surfaces lineage as
+  before. Verified: Pos39_OT loaded from `gt_review/` → "1 division
+  detected".
+- **Focused GUI — masks.npz drag-drop + `Open Masks File…` menu**
+  (2026-05-29) — drop a `.npz` onto the window (or `File → Open Masks
+  File…`) and the loader auto-resolves the recording via 4-step
+  fallback chain: `RUN_METADATA.video_path` → sibling recording in
+  `pr_dir`'s parent (handles `gt_review/<rec>/...` layout) →
+  currently-loaded recording (no redundant reload) → prompt. Skips
+  the multi-GB tifffile reload when the resolved path is already
+  loaded.
+- **`detect_channels` reads `tifffile.series.axes`** (2026-05-29) —
+  multichannel `.ome.tif` files without a `_metadata.txt` sidecar no
+  longer load as a single squashed line. The channel-axis is read
+  straight from the OME-TIFF structure (`axes="TCYX"` etc.), so
+  recordings dragged from anywhere — not just their original
+  acquisition folder — get the multichannel chooser dialog correctly.
 - **HTTP remote-control RPC on all 6 GUIs** (2026-05-27) — `CELLSCOPE_REMOTE=<port>`
   exposes a stdlib HTTP server inside the Qt event loop. Focused GUI gets
   the full 16-endpoint handler set (load_recording / detect / test_frame /

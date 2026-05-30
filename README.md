@@ -254,7 +254,7 @@ The main workflow: **Load → Detect → Edit Masks → Analyze → Export**
 - **Image viewer** with brightness/contrast, pan/zoom, mask overlay
 - **ROI selector** — rectangle, ellipse, or polygon regions, persists across frames
 - **Frame navigator bar** — color-coded detection quality per frame
-- **Drag-and-drop** loading for .tif / .mp4 recordings and `.cellscope` project files
+- **Drag-and-drop** loading for `.tif` / `.mp4` recordings, `.cellscope` project files, AND `masks.npz` pipeline-results files (overlays onto the currently-loaded recording, or auto-finds a sibling recording in the parent folder). Companion **File → Open Masks File…** menu item picks the `.npz` directly
 - **20 graph types** including trajectory, MSD, edge kymograph, VAMPIRE shape modes
 - **Export dialog** — masks (.npz), metrics (.json), plots (PNG/SVG/PDF), MP4 overlay video, per-cell CSV, per-state CSV, RUN_METADATA.{md,json}
 
@@ -446,6 +446,42 @@ Per-recording outputs (masks, metrics, plots, `RUN_METADATA.{md,json}`) are writ
 - Box / violin plots with significance brackets
 
 CellScope provides the tooling; specific biological comparisons are for the user's publication, not the README.
+
+### IC295 treatment-comparison pipeline (detect → review → analyze → compare)
+
+For the IC295 dataset specifically, `scripts/ic295_*.py` provides a
+**long-running, restart-safe, condition-grouped** workflow with a
+**manual review checkpoint** between detection and analysis (so you
+can fix segmentation artifacts before they pollute the comparison):
+
+```bash
+# Phase 1 — detect across all 65 recordings (adopts existing drive
+# masks instantly; full detect on the rest). Restart-safe, ~5-6 days
+# of GPU time for the full set; stop anytime with Ctrl-C.
+conda run -n cellpose4 python scripts/ic295_batch.py --phase detect
+conda run -n cellpose4 python scripts/ic295_status.py        # progress
+
+# Manual review: drag ic295_analysis/by_condition/<cond>/<label>/<label>.cellscope
+# into the focused GUI, edit masks, Save Project (overwrites in place).
+
+# Phase 2 — analysis (per-cell metrics + state classification + division
+# annotation; reads possibly-edited masks). ~2 min/recording.
+conda run -n cellpose4 python scripts/ic295_batch.py --phase analyze
+
+# Phase 3 — treatment comparison. Each recording = 1 experimental
+# replicate; Kruskal-Wallis across conditions + pairwise Mann-Whitney
+# (Bonferroni); box+scatter plots per metric.
+conda run -n cellpose4 python scripts/ic295_compare.py
+```
+
+Each recording's results sit in
+`ic295_analysis/by_condition/<cond>/<label>/`: `.cellscope` project
+file (drag into GUI), recording symlink, `pipeline_results/masks.npz`
+(user edits land here), `divisions.json`, `analysis.json`,
+`per_cell.csv`, `recording_summary.json`. Driver has per-recording
+subprocess isolation (one cellpose OOM doesn't kill the batch), atomic
+`progress.json` updates, lock file, `--retry-failed`. Full details in
+[`ic295_analysis/README.md`](ic295_analysis/README.md).
 
 ## Pipeline defaults — single source of truth
 

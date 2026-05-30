@@ -279,6 +279,38 @@ QObject) else None)`).
 When adding a new GUI feature that needs scripted testing, add an
 RPC endpoint alongside the user-facing action and document it here.
 
+## IC295 batch (detect → review → analyze → compare)
+
+`scripts/ic295_*.py` runs the 65-recording IC295 dataset end-to-end
+with a **manual review checkpoint** between detection and analysis.
+See `ic295_analysis/README.md` for usage. Folder layout
+`ic295_analysis/by_condition/<cond>/<label>/` — each recording's
+results sit in a self-contained folder with a `.cellscope` project
+file that drag-loads in the focused GUI for mask editing.
+
+Conventions to preserve when extending:
+
+- Detection uses `core.unified_detection.detect_recording` with all
+  kwargs defaulted (so they fall back to **`DEFAULTS`** — rule 1).
+  Do not hardcode pipeline params in the IC295 scripts.
+- Each recording's `pipeline_results/` gets a `RUN_METADATA.json`
+  (rule 2). The detect script writes it; `ic295_analyze_one.py`
+  refreshes with analysis timing.
+- `pipeline_results/masks.npz` is a **real file** (copy from drive
+  in the adopt path, or written fresh by detection) — never a
+  symlink — so user mask edits via the focused GUI don't overwrite
+  the canonical drive run.
+- The driver's per-recording subprocess isolation, lock file,
+  SIGTERM handler, and atomic `progress.json` are load-bearing for
+  multi-day runs. Don't simplify them away.
+- The condition-grouped folder layout
+  (`by_condition/<cond>/<label>/`) is **for manual-review
+  ergonomics** — the user navigates by treatment to spot artifacts
+  in context. Don't flatten it.
+- `ic295_analysis/` is **gitignored except its README** so the local
+  state (symlinks to the drive, large CSVs, plots) never ships to git
+  but the usage doc does.
+
 ## Track gap-fill cascade
 
 When the Hungarian tracker assigns identity, a track may have internal

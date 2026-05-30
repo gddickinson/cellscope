@@ -10,6 +10,20 @@ Format: **DATE — short title** with bullets describing what changed
 
 ---
 
+## 2026-05-30 — Sync top-level docs with recent landings
+
+Updated README, PROJECT_STATUS, docs/user_manual, CLAUDE to reflect:
+the `masks.npz` drag-drop + Open Masks File menu, the `Open Pipeline
+Results` 4-step recording-resolution chain, `detect_channels`'s
+`tifffile.series.axes` fallback (multichannel TIFFs work without
+`_metadata.txt`), track + lineage rebuild on load, and the new IC295
+batch pipeline. CLAUDE gained an "IC295 batch" section codifying the
+conventions to preserve when extending (`DEFAULTS`-only params,
+RUN_METADATA per recording, masks.npz as real file not symlink, etc).
+
+INTERFACE.md already had the IC295 scripts added at build time
+(commit `51173f0`).
+
 ## 2026-05-30 — IC295 batch analysis pipeline (detect → review → analyze → compare)
 
 Six new scripts under `scripts/` for the full IC295 treatment-comparison

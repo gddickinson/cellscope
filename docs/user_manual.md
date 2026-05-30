@@ -57,6 +57,10 @@ The primary workflow for analyzing a single recording.
 **1. Load** — Click Load or drag-and-drop a video file onto the
 window. The recording opens in the image viewer. Scale values
 (μm/px, time interval) auto-populate from the JSON sidecar.
+For multichannel `.ome.tif` files, a channel-chooser dialog pops up;
+the recording's structure (axes string) is read straight from the
+OME-TIFF, so this also works when the file is dragged from outside
+its original Micro-Manager acquisition folder.
 
 **2. Detect** — Click Detect to run the hybrid cpsam pipeline.
 Progress shows in the status bar. When complete, cell boundaries
@@ -74,6 +78,42 @@ Graphs tab (14 plot types).
 
 **5. Export** — Click Export to save masks, metrics, plots, and
 overlay TIFFs. Choose output format (PNG/SVG/PDF) and DPI.
+
+### Loading existing detection results
+
+If detection has already been run (e.g. by a batch job, on the
+mini, or via the IC295 batch scripts), you can skip Detect and load
+the results directly. Three ways:
+
+- **Drag a `masks.npz` file** onto the window. Equivalent to the
+  menu item below — does the same loader behind the scenes.
+- **File → Open Masks File…** — pick the `.npz` directly.
+- **File → Open Pipeline Results…** — pick the *folder* containing
+  `pipeline_results/masks.npz` (or the `pipeline_results/` dir
+  itself). Use this when there's also a `RUN_METADATA.json` to
+  resolve the source recording automatically.
+
+The loader resolves the source recording with a 4-step fallback so
+you don't get a stray "Locate the recording" prompt when the
+answer is obvious:
+
+1. **`RUN_METADATA.json::source_recording.video_path`** if the
+   sidecar is present and the path resolves.
+2. **A sibling recording in the parent of `pipeline_results/`** —
+   handles aggregation layouts like `gt_review/<rec>/<rec>.ome.tif`
+   next to `gt_review/<rec>/pipeline_results/masks.npz`.
+3. **The currently-loaded recording**, if any — you already told
+   CellScope which video you're working with.
+4. Manual prompt.
+
+If the resolved path is *already* loaded, the loader skips the
+redundant multi-GB tifffile reload.
+
+After loading, tracks are rebuilt from the labels stack
+automatically (so multi-cell Analyze "sees" the right number of
+cells), and if a `divisions.json` sidecar sits next to the masks
+its `track_lineage` is applied instantly — otherwise
+`annotate_track_lineage` runs at the start of Analyze.
 
 ### 🔬 Test on frame — preview before a full run
 
