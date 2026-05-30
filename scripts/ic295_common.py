@@ -141,9 +141,24 @@ def load_progress():
         return {}
     try:
         with open(PROGRESS_FILE) as f:
-            return json.load(f)
+            data = json.load(f)
     except Exception:
         return {}
+    # Schema migration: earlier init_entry used 'detection'/'analysis'
+    # keys while the driver + CLI use 'detect'/'analyze'. Merge so all
+    # readers see one consistent key. If both forms exist for a phase,
+    # the short-form (driver-written) wins.
+    for entry in data.values():
+        if not isinstance(entry, dict):
+            continue
+        for old, new in (("detection", "detect"),
+                         ("analysis", "analyze")):
+            if old in entry:
+                if new not in entry:
+                    entry[new] = entry.pop(old)
+                else:
+                    entry.pop(old)
+    return data
 
 
 def save_progress(progress):
@@ -237,15 +252,15 @@ def init_entry(progress, label, condition):
     if label not in progress:
         progress[label] = {
             "condition": condition,
-            "detection": {"state": "pending"},
-            "analysis":  {"state": "pending"},
+            "detect":  {"state": "pending"},
+            "analyze": {"state": "pending"},
         }
     return progress[label]
 
 
 def set_phase(progress, label, phase, **kwargs):
-    """phase: 'detection' | 'analysis'."""
+    """phase: 'detect' | 'analyze' (matches CLI + driver args.phase)."""
     entry = progress.setdefault(label, {"condition": parse_condition(label),
-                                          "detection": {}, "analysis": {}})
+                                          "detect": {}, "analyze": {}})
     entry.setdefault(phase, {}).update(kwargs)
     return entry

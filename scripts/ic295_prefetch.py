@@ -98,7 +98,7 @@ def target_labels(inv, progress, n_lookahead):
     for label in pri:
         if len(target) >= n_lookahead:
             break
-        st = progress.get(label, {}).get("detection", {}).get("state")
+        st = progress.get(label, {}).get("detect", {}).get("state")
         if st == "done":
             continue
         target.append(label)
@@ -211,7 +211,7 @@ def main():
 
             # Evict cached recordings whose detection is done.
             for label in sorted(cached):
-                st = progress.get(label, {}).get("detection", {})\
+                st = progress.get(label, {}).get("detect", {})\
                                             .get("state")
                 if st == "done":
                     evict_label(inv[label])

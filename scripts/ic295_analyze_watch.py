@@ -90,7 +90,7 @@ def run_one(label, cond):
     cmd = [sys.executable, "scripts/ic295_analyze_one.py", label]
 
     progress = load_progress()
-    set_phase(progress, label, "analysis",
+    set_phase(progress, label, "analyze",
               state="running", started=time.time())
     save_progress(progress)
 
@@ -114,12 +114,12 @@ def run_one(label, cond):
 
     progress = load_progress()
     if rc == 0:
-        set_phase(progress, label, "analysis",
+        set_phase(progress, label, "analyze",
                   state="done", duration_s=dur,
                   finished=time.time(), error=None)
         print(f"[watch]   ✓ {label} done in {dur:.0f}s", flush=True)
     else:
-        set_phase(progress, label, "analysis",
+        set_phase(progress, label, "analyze",
                   state="failed", duration_s=dur,
                   finished=time.time(),
                   error=f"rc={rc}; see {log_path}")
