@@ -107,3 +107,10 @@ venv/
 # Distribution
 *.zip
 cellscope_*.tar.gz
+
+# ic295_analysis/ — long-running batch analysis + treatment-comparison
+# outputs. Symlinks to drive masks + computed CSVs/JSONs/plots; local
+# to whichever machine is running the batch, never ship to git.
+ic295_analysis/
+# But keep the README — it's the usage doc for the batch scripts.
+!ic295_analysis/README.md

@@ -112,6 +112,36 @@ suite 8771. See `gui_focused/remote_control.py` and `CLAUDE.md` for usage.
 - **summary.py** — Batch CSV summaries
 
 ## `scripts/`
+- **IC295 batch analysis** (`ic295_*.py`) — long-running detect →
+  manual-review → analyze → compare pipeline for the IC295 dataset.
+  See `ic295_analysis/README.md` for usage.
+  - **ic295_common.py** — shared utilities: drive inventory, condition
+    parsing, `by_condition/<cond>/<label>/` paths, atomic
+    `progress.json` writes, `.cellscope` project writer, recording-
+    folder setup (symlinks + sidecar), priority queue (existing drive
+    detections first, then round-robin to balance n).
+  - **ic295_detect_one.py** — Phase-1 per-recording worker. Adopts
+    existing drive masks instantly; falls through to full
+    `unified_detection.detect_recording` only when needed. Writes
+    `pipeline_results/masks.npz` + `divisions.json` + `RUN_METADATA` +
+    `<label>.cellscope`. Idempotent.
+  - **ic295_analyze_one.py** — Phase-2 per-recording worker. Loads
+    (possibly user-edited) masks, rebuilds tracks, runs
+    `annotate_track_lineage` + per-cell `analyze_recording` +
+    cell-state classification, aggregates to a single-row recording
+    summary. Writes `analysis.json` + `per_cell.csv` +
+    `recording_summary.json`. Idempotent.
+  - **ic295_batch.py** — driver. `--phase=detect|analyze|both`. Lock
+    file, SIGTERM-safe, per-recording subprocess isolation, atomic
+    progress updates, `--retry-failed`, `--limit`, `--label`.
+  - **ic295_status.py** — read-only state reporter (safe while batch
+    runs): per-condition state counts + ETA + currently-running +
+    `--failed` tails.
+  - **ic295_compare.py** — Phase 3. For each metric: per-condition
+    mean/SEM/n, Kruskal-Wallis across conditions + pairwise
+    Mann-Whitney (Bonferroni), box+scatter plots. Outputs
+    `per_recording.csv` + `per_treatment.csv` + `stats.json` +
+    `plots/*.png` under `ic295_analysis/compare/`.
 - **_paths.py** — Project-root resolver + `benchmark_data_root()` helper
   (env var `BENCHMARK_DATA_ROOT` overrides the default sibling lookup).
   Imported by every benchmark / training script via the standard preamble:

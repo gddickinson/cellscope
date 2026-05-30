@@ -10,6 +10,52 @@ Format: **DATE — short title** with bullets describing what changed
 
 ---
 
+## 2026-05-30 — IC295 batch analysis pipeline (detect → review → analyze → compare)
+
+Six new scripts under `scripts/` for the full IC295 treatment-comparison
+workflow, designed around a manual review checkpoint between detection
+and analysis:
+
+- `ic295_common.py` — shared utilities: drive inventory, condition
+  parsing, `by_condition/<cond>/<label>/` path conventions, atomic
+  progress.json writes, `.cellscope` project-file writer, recording-
+  folder setup (symlinks + sidecar copy), priority queue (existing
+  drive detections first, then round-robin over conditions to balance n).
+- `ic295_detect_one.py` — Phase 1 per-recording worker. **Adopts**
+  existing drive masks instantly (copy, not symlink, so user edits
+  don't overwrite canonical); falls through to full
+  `unified_detection.detect_recording` only when no drive masks exist.
+  Writes pipeline_results/masks.npz + divisions.json + RUN_METADATA +
+  `<label>.cellscope` project file. Idempotent.
+- `ic295_analyze_one.py` — Phase 2 per-recording worker. Reads
+  (possibly user-edited) masks, rebuilds tracks, runs
+  `annotate_track_lineage` + per-cell `analyze_recording` + cell-state
+  classification, aggregates to a single-row recording summary. Writes
+  analysis.json (arrays stripped) + per_cell.csv + recording_summary.json.
+- `ic295_batch.py` — long-running driver. `--phase=detect|analyze|both`.
+  Lock file prevents double-start; SIGTERM finishes current and exits;
+  per-recording **subprocess isolation** (cellpose OOM / segfault on one
+  doesn't kill the driver); atomic progress.json updates;
+  `--retry-failed`, `--limit`, `--label` flags.
+- `ic295_status.py` — read-only state reporter (safe to run while a
+  driver is going): per-condition state counts, ETA, currently-running,
+  optional `--failed` tail of last error per failure.
+- `ic295_compare.py` — Phase 3 compiler. For each metric: per-condition
+  mean / SEM / n, Kruskal-Wallis across conditions, pairwise
+  Mann-Whitney with Bonferroni correction, box+scatter plot. Outputs
+  per_recording.csv + per_treatment.csv + stats.json + plots/*.png.
+
+Folder: `ic295_analysis/` (gitignored). Each recording's `.cellscope`
+file drag-loads in the focused GUI for review/edit between Phase 1 and
+Phase 2; `Save Project` overwrites masks.npz in place, and Phase 2
+reads whatever is at that path.
+
+Inventory: 65 unique recordings (19 in IC295/ + 46 in IC295_batch2/,
+dedup Pos51-Y1). Per condition: WT/KO/GOF/OT 11, Y1 10, DMSO 11.
+12 already have drive masks from the mini's IoU+area batch run.
+
+See `ic295_analysis/README.md` for the full workflow.
+
 ## 2026-05-29 — Cell-division lineage now populated for loaded masks too
 
 Detection pipelines (`hybrid_cpsam_multi`, `hybrid_dic`) have always
