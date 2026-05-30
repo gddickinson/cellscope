@@ -85,10 +85,17 @@ def main():
         pr_dir = os.path.join(rec_dir, "pipeline_results")
         os.makedirs(pr_dir, exist_ok=True)
         shutil.copy2(info["drive_masks"], masks_out)
-        # Adjacent sidecars: copy whatever the mini wrote
+        # Adjacent sidecars: copy everything the mini's batch wrote so
+        # the recording folder is fully self-contained (the mini wrote
+        # not just masks but also masks_unfiltered, filter_decisions,
+        # per_cell.csv, analysis_summary, RUN_METADATA — keeping them
+        # alongside is useful for QC + cross-check vs Phase-2 outputs).
         drive_pr = os.path.dirname(info["drive_masks"])
         for f in ("fusion_diagnostic.png", "divisions.json",
-                  "RUN_METADATA.json", "RUN_METADATA.md"):
+                  "RUN_METADATA.json", "RUN_METADATA.md",
+                  "masks_unfiltered.npz", "filter_decisions.json",
+                  "analysis_summary.json", "run_summary.txt",
+                  "per_cell.csv"):
             src = os.path.join(drive_pr, f)
             if os.path.exists(src):
                 shutil.copy2(src, os.path.join(pr_dir, f))
