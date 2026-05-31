@@ -172,6 +172,14 @@ class MaskEditor(QMainWindow):
         self.frames = None          # (N, H, W) uint8
         self.masks = None           # (N, H, W) int32 — 0=bg, 1,2,...=cell IDs
         self.name = "recording"
+        # Canonical path the editor was launched against (passed to
+        # `__init__`). Used by Save-In-Place (Ctrl+S) so reviewer
+        # workflows can write back to the source `masks.npz`. Drag-drop
+        # loads (e.g. dragging `masks_original.npz` in to compare) do
+        # NOT update this — so saving always lands at the original
+        # canonical target.
+        self.canonical_mask_path = None
+        self._canonical_mask_key = None
         self.current_frame = 0
         self.brush_size = 10
         self.mask_opacity = 0.4
@@ -238,7 +246,13 @@ class MaskEditor(QMainWindow):
         tb.addWidget(btn_detect)
 
         btn_save = QPushButton("Save Masks")
-        btn_save.clicked.connect(self._on_save)
+        btn_save.setToolTip(
+            "Save edits.\n"
+            "If launched against a specific masks.npz "
+            "(e.g. via ic295_review.py), Ctrl+S overwrites that file "
+            "in place — preserving its key + dtype.\n"
+            "Otherwise prompts for a ground-truth output folder.")
+        btn_save.clicked.connect(self._on_save_default)
         tb.addWidget(btn_save)
 
         btn_send = QPushButton("Send to GUI")
@@ -445,7 +459,8 @@ class MaskEditor(QMainWindow):
                   activated=self._on_save_all_gt)
         QShortcut(QKeySequence("Ctrl+Z"), self, activated=self.undo)
         QShortcut(QKeySequence("Ctrl+Shift+Z"), self, activated=self.redo)
-        QShortcut(QKeySequence("Ctrl+S"), self, activated=self._on_save)
+        QShortcut(QKeySequence("Ctrl+S"), self,
+                  activated=self._on_save_default)
         QShortcut(QKeySequence("B"), self, activated=lambda: self._select_tool("brush"))
         QShortcut(QKeySequence("E"), self, activated=lambda: self._select_tool("eraser"))
         QShortcut(QKeySequence("P"), self, activated=lambda: self._select_tool("polygon"))
@@ -643,6 +658,22 @@ class MaskEditor(QMainWindow):
         self.masks = np.zeros((n, h, w), dtype=np.int32)
         if mask_path and os.path.exists(mask_path):
             self._load_masks_from(mask_path)
+            # Record this as the canonical save target. Subsequent
+            # drag-drop mask loads (e.g. dragging `masks_original.npz`
+            # in to compare) WON'T overwrite this — Save-In-Place
+            # always targets the file the editor was launched against.
+            if mask_path.lower().endswith(".npz"):
+                self.canonical_mask_path = mask_path
+                try:
+                    _peek = np.load(mask_path)
+                    self._canonical_mask_key = (
+                        "masks" if "masks" in _peek.files
+                        else list(_peek.files)[0])
+                except Exception:
+                    self._canonical_mask_key = "labels"
+                self.setWindowTitle(
+                    f"Mask Editor — {os.path.basename(mask_path)} "
+                    f"(editing in place)")
 
         self.undo_stacks.clear()
         self.redo_stacks.clear()
@@ -780,6 +811,44 @@ class MaskEditor(QMainWindow):
         n_frames = int((self.masks > 0).any(axis=(1, 2)).sum())
         self.status.showMessage(
             f"Sent {n_frames} frames ({n_cells} cell IDs) to main GUI")
+
+    def _on_save_default(self):
+        """Pick the right save action: in-place when launched against
+        a specific `masks.npz`, GT-folder dialog otherwise."""
+        if getattr(self, "canonical_mask_path", None):
+            self._on_save_in_place()
+        else:
+            self._on_save()
+
+    def _on_save_in_place(self):
+        """Overwrite the masks file the editor was launched against,
+        preserving its original key + dtype. Used by reviewer
+        workflows where edits should land at the source path
+        (e.g. ic295_review.py)."""
+        path = getattr(self, "canonical_mask_path", None)
+        if not path or self.masks is None:
+            return
+        key = getattr(self, "_canonical_mask_key", None) or "labels"
+        try:
+            # Preserve the original on-disk dtype where possible. For
+            # bool-keyed files (the legacy "masks" key holding a
+            # foreground union), write back as bool. For int label
+            # stacks ("labels" key), keep int32.
+            if key == "masks":
+                arr = (self.masks > 0).astype(bool)
+            else:
+                arr = self.masks.astype(np.int32)
+            tmp = path + ".tmp"
+            np.savez_compressed(tmp, **{key: arr})
+            os.replace(tmp, path)
+        except Exception as e:
+            QMessageBox.critical(self, "Save failed",
+                                  f"Couldn't overwrite {path}:\n{e}")
+            return
+        n_cells = int(self.masks.max())
+        self._dirty_frames.clear()
+        self.status.showMessage(
+            f"Saved {n_cells} cells → {os.path.basename(path)}", 5000)
 
     def _on_save(self):
         if self.frames is None or self.masks is None:

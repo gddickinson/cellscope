@@ -232,10 +232,10 @@ What it does, per `open`/`next`:
    running on (avoids the read-during-save race).
 2. **Backs up** `pipeline_results/masks.npz` → `masks_original.npz`
    (once per recording, never overwritten — your ground-zero is safe).
-3. **Launches** `main_focused.py` as a subprocess with
-   `CELLSCOPE_REMOTE=8765` and uses the RPC to auto-load the
-   recording's `.cellscope` project file. The recording + masks appear
-   immediately.
+3. **Launches** the dedicated **`main_editor.py`** as a subprocess
+   with the recording + masks as CLI args, so both load on startup.
+   The mask-editor UI is leaner than the focused GUI (no Detect
+   button to click by accident, no Analyze stage).
 4. **Waits** for you to close the GUI window.
 5. **Captures** a before/after MD5 + per-cell area diff if you saved
    changes; marks the recording `accepted` (no change) or `edited`
@@ -244,8 +244,19 @@ What it does, per `open`/`next`:
 
 **Compare original vs edits inside the GUI** — drag
 `pipeline_results/masks_original.npz` onto the window to view the
-pre-edit masks, then drag `masks.npz` back to see your current
-edits. The loader picks up whichever .npz you drop directly.
+pre-edit masks (the editor's drag-drop reloads the mask layer
+without changing the recording). Drag `masks.npz` back to see your
+current edits. Drag-drop loads NEVER repoint the save target —
+`Ctrl+S` always writes to the file the editor was launched against,
+so dragging the original in for comparison won't accidentally
+overwrite it.
+
+**Save with `Ctrl+S`** — when the editor was launched against a
+specific `masks.npz` (as `ic295_review.py` does), `Ctrl+S` overwrites
+that file in place, preserving its original key (`labels` or `masks`)
+and dtype. The standalone "Save Masks" button does the same. (Open
+the editor without a `mask_path` and `Ctrl+S` falls back to the
+existing GT-folder dialog used for ground-truth labeling.)
 
 **State** lives in `ic295_analysis/_runs/review_state.json` (per
 condition × recording) + an append-only audit log. The review tool

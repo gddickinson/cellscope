@@ -279,23 +279,29 @@ def open_in_gui(label):
                  opened_at=datetime.utcnow().isoformat() + "Z")
     append_audit(f"OPEN {label} ({cond})")
 
-    # Launch the focused GUI as a subprocess with CELLSCOPE_REMOTE=8765
-    env = os.environ.copy()
-    env["CELLSCOPE_REMOTE"] = str(REMOTE_PORT)
-    cmd = ["conda", "run", "--no-capture-output", "-n", "cellpose4",
-           "python", "main_focused.py"]
-    print(f"[review] launching focused GUI on {label} (cond={cond})…")
-    proc = subprocess.Popen(cmd, cwd=PROJECT_ROOT, env=env)
+    # Find the recording symlink (the editor reads it via CLI arg).
+    import glob as _glob
+    tifs = _glob.glob(os.path.join(rec_dir, "*.ome.tif"))
+    if not tifs:
+        print(f"[review] no .ome.tif found in {rec_dir}", file=sys.stderr)
+        return 2
+    video_path = tifs[0]
 
-    if _wait_ready(GUI_READY_TIMEOUT_S):
-        _load_project_via_rpc(cellscope_path)
-        print(f"[review] {label}.cellscope loaded — review, edit, save, close")
-        print(f"  COMPARE: drag this file into the window to view original:")
-        print(f"    {orig_path}")
-        print(f"  then drag {os.path.basename(masks_path)} back to see current")
-    else:
-        print("[review] GUI didn't come up in time; project may need manual "
-              "load (File → Open Project)", file=sys.stderr)
+    # Launch the mask editor — passes recording + masks as CLI args so
+    # both load on startup. Ctrl+S in the editor now does Save-In-Place
+    # (overwrites masks_path), so review edits land at the right file.
+    env = os.environ.copy()
+    env["CELLSCOPE_REMOTE"] = "8767"   # minimal RPC for /status only
+    cmd = ["conda", "run", "--no-capture-output", "-n", "cellpose4",
+           "python", "main_editor.py", video_path, masks_path]
+    print(f"[review] launching mask editor on {label} (cond={cond})…")
+    proc = subprocess.Popen(cmd, cwd=PROJECT_ROOT, env=env)
+    print(f"[review] recording + masks pre-loaded; Ctrl+S saves in place;")
+    print(f"[review] drag this file into the window to view the original:")
+    print(f"           {orig_path}")
+    print(f"[review] drag the current masks back to see your edits:")
+    print(f"           {masks_path}")
+    print(f"[review] close the window when done.")
 
     proc.wait()
 

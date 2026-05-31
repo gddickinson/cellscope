@@ -3,6 +3,7 @@
 Launch:
     conda run -n cellpose4 python main_editor.py
     conda run -n cellpose4 python main_editor.py path/to/video.tif
+    conda run -n cellpose4 python main_editor.py path/to/video.tif path/to/masks.npz
 """
 import sys
 from PyQt5.QtWidgets import QApplication
@@ -12,7 +13,8 @@ from gui_editor.editor_window import EditorWindow
 def main():
     app = QApplication(sys.argv)
     video = sys.argv[1] if len(sys.argv) > 1 else None
-    win = EditorWindow(video_path=video)
+    masks = sys.argv[2] if len(sys.argv) > 2 else None
+    win = EditorWindow(video_path=video, mask_path=masks)
     from gui_focused.remote_control import attach_minimal
     # EditorWindow is a plain wrapper; attach to the actual QMainWindow
     # (win.editor) so /save_screenshot grabs the right widget too.
