@@ -631,6 +631,21 @@ class MaskEditor(QMainWindow):
         # ── Pipeline-output save / cleanup — placed in the
         # "Pipeline Review" tab (rev layout), not the GT row, so they
         # don't bloat the GT-labeling controls. ──
+        # Frame nav (mirrors Left/Right arrow shortcuts but visible
+        # in the panel for users who haven't memorised the keys).
+        self.btn_rev_prev = QPushButton("◀ Prev")
+        self.btn_rev_prev.setToolTip(
+            "Go to previous frame. Same as Left arrow key.\n"
+            "Honours the unsaved-edits warning on dirty frames.")
+        self.btn_rev_prev.clicked.connect(self.prev_frame)
+        rev.addWidget(self.btn_rev_prev)
+        self.btn_rev_next = QPushButton("Next ▶")
+        self.btn_rev_next.setToolTip(
+            "Go to next frame. Same as Right arrow key.\n"
+            "Honours the unsaved-edits warning on dirty frames.")
+        self.btn_rev_next.clicked.connect(self.next_frame)
+        rev.addWidget(self.btn_rev_next)
+        rev.addSpacing(12)
         self.btn_save_edits = QPushButton("💾 Save Edits")
         self.btn_save_edits.setToolTip(
             "Overwrite the masks file this editor was launched against "
