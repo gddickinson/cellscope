@@ -16,8 +16,12 @@ class EditorWindow:
     def __init__(self, video_path=None, mask_path=None):
         self.editor = MaskEditor(video_path=video_path,
                                   mask_path=mask_path)
-        self.editor.setWindowTitle(
-            "CellScope — Mask Editor")
+        # Only set a generic title if MaskEditor didn't already set
+        # something more specific (e.g. "editing in place" for the
+        # ic295_review.py launch path with mask_path set).
+        if not getattr(self.editor, "canonical_mask_path", None):
+            self.editor.setWindowTitle(
+                "CellScope — Mask Editor")
         self.results_panel = ResultsPanel()
         self._dock = QDockWidget("Analysis Results", self.editor)
         self._dock.setWidget(self.results_panel)

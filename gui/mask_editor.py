@@ -390,6 +390,31 @@ class MaskEditor(QMainWindow):
             "Skips empty frames. (Ctrl+Shift+G)")
         btn_gt_save_all.clicked.connect(self._on_save_all_gt)
         gt.addWidget(btn_gt_save_all)
+        # ── Pipeline-output save (Save Edits / Save & Next) ──
+        # These overwrite the masks.npz the editor was launched
+        # against (ic295_review.py workflow). Separate from the GT
+        # save buttons above (which write training data to a
+        # different folder).
+        self.btn_save_edits = QPushButton("💾 Save Edits")
+        self.btn_save_edits.setToolTip(
+            "Overwrite the masks file this editor was launched against "
+            "(pipeline_results/masks.npz). Preserves the full schema "
+            "(labels + masks foreground + any sidecar arrays).\n"
+            "Shortcut: Ctrl+S")
+        self.btn_save_edits.clicked.connect(self._on_save_in_place_explicit)
+        gt.addWidget(self.btn_save_edits)
+        self.btn_save_and_next = QPushButton("💾 Save & Next →")
+        self.btn_save_and_next.setToolTip(
+            "Save edits in place, then advance to the next frame.\n"
+            "Use for fluid frame-by-frame review.\n"
+            "Shortcut: Ctrl+Shift+S")
+        self.btn_save_and_next.clicked.connect(self._on_save_and_next)
+        gt.addWidget(self.btn_save_and_next)
+        # Disable both unless a canonical mask path was registered
+        # (otherwise there's no in-place target). load_video() will
+        # enable them after a successful launch with mask_path set.
+        self.btn_save_edits.setEnabled(False)
+        self.btn_save_and_next.setEnabled(False)
         self.chk_warn_unsaved = QCheckBox("Warn on unsaved")
         self.chk_warn_unsaved.setChecked(True)
         self.chk_warn_unsaved.setToolTip(
@@ -462,8 +487,18 @@ class MaskEditor(QMainWindow):
                   activated=self._on_save_all_gt)
         QShortcut(QKeySequence("Ctrl+Z"), self, activated=self.undo)
         QShortcut(QKeySequence("Ctrl+Shift+Z"), self, activated=self.redo)
-        QShortcut(QKeySequence("Ctrl+S"), self,
-                  activated=self._on_save_default)
+        _save_sc = QShortcut(QKeySequence("Ctrl+S"), self,
+                              activated=self._on_save_default)
+        # Use ApplicationShortcut context so Ctrl+S fires even when the
+        # canvas (QGraphicsView child) has keyboard focus — otherwise
+        # the default WidgetShortcut routing eats it during active
+        # mouse-driven editing.
+        _save_sc.setContext(Qt.ApplicationShortcut)
+        # Ctrl+Shift+S = save in place + advance to the next frame
+        # (fluid frame-by-frame review).
+        _save_next_sc = QShortcut(QKeySequence("Ctrl+Shift+S"), self,
+                                    activated=self._on_save_and_next)
+        _save_next_sc.setContext(Qt.ApplicationShortcut)
         QShortcut(QKeySequence("B"), self, activated=lambda: self._select_tool("brush"))
         QShortcut(QKeySequence("E"), self, activated=lambda: self._select_tool("eraser"))
         QShortcut(QKeySequence("P"), self, activated=lambda: self._select_tool("polygon"))
@@ -690,6 +725,14 @@ class MaskEditor(QMainWindow):
                 self.setWindowTitle(
                     f"Mask Editor — {os.path.basename(mask_path)} "
                     f"(editing in place)")
+                # Enable the in-place save buttons now that there's a
+                # canonical target. Defensive getattr — the buttons
+                # may not exist yet during the very first build path,
+                # but load_video is invoked after _build_ui from the
+                # MaskEditor constructor so they should always be there.
+                for attr in ("btn_save_edits", "btn_save_and_next"):
+                    if getattr(self, attr, None) is not None:
+                        getattr(self, attr).setEnabled(True)
 
         self.undo_stacks.clear()
         self.redo_stacks.clear()
@@ -847,6 +890,34 @@ class MaskEditor(QMainWindow):
         else:
             self._on_save()
 
+    def _on_save_in_place_explicit(self):
+        """Save Edits button handler — always tries the in-place save
+        path; warns if no canonical target was registered (e.g. the
+        editor was opened standalone, not via ic295_review.py)."""
+        if not getattr(self, "canonical_mask_path", None):
+            QMessageBox.information(
+                self, "No in-place target",
+                "This editor wasn't launched with a specific masks file "
+                "to overwrite.\n\n"
+                "Use 'Save Masks' (top toolbar) to export to a folder "
+                "instead — or relaunch via:\n"
+                "  python main_editor.py <video> <masks.npz>")
+            return
+        self._on_save_in_place()
+
+    def _on_save_and_next(self):
+        """Save edits in place, then advance to the next frame.
+        Fluid frame-by-frame review (Ctrl+Shift+S)."""
+        if not getattr(self, "canonical_mask_path", None):
+            QMessageBox.information(
+                self, "No in-place target",
+                "Open the editor with a masks file to enable Save & Next.")
+            return
+        self._on_save_in_place()
+        # next_frame() does nothing if we're already at the last frame
+        if hasattr(self, "next_frame"):
+            self.next_frame()
+
     def _on_save_in_place(self):
         """Overwrite the masks file the editor was launched against,
         round-tripping every key the original file had so the file's
@@ -889,8 +960,28 @@ class MaskEditor(QMainWindow):
             return
         n_cells = int(self.masks.max())
         self._dirty_frames.clear()
+        # Loud, persistent status — bold green for 10 s so the user
+        # actually sees the confirmation during active editing.
         self.status.showMessage(
-            f"Saved {n_cells} cells → {os.path.basename(path)}", 5000)
+            f"✓ Saved {n_cells} cells → {os.path.basename(path)}  "
+            f"({os.path.getsize(path) // 1024} KB)",
+            10000)
+        try:
+            self.status.setStyleSheet(
+                "QStatusBar { color: white; "
+                "background-color: #2a8a3e; font-weight: bold; }")
+            # Reset styling after the message expires so subsequent
+            # neutral messages render normally.
+            from PyQt5.QtCore import QTimer
+            QTimer.singleShot(
+                10000,
+                lambda: self.status.setStyleSheet(""))
+        except Exception:
+            pass
+        # Console print so reviewer session logs (review_session.log)
+        # carry the audit trail too.
+        print(f"[mask_editor] saved {n_cells} cells → {path}",
+              flush=True)
 
     def _on_save(self):
         if self.frames is None or self.masks is None:
