@@ -30,6 +30,8 @@ from PyQt5.QtWidgets import (
     QLabel, QPushButton, QSlider, QFileDialog, QButtonGroup,
     QRadioButton, QSpinBox, QMessageBox, QShortcut, QStatusBar,
     QCheckBox, QGraphicsView, QGraphicsScene, QGraphicsPixmapItem,
+    QDialog, QDoubleSpinBox, QListWidget, QListWidgetItem,
+    QInputDialog,
 )
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -105,7 +107,18 @@ class MaskCanvas(QGraphicsView):
             elif tool == "relabel":
                 self.editor.relabel_cell(x, y)
             elif tool == "delete":
-                self.editor.delete_cell(x, y)
+                if event.modifiers() & Qt.ShiftModifier:
+                    # Shift+Click = delete this cell's track across
+                    # ALL frames in one go.
+                    m = self.editor.masks
+                    if (m is not None
+                            and 0 <= y < m.shape[1]
+                            and 0 <= x < m.shape[2]):
+                        cid = int(m[self.editor.current_frame, y, x])
+                        if cid > 0:
+                            self.editor.delete_cell_track(cid)
+                else:
+                    self.editor.delete_cell(x, y)
         elif event.button() == Qt.RightButton:
             # Shift + Right-click starts a drag-pan. Plain right-click
             # is reserved for the polygon tool (commits the polygon
@@ -161,6 +174,203 @@ class MaskCanvas(QGraphicsView):
         # Zoom with mouse wheel
         factor = 1.15 if event.angleDelta().y() > 0 else 1 / 1.15
         self.scale(factor, factor)
+
+
+class FilterCellsDialog(QDialog):
+    """Bulk-filter cell instances by per-frame and per-track criteria.
+
+    Per-frame filters (min/max area, min edge distance) remove the
+    individual mask instance on each frame where it matches —
+    preserving the cell ID on other frames where it's valid. This
+    matches the typical user-edit pattern where the same tracked cell
+    has a normal-sized mask on most frames and an artifact mask
+    (vignette blob, debris merge) on a few.
+
+    Per-track filters (min lifetime, max mean velocity for static
+    phantoms) remove the entire cell ID from every frame.
+
+    Preview before Apply. Apply pushes per-frame undo entries so
+    Ctrl+Z reverses each affected frame.
+    """
+
+    def __init__(self, editor):
+        super().__init__(editor)
+        self.editor = editor
+        self.setWindowTitle("Filter cells")
+        self.setMinimumSize(620, 540)
+        self._candidates = None
+
+        layout = QVBoxLayout(self)
+        intro = QLabel(
+            "<b>Filter cell mask instances across all frames.</b><br>"
+            "<i>Per-frame</i> filters remove individual instances "
+            "(other frames where the cell is valid keep it). "
+            "<i>Per-track</i> filters remove the entire cell ID from "
+            "every frame.")
+        intro.setWordWrap(True)
+        layout.addWidget(intro)
+
+        layout.addWidget(QLabel(
+            "<b>Per-frame filters</b> — remove individual instances"))
+        self.chk_min_area, self.spin_min_area = self._row(
+            "Min area (px)", 1, 1000000, 500, layout)
+        self.chk_max_area, self.spin_max_area = self._row(
+            "Max area (px)", 1, 100000000, 50000, layout)
+        self.chk_edge, self.spin_edge = self._row(
+            "Min distance to frame edge (px)", 0, 5000, 30, layout)
+
+        layout.addWidget(QLabel(
+            "<b>Per-track filters</b> — remove cell from all frames"))
+        self.chk_lifetime, self.spin_lifetime = self._row(
+            "Min lifetime (frames)", 1, 10000, 5, layout)
+        self.chk_vel, self.spin_vel = self._row(
+            "Static cells: max mean velocity (px/frame)",
+            0, 100, 2, layout, is_float=True)
+
+        self.preview_label = QLabel(
+            "Click <b>Preview</b> to see what would be removed.")
+        layout.addWidget(self.preview_label)
+        self.preview_list = QListWidget()
+        layout.addWidget(self.preview_list, 1)
+
+        buttons = QHBoxLayout()
+        self.btn_preview = QPushButton("Preview")
+        self.btn_preview.clicked.connect(self._preview)
+        buttons.addWidget(self.btn_preview)
+        self.btn_apply = QPushButton("Apply (remove)")
+        self.btn_apply.clicked.connect(self._apply)
+        self.btn_apply.setEnabled(False)
+        buttons.addWidget(self.btn_apply)
+        btn_close = QPushButton("Close")
+        btn_close.clicked.connect(self.close)
+        buttons.addWidget(btn_close)
+        layout.addLayout(buttons)
+
+    def _row(self, label, lo, hi, default, layout, is_float=False):
+        row = QHBoxLayout()
+        chk = QCheckBox(label)
+        spin = QDoubleSpinBox() if is_float else QSpinBox()
+        spin.setRange(lo, hi); spin.setValue(default)
+        if is_float:
+            spin.setSingleStep(0.5)
+        row.addWidget(chk); row.addWidget(spin); row.addStretch()
+        layout.addLayout(row)
+        return chk, spin
+
+    def _compute_track_stats(self):
+        m = self.editor.masks
+        n_frames = m.shape[0]
+        ids = sorted(set(np.unique(m).tolist()) - {0})
+        out = {}
+        for cid in ids:
+            mask = (m == cid)
+            present = mask.any(axis=(1, 2))
+            lifetime = int(present.sum())
+            if lifetime == 0:
+                continue
+            cents = []
+            for i in range(n_frames):
+                if present[i]:
+                    ys, xs = np.where(mask[i])
+                    cents.append((float(ys.mean()), float(xs.mean())))
+            vels = [((a[0]-b[0])**2 + (a[1]-b[1])**2) ** 0.5
+                    for a, b in zip(cents, cents[1:])]
+            mean_vel = sum(vels) / max(len(vels), 1)
+            out[cid] = (lifetime, mean_vel)
+        return out
+
+    def _candidates_for_removal(self):
+        m = self.editor.masks
+        n_frames, H, W = m.shape
+        ts = self._compute_track_stats()
+        whole = set()
+        if self.chk_lifetime.isChecked():
+            thr = self.spin_lifetime.value()
+            for cid, (lt, _) in ts.items():
+                if lt < thr:
+                    whole.add(cid)
+        if self.chk_vel.isChecked():
+            thr = self.spin_vel.value()
+            for cid, (_, mv) in ts.items():
+                if mv < thr:
+                    whole.add(cid)
+        per_frame = []
+        for cid in ts:
+            if cid in whole:
+                continue
+            mask = (m == cid)
+            for i in range(n_frames):
+                if not mask[i].any():
+                    continue
+                area = int(mask[i].sum())
+                ys, xs = np.where(mask[i])
+                cy, cx = float(ys.mean()), float(xs.mean())
+                edge_d = min(cy, cx, H - cy, W - cx)
+                reasons = []
+                if self.chk_min_area.isChecked() and area < self.spin_min_area.value():
+                    reasons.append(f"area={area} <{self.spin_min_area.value()}")
+                if self.chk_max_area.isChecked() and area > self.spin_max_area.value():
+                    reasons.append(f"area={area} >{self.spin_max_area.value()}")
+                if self.chk_edge.isChecked() and edge_d < self.spin_edge.value():
+                    reasons.append(f"edge={edge_d:.0f} <{self.spin_edge.value()}")
+                if reasons:
+                    per_frame.append((int(cid), int(i),
+                                       ", ".join(reasons)))
+        return whole, per_frame, ts
+
+    def _preview(self):
+        whole, per_frame, ts = self._candidates_for_removal()
+        self.preview_list.clear()
+        for cid in sorted(whole):
+            lt, mv = ts[cid]
+            self.preview_list.addItem(
+                f"Cell {cid} ▸ WHOLE TRACK   lifetime={lt}  "
+                f"mean_vel={mv:.2f}")
+        by_cell = {}
+        for cid, fr, _ in per_frame:
+            by_cell.setdefault(cid, []).append(fr)
+        for cid in sorted(by_cell):
+            frs = sorted(by_cell[cid])
+            self.preview_list.addItem(
+                f"Cell {cid} ▸ {len(frs)} frames "
+                f"[{frs[0]}…{frs[-1]}]")
+        self.preview_label.setText(
+            f"<b>{len(whole)}</b> whole tracks + "
+            f"<b>{len(per_frame)}</b> per-frame instances would be "
+            f"removed.")
+        self.btn_apply.setEnabled(bool(whole or per_frame))
+        self._candidates = (whole, per_frame)
+
+    def _apply(self):
+        if self._candidates is None:
+            return
+        whole, per_frame = self._candidates
+        # Build the set of frames we're about to mutate, so we can
+        # snapshot exactly those for per-frame undo. Whole-track
+        # removals affect every frame the cell appears in.
+        affected = set([f for _, f, _ in per_frame])
+        for cid in whole:
+            for i in range(self.editor.masks.shape[0]):
+                if (self.editor.masks[i] == cid).any():
+                    affected.add(i)
+        for i in sorted(affected):
+            self.editor.undo_stacks.setdefault(i, []).append(
+                self.editor.masks[i].copy())
+            if len(self.editor.undo_stacks[i]) > self.editor.max_undo:
+                self.editor.undo_stacks[i].pop(0)
+            self.editor.redo_stacks.pop(i, None)
+            self.editor._dirty_frames.add(i)
+        for cid in whole:
+            self.editor.masks[self.editor.masks == cid] = 0
+        for cid, i, _ in per_frame:
+            self.editor.masks[i][self.editor.masks[i] == cid] = 0
+        self.editor._redraw()
+        msg = (f"Removed {len(whole)} whole tracks + "
+                f"{len(per_frame)} per-frame instances across "
+                f"{len(affected)} frame(s)")
+        self.editor.status.showMessage(msg, 8000)
+        print(f"[mask_editor] filter applied: {msg}", flush=True)
+        self.close()
 
 
 class MaskEditor(QMainWindow):
@@ -415,6 +625,22 @@ class MaskEditor(QMainWindow):
         # enable them after a successful launch with mask_path set.
         self.btn_save_edits.setEnabled(False)
         self.btn_save_and_next.setEnabled(False)
+        # ── Bulk-cleanup tools ──
+        btn_filter = QPushButton("🔍 Filter Cells…")
+        btn_filter.setToolTip(
+            "Bulk-remove artifacts by criteria — per-frame "
+            "(min/max area, edge distance) or per-track (min "
+            "lifetime, max mean velocity for static phantoms). "
+            "Preview before applying. (Ctrl+Shift+F)")
+        btn_filter.clicked.connect(self._on_filter_cells)
+        gt.addWidget(btn_filter)
+        btn_del_id = QPushButton("🗑 Delete by Cell ID…")
+        btn_del_id.setToolTip(
+            "Pick a cell ID and remove it from every frame it "
+            "appears in. Equivalent to Shift-clicking a cell while "
+            "the 'delete' tool is active.")
+        btn_del_id.clicked.connect(self._on_delete_by_id)
+        gt.addWidget(btn_del_id)
         self.chk_warn_unsaved = QCheckBox("Warn on unsaved")
         self.chk_warn_unsaved.setChecked(True)
         self.chk_warn_unsaved.setToolTip(
@@ -508,6 +734,10 @@ class MaskEditor(QMainWindow):
         # `Delete` key as an immediate alias — switch to delete tool
         # and stay there until user picks another.
         QShortcut(QKeySequence("Delete"), self, activated=lambda: self._select_tool("delete"))
+        # Filter Cells dialog
+        _filter_sc = QShortcut(QKeySequence("Ctrl+Shift+F"), self,
+                                 activated=self._on_filter_cells)
+        _filter_sc.setContext(Qt.ApplicationShortcut)
         QShortcut(QKeySequence("I"), self,
                   activated=lambda: self.chk_show_ids.toggle())
         # 1-9 select cells 1-9; 0 = cell 10. Shift+1..Shift+9 select
@@ -1477,11 +1707,76 @@ class MaskEditor(QMainWindow):
             m[comp] = self.active_cell
         self._redraw()
 
+    def delete_cell_track(self, cell_id):
+        """Remove the given cell ID from every frame it appears in.
+        Pushes per-frame undo entries so each affected frame can be
+        reversed with Ctrl+Z."""
+        if self.masks is None or cell_id <= 0:
+            return
+        affected = []
+        for i in range(self.masks.shape[0]):
+            if (self.masks[i] == cell_id).any():
+                affected.append(i)
+                self.undo_stacks.setdefault(i, []).append(
+                    self.masks[i].copy())
+                if len(self.undo_stacks[i]) > self.max_undo:
+                    self.undo_stacks[i].pop(0)
+                self.redo_stacks.pop(i, None)
+                self._dirty_frames.add(i)
+        if not affected:
+            self.status.showMessage(
+                f"Cell {cell_id} not present in any frame")
+            return
+        self.masks[self.masks == cell_id] = 0
+        self.status.showMessage(
+            f"Deleted cell {cell_id} from {len(affected)} frame(s)",
+            5000)
+        print(f"[mask_editor] delete_cell_track: cell {cell_id} "
+              f"from {len(affected)} frames", flush=True)
+        self._redraw()
+
+    def _on_delete_by_id(self):
+        """Prompt for a cell ID and delete it from every frame."""
+        if self.masks is None:
+            return
+        max_id = int(self.masks.max())
+        if max_id == 0:
+            QMessageBox.information(self, "No cells",
+                                      "There are no cells in this stack.")
+            return
+        cid, ok = QInputDialog.getInt(
+            self, "Delete cell ID",
+            f"Cell ID to remove from ALL frames (1 - {max_id}):",
+            value=1, min=1, max=max_id, step=1)
+        if not ok:
+            return
+        n_frames = int((self.masks == cid).any(axis=(1, 2)).sum())
+        if n_frames == 0:
+            QMessageBox.information(
+                self, "Not present",
+                f"Cell {cid} does not appear in any frame.")
+            return
+        ans = QMessageBox.question(
+            self, "Confirm",
+            f"Remove cell {cid} from all {n_frames} frame(s) it appears in?",
+            QMessageBox.Yes | QMessageBox.No)
+        if ans != QMessageBox.Yes:
+            return
+        self.delete_cell_track(cid)
+
+    def _on_filter_cells(self):
+        """Open the bulk Filter Cells dialog."""
+        if self.masks is None:
+            QMessageBox.information(self, "No masks",
+                                      "Load a recording with masks first.")
+            return
+        FilterCellsDialog(self).exec_()
+
     def delete_cell(self, x, y):
         """Delete the entire cell whose connected component is under
         the cursor — clears it from the CURRENT frame in one click.
         For wholesale removal of a track across all frames, see
-        `delete_cell_all_frames` (Shift+Click)."""
+        `delete_cell_track` (Shift+Click)."""
         if self.masks is None:
             return
         idx = self.current_frame

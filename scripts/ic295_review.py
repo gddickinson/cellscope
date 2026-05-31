@@ -50,8 +50,6 @@ from scripts.ic295_common import (  # noqa: E402
 REVIEW_FILE      = os.path.join(RUNS_DIR, "review_state.json")
 REVIEW_AUDIT     = os.path.join(RUNS_DIR, "review_audit.log")
 REVIEW_LOCK      = os.path.join(RUNS_DIR, "review.lock")
-REMOTE_PORT      = 8765
-GUI_READY_TIMEOUT_S = 90
 
 
 # ─────── state ───────
@@ -215,31 +213,9 @@ def print_diff(diff):
 
 
 # ─────── GUI launch ───────
-def _wait_ready(timeout_s):
-    url = f"http://127.0.0.1:{REMOTE_PORT}/status"
-    start = time.time()
-    while time.time() - start < timeout_s:
-        try:
-            urllib.request.urlopen(url, timeout=2).read()
-            return True
-        except Exception:
-            time.sleep(1)
-    return False
-
-
-def _load_project_via_rpc(cellscope_path):
-    url = f"http://127.0.0.1:{REMOTE_PORT}/load_project"
-    body = json.dumps({"path": cellscope_path}).encode()
-    req = urllib.request.Request(
-        url, data=body,
-        headers={"Content-Type": "application/json"}, method="POST")
-    try:
-        urllib.request.urlopen(req, timeout=30).read()
-        return True
-    except Exception as e:
-        print(f"[review] WARN: load_project RPC failed: {e}",
-              file=sys.stderr)
-        return False
+# (Older versions of this tool launched main_focused.py via the
+# RPC. The current path launches main_editor.py with the recording +
+# masks as CLI args, so no RPC dance is needed.)
 
 
 def open_in_gui(label):
@@ -416,6 +392,113 @@ def cmd_mark(args):
     return 0
 
 
+def cmd_analyze_edits(args):
+    """Compare masks.npz vs masks_original.npz and report what the
+    user trimmed/removed, by cell, with suggested filter thresholds
+    where there's clean separation between removed and kept cells."""
+    import numpy as np
+    inv = inventory_drive()
+    if args.label not in inv:
+        print(f"unknown label: {args.label}", file=sys.stderr); return 2
+    rec_dir = recording_dir(args.label, inv[args.label]["condition"])
+    masks_path = os.path.join(rec_dir, "pipeline_results", "masks.npz")
+    orig_path  = os.path.join(rec_dir, "pipeline_results",
+                                "masks_original.npz")
+    if not os.path.exists(orig_path):
+        print(f"no backup at {orig_path} — open this recording via "
+              f"`ic295_review.py open` first to snapshot the original.")
+        return 1
+    if not os.path.exists(masks_path):
+        print(f"missing masks.npz at {masks_path}", file=sys.stderr); return 2
+
+    ol = np.load(orig_path)["labels"]
+    el = np.load(masks_path)["labels"]
+    n_frames, H, W = ol.shape
+
+    ids = sorted((set(np.unique(ol).tolist())
+                  | set(np.unique(el).tolist())) - {0})
+    stats = {}
+    for cid in ids:
+        fo = (ol == cid).any(axis=(1, 2))
+        fe = (el == cid).any(axis=(1, 2))
+        no, ne = int(fo.sum()), int(fe.sum())
+        if no == 0:
+            continue  # not in original
+        # per-frame stats in the original
+        areas, cents = [], []
+        for i in range(n_frames):
+            if fo[i]:
+                ys, xs = np.where(ol[i] == cid)
+                areas.append(int(len(ys)))
+                cents.append((float(ys.mean()), float(xs.mean())))
+        mean_area = sum(areas) / len(areas)
+        edge_dist = min(min(cy, cx, H - cy, W - cx) for cy, cx in cents)
+        vels = [((a[0]-b[0])**2 + (a[1]-b[1])**2) ** 0.5
+                for a, b in zip(cents, cents[1:])]
+        mean_vel = sum(vels) / max(len(vels), 1)
+        stats[cid] = {
+            "orig_frames": no, "edt_frames": ne,
+            "mean_area": mean_area,
+            "min_edge_dist": edge_dist,
+            "mean_velocity": mean_vel,
+        }
+
+    removed = [c for c, s in stats.items() if s["edt_frames"] == 0]
+    trimmed = [c for c, s in stats.items()
+               if 0 < s["edt_frames"] < s["orig_frames"]]
+    kept    = [c for c, s in stats.items()
+               if s["edt_frames"] == s["orig_frames"]]
+
+    print(f"=== edits analysis: {args.label} ===")
+    print(f"recording: {n_frames} frames, {H}×{W} px")
+    print(f"cells: {len(stats)} total — "
+          f"{len(removed)} REMOVED, {len(trimmed)} TRIMMED, "
+          f"{len(kept)} kept untouched\n")
+    if not (removed or trimmed):
+        print("(no edits detected vs the original)")
+        return 0
+
+    print(f"  {'cid':>3} {'category':>10} {'orig→edt':>10}  "
+          f"{'mean_area':>10} {'edge_dist':>10} {'mean_vel':>9}")
+    for cid in sorted(stats):
+        s = stats[cid]
+        if cid in removed: cat = "REMOVED"
+        elif cid in trimmed: cat = "TRIMMED"
+        else: cat = "kept"
+        print(f"  {cid:>3} {cat:>10} {s['orig_frames']:>4}→{s['edt_frames']:<4}  "
+              f"{s['mean_area']:>10.0f} {s['min_edge_dist']:>10.0f} "
+              f"{s['mean_velocity']:>9.2f}")
+
+    # Compare distributions of touched (removed+trimmed) vs kept
+    touched = removed + trimmed
+    if touched and kept:
+        print(f"\n=== filter threshold suggestions ===")
+        for metric, key, dir_, unit in (
+                ("min mean_area", "mean_area", "min", "px"),
+                ("min lifetime", "orig_frames", "min", "frames"),
+                ("min edge distance", "min_edge_dist", "min", "px"),
+                ("max mean velocity", "mean_velocity", "max", "px/frame")):
+            t_vals = [stats[c][key] for c in touched]
+            k_vals = [stats[c][key] for c in kept]
+            t_lo, t_hi = min(t_vals), max(t_vals)
+            k_lo, k_hi = min(k_vals), max(k_vals)
+            note = ""
+            if dir_ == "min" and t_hi < k_lo:
+                note = f"  ⇒ try {metric} = {t_hi + 1:.0f} {unit}"
+            if dir_ == "max" and t_lo > k_hi:
+                note = f"  ⇒ try {metric} = {k_hi + 1:.0f} {unit}"
+            print(f"  {metric:>20}: touched [{t_lo:.1f}-{t_hi:.1f}]  "
+                  f"kept [{k_lo:.1f}-{k_hi:.1f}]{note}")
+
+    # Frames the user has touched
+    xor = (ol > 0) != (el > 0)
+    frames_touched = sorted(np.where(xor.any(axis=(1, 2)))[0].tolist())
+    if frames_touched:
+        print(f"\nframes touched: {len(frames_touched)} of {n_frames}  "
+              f"(first {frames_touched[0]}, last {frames_touched[-1]})")
+    return 0
+
+
 def cmd_reanalyze_pending(args):
     g = load_review()
     pending = [(c, l) for c, recs in g.items()
@@ -459,6 +542,11 @@ def main():
     p.set_defaults(func=cmd_mark, needs_lock=False)
     sp.add_parser("reanalyze-pending")\
       .set_defaults(func=cmd_reanalyze_pending, needs_lock=True)
+    p = sp.add_parser("analyze-edits",
+                       help="report which cells you trimmed/removed, "
+                       "with suggested filter thresholds")
+    p.add_argument("label")
+    p.set_defaults(func=cmd_analyze_edits, needs_lock=False)
 
     args = ap.parse_args()
     if getattr(args, "needs_lock", False):

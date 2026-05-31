@@ -258,6 +258,46 @@ and dtype. The standalone "Save Masks" button does the same. (Open
 the editor without a `mask_path` and `Ctrl+S` falls back to the
 existing GT-folder dialog used for ground-truth labeling.)
 
+### Bulk-cleanup tools
+
+For removing artifacts across many frames at once, the editor has
+three additions that complement single-pixel brush / eraser work:
+
+- **🔍 Filter Cells…** button (or `Ctrl+Shift+F`) — opens a dialog
+  with per-frame filters (min/max area in pixels, min distance to
+  frame edge) and per-track filters (min lifetime in frames, max
+  mean velocity for static phantoms). Tick whichever criteria
+  apply, click **Preview** to see exactly which cell IDs and which
+  frames would be removed (with reasons listed), then **Apply**.
+  Per-frame filters remove individual instances; per-track filters
+  remove the entire cell ID from every frame. Undo entries are
+  pushed per affected frame.
+- **🗑 Delete by Cell ID…** button — prompts for a cell ID and
+  removes it from every frame it appears in. Equivalent to the
+  Shift+Click shortcut below but discoverable in the toolbar.
+- **Shift+Click in the delete tool** — single-shortcut variant of
+  the above. Click any pixel of a cell with the `delete` tool +
+  Shift held → that cell's track is wiped across all frames.
+
+To discover good filter thresholds for a specific recording, use
+the **`analyze-edits`** subcommand of `ic295_review.py`:
+
+```bash
+conda run -n cellpose4 python scripts/ic295_review.py analyze-edits <label>
+```
+
+This compares your current `masks.npz` against the original backup
+(`masks_original.npz`) and reports:
+- Every cell ID with its category (`REMOVED` / `TRIMMED` / `kept`)
+- Per-cell stats: lifetime, mean area, min distance to frame edge,
+  mean velocity
+- Filter threshold suggestions where there's clean separation
+  between touched and kept cells
+
+Once you've established good thresholds on a representative
+recording, the same numbers usually apply to other recordings in
+the same condition.
+
 **State** lives in `ic295_analysis/_runs/review_state.json` (per
 condition × recording) + an append-only audit log. The review tool
 uses its own `_runs/review.lock` so two review sessions can't open
