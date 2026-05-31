@@ -951,10 +951,22 @@ class MaskEditor(QMainWindow):
             # writing just `labels`.
             if not save:
                 save["labels"] = self.masks.astype(np.int32)
-            tmp = path + ".tmp"
+            # NB: `np.savez_compressed` auto-appends `.npz` to a
+            # filename that doesn't end in `.npz`, so we MUST give the
+            # tmp file a `.npz` suffix — otherwise numpy writes to
+            # `<path>.tmp.npz` and the subsequent rename of `<path>.tmp`
+            # fails (it never existed). Use `.tmp.npz` so the suffix
+            # is already correct.
+            tmp = path + ".tmp.npz"
             np.savez_compressed(tmp, **save)
             os.replace(tmp, path)
         except Exception as e:
+            # Best-effort cleanup of the tmp file before reporting
+            try:
+                if os.path.exists(path + ".tmp.npz"):
+                    os.remove(path + ".tmp.npz")
+            except OSError:
+                pass
             QMessageBox.critical(self, "Save failed",
                                   f"Couldn't overwrite {path}:\n{e}")
             return
@@ -1178,12 +1190,19 @@ class MaskEditor(QMainWindow):
         self._redraw()
 
     def prev_frame(self):
-        if self.frame_slider.value() > 0:
-            self.frame_slider.setValue(self.frame_slider.value() - 1)
+        # Use current_frame as the source so the navigation stays
+        # consistent even if external callers set self.current_frame
+        # directly (the slider's valueChanged signal usually keeps
+        # them in sync, but we shouldn't rely on it).
+        target = max(0, int(self.current_frame) - 1)
+        if target != self.frame_slider.value():
+            self.frame_slider.setValue(target)
 
     def next_frame(self):
-        if self.frame_slider.value() < self.frame_slider.maximum():
-            self.frame_slider.setValue(self.frame_slider.value() + 1)
+        target = min(int(self.current_frame) + 1,
+                     self.frame_slider.maximum())
+        if target != self.frame_slider.value():
+            self.frame_slider.setValue(target)
 
     # ------------------------------------------------------------------
     # GT-frame navigation
