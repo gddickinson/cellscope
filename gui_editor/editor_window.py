@@ -30,6 +30,11 @@ class EditorWindow:
             | QDockWidget.DockWidgetFloatable
             | QDockWidget.DockWidgetClosable)
         self.editor.addDockWidget(Qt.RightDockWidgetArea, self._dock)
+        # Hide the dock by default — the analysis results panel is
+        # rarely needed during mask editing and just consumes screen
+        # real estate. User can re-show via View menu (Qt generates
+        # it automatically for any QDockWidget).
+        self._dock.hide()
 
     def show(self):
         self.editor.show()

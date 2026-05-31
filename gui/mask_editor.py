@@ -31,7 +31,7 @@ from PyQt5.QtWidgets import (
     QRadioButton, QSpinBox, QMessageBox, QShortcut, QStatusBar,
     QCheckBox, QGraphicsView, QGraphicsScene, QGraphicsPixmapItem,
     QDialog, QDoubleSpinBox, QListWidget, QListWidgetItem,
-    QInputDialog,
+    QInputDialog, QTabWidget, QDesktopWidget,
 )
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -379,7 +379,18 @@ class MaskEditor(QMainWindow):
     def __init__(self, video_path=None, mask_path=None):
         super().__init__()
         self.setWindowTitle("Mask Editor — CellScope")
-        self.resize(1200, 900)
+        # Size to fit the screen — many laptop displays are 1440×900
+        # (or smaller after the menu bar), so 1200×900 was clipping the
+        # bottom of the window. Use ~85% of the available screen
+        # geometry, capped at the previous default.
+        try:
+            screen = QDesktopWidget().availableGeometry()
+            w = min(1200, max(900, int(screen.width() * 0.85)))
+            h = min(820, max(600, int(screen.height() * 0.85)))
+        except Exception:
+            w, h = 1100, 750
+        self.resize(w, h)
+        self.setMinimumSize(900, 600)
 
         self.frames = None          # (N, H, W) uint8
         self.masks = None           # (N, H, W) int32 — 0=bg, 1,2,...=cell IDs
@@ -556,10 +567,27 @@ class MaskEditor(QMainWindow):
         self.canvas = MaskCanvas(self)
         layout.addWidget(self.canvas, stretch=1)
 
-        # GT-frame navigation row (above the time scrubber).
-        # Stride defaults to 10 (matches the IC295 GT setup) but can be
-        # changed live; auto-loads GT_FRAMES.txt if present in the
-        # recording's folder.
+        # Below the canvas: a tabbed control panel that consolidates
+        # the GT-labeling row (used when creating training data) and
+        # the new pipeline-review row (Save Edits / Save & Next /
+        # Filter Cells / Delete by Cell ID — used by ic295_review.py).
+        # Tabs are MUCH narrower than the combined ~1700px row was,
+        # so the window fits on a 1440-wide laptop screen.
+        self.review_tabs = QTabWidget()
+        self.review_tabs.setDocumentMode(True)  # flatter look on macOS
+
+        # ── Tab 1: Pipeline review ── (the ic295_review workflow)
+        review_page = QWidget()
+        rev = QHBoxLayout(review_page)
+        rev.setContentsMargins(8, 4, 8, 4)
+        # The button objects are created below in the GT section block
+        # and then re-parented here; we just allocate placeholders so
+        # the tab order is right.
+
+        # ── Tab 2: GT labeling ── (training-data workflow)
+        gt_page = QWidget()
+        gt_outer = QVBoxLayout(gt_page)
+        gt_outer.setContentsMargins(8, 4, 8, 4)
         gt = QHBoxLayout()
         gt.addWidget(QLabel("GT frame:"))
         self.btn_gt_prev = QPushButton("⟪ Prev")
@@ -600,11 +628,9 @@ class MaskEditor(QMainWindow):
             "Skips empty frames. (Ctrl+Shift+G)")
         btn_gt_save_all.clicked.connect(self._on_save_all_gt)
         gt.addWidget(btn_gt_save_all)
-        # ── Pipeline-output save (Save Edits / Save & Next) ──
-        # These overwrite the masks.npz the editor was launched
-        # against (ic295_review.py workflow). Separate from the GT
-        # save buttons above (which write training data to a
-        # different folder).
+        # ── Pipeline-output save / cleanup — placed in the
+        # "Pipeline Review" tab (rev layout), not the GT row, so they
+        # don't bloat the GT-labeling controls. ──
         self.btn_save_edits = QPushButton("💾 Save Edits")
         self.btn_save_edits.setToolTip(
             "Overwrite the masks file this editor was launched against "
@@ -612,20 +638,20 @@ class MaskEditor(QMainWindow):
             "(labels + masks foreground + any sidecar arrays).\n"
             "Shortcut: Ctrl+S")
         self.btn_save_edits.clicked.connect(self._on_save_in_place_explicit)
-        gt.addWidget(self.btn_save_edits)
+        rev.addWidget(self.btn_save_edits)
         self.btn_save_and_next = QPushButton("💾 Save & Next →")
         self.btn_save_and_next.setToolTip(
             "Save edits in place, then advance to the next frame.\n"
             "Use for fluid frame-by-frame review.\n"
             "Shortcut: Ctrl+Shift+S")
         self.btn_save_and_next.clicked.connect(self._on_save_and_next)
-        gt.addWidget(self.btn_save_and_next)
+        rev.addWidget(self.btn_save_and_next)
         # Disable both unless a canonical mask path was registered
         # (otherwise there's no in-place target). load_video() will
         # enable them after a successful launch with mask_path set.
         self.btn_save_edits.setEnabled(False)
         self.btn_save_and_next.setEnabled(False)
-        # ── Bulk-cleanup tools ──
+        rev.addSpacing(20)
         btn_filter = QPushButton("🔍 Filter Cells…")
         btn_filter.setToolTip(
             "Bulk-remove artifacts by criteria — per-frame "
@@ -633,14 +659,15 @@ class MaskEditor(QMainWindow):
             "lifetime, max mean velocity for static phantoms). "
             "Preview before applying. (Ctrl+Shift+F)")
         btn_filter.clicked.connect(self._on_filter_cells)
-        gt.addWidget(btn_filter)
+        rev.addWidget(btn_filter)
         btn_del_id = QPushButton("🗑 Delete by Cell ID…")
         btn_del_id.setToolTip(
             "Pick a cell ID and remove it from every frame it "
             "appears in. Equivalent to Shift-clicking a cell while "
             "the 'delete' tool is active.")
         btn_del_id.clicked.connect(self._on_delete_by_id)
-        gt.addWidget(btn_del_id)
+        rev.addWidget(btn_del_id)
+        rev.addStretch()
         self.chk_warn_unsaved = QCheckBox("Warn on unsaved")
         self.chk_warn_unsaved.setChecked(True)
         self.chk_warn_unsaved.setToolTip(
@@ -663,7 +690,16 @@ class MaskEditor(QMainWindow):
         self.gt_progress_label.setStyleSheet("color: #888; padding-left: 10px;")
         gt.addWidget(self.gt_progress_label)
         gt.addStretch()
-        layout.addLayout(gt)
+        gt_outer.addLayout(gt)
+        gt_outer.addStretch()
+        # Assemble the tabbed control panel
+        self.review_tabs.addTab(review_page, "🔍 Pipeline Review")
+        self.review_tabs.addTab(gt_page, "GT Labeling")
+        # Default tab is "GT Labeling"; load_video() flips to
+        # "Pipeline Review" when launched with a canonical mask_path
+        # (ic295_review.py workflow).
+        self.review_tabs.setCurrentIndex(1)
+        layout.addWidget(self.review_tabs)
 
         # Channel toggle (shown only when multichannel data is loaded).
         ch = QHBoxLayout()
@@ -963,6 +999,10 @@ class MaskEditor(QMainWindow):
                 for attr in ("btn_save_edits", "btn_save_and_next"):
                     if getattr(self, attr, None) is not None:
                         getattr(self, attr).setEnabled(True)
+                # Default to the "Pipeline Review" tab since we're in
+                # the ic295_review.py workflow.
+                if hasattr(self, "review_tabs"):
+                    self.review_tabs.setCurrentIndex(0)
 
         self.undo_stacks.clear()
         self.redo_stacks.clear()
