@@ -6,30 +6,57 @@ first (slow, GPU), pause for manual review/edits in the focused GUI,
 then **analyze** + **compare** (fast). Each phase is restart-safe and
 crash-isolated.
 
+> **Full operations guide:**
+> [`docs/ic295_analysis_run.md`](../docs/ic295_analysis_run.md) covers
+> the three concurrent daemons (detect driver + analyze watcher +
+> prefetcher), monitoring + control + crash recovery, the manual mask
+> review workflow, the final-output schema, and partial-comparison
+> recipes. This README is a quick-start.
+
 ## Quick start
 
 ```bash
-# Phase 1 — detection. Adopts existing drive masks instantly;
-# for the rest runs the full detect_recording pipeline (~2–3 h /
-# recording on M1 Max GPU). Stop at any time with Ctrl-C.
-conda run -n cellpose4 python scripts/ic295_batch.py --phase detect
+# === Long-running mode (recommended for the full 65-recording batch) ===
+# Launch all three daemons detached; they run concurrently with
+# separate lock files. Real per-recording time: ~3.5 h detect /
+# ~2.5 min analyze on M1 Max. See docs/ic295_analysis_run.md for the
+# full guide (monitoring, stop/start, partial comparison, etc).
 
-# Watch progress in another shell:
-conda run -n cellpose4 python scripts/ic295_status.py
-conda run -n cellpose4 python scripts/ic295_status.py --failed   # tails of errors
+nohup bash -lc 'conda run -n cellpose4 python scripts/ic295_batch.py --phase detect' \
+  > ic295_analysis/_runs/driver.log 2>&1 &
+disown
+nohup bash -lc 'conda run -n cellpose4 python scripts/ic295_analyze_watch.py' \
+  > ic295_analysis/_runs/analyze_watch.log 2>&1 &
+disown
+nohup bash -lc 'conda run -n cellpose4 python scripts/ic295_prefetch.py' \
+  > ic295_analysis/_runs/prefetch.log 2>&1 &
+disown
 
-# ── Optional: open by_condition/<cond>/<label>/<label>.cellscope
-# in the focused GUI to review & edit masks before analysis. ──
+# === Monitor ===
+conda run -n cellpose4 python scripts/ic295_status.py            # state table
+conda run -n cellpose4 python scripts/ic295_status.py --failed   # error tails
+tail -f ic295_analysis/_runs/driver.log                          # live driver
 
-# Phase 2 — analysis. Reads the (possibly edited) masks.npz,
-# rebuilds tracks, annotates divisions, runs per-cell analytics +
-# state classification. Fast (~30–60 s / recording).
-conda run -n cellpose4 python scripts/ic295_batch.py --phase analyze
+# === Stop everything gracefully ===
+for L in lock.txt analyze.lock prefetch.lock; do
+  PID=$(awk '{print $1}' ic295_analysis/_runs/$L 2>/dev/null)
+  [ -n "$PID" ] && kill "$PID"
+done
 
-# Phase 3 — treatment comparison. Aggregates per-recording metrics
-# by condition, runs Kruskal-Wallis + pairwise Mann-Whitney
-# (Bonferroni), writes CSVs + box plots.
+# === Manual mask review between Phase 1 and Phase 2 ===
+# Drag ic295_analysis/by_condition/<cond>/<label>/<label>.cellscope
+# into the focused GUI, edit masks, Save Project. The Phase 2 watcher
+# reads whatever's at pipeline_results/masks.npz on its next poll.
+
+# === Phase 3 — treatment comparison ===
+# Runs whenever you're satisfied with the cell counts; re-runnable.
 conda run -n cellpose4 python scripts/ic295_compare.py
+
+# === Foreground mode (smaller jobs, debugging) ===
+conda run -n cellpose4 python scripts/ic295_batch.py --phase detect --limit 3
+conda run -n cellpose4 python scripts/ic295_batch.py --phase analyze --analyze-only-detected
+conda run -n cellpose4 python scripts/ic295_detect_one.py Pos21-KO --force
+conda run -n cellpose4 python scripts/ic295_analyze_one.py Pos21-KO --force
 ```
 
 ## Directory layout

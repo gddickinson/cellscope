@@ -10,6 +10,22 @@ Format: **DATE — short title** with bullets describing what changed
 
 ---
 
+## 2026-05-30 — IC295 analysis-run operations guide (`docs/ic295_analysis_run.md`)
+
+Created a dedicated operations guide for the long-running IC295 batch:
+the three concurrent daemons (`ic295_batch.py --phase=detect`,
+`ic295_analyze_watch.py`, `ic295_prefetch.py`) with their separate
+lock files and roles, full replication from scratch, monitoring +
+control + crash recovery commands, the manual mask-review checkpoint
+workflow, the full directory layout, the per-recording + treatment-
+comparison output schema (including the K-W + pairwise MWU /
+Bonferroni stats), troubleshooting, and an honest M1-Max time
+estimate (~5-6 days with prefetcher). Tracked in git.
+
+`ic295_analysis/README.md` updated: cross-links the new guide, and the
+quick-start launch block now reflects the three-daemon setup
+(nohup-detached, separate lock files, graceful kill loop).
+
 ## 2026-05-30 — Sync top-level docs with recent landings
 
 Updated README, PROJECT_STATUS, docs/user_manual, CLAUDE to reflect:
