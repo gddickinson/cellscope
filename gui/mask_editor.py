@@ -104,6 +104,8 @@ class MaskCanvas(QGraphicsView):
                 self.editor.flood_fill(x, y)
             elif tool == "relabel":
                 self.editor.relabel_cell(x, y)
+            elif tool == "delete":
+                self.editor.delete_cell(x, y)
         elif event.button() == Qt.RightButton:
             # Shift + Right-click starts a drag-pan. Plain right-click
             # is reserved for the polygon tool (commits the polygon
@@ -269,7 +271,8 @@ class MaskEditor(QMainWindow):
         tools = QHBoxLayout()
         tools.addWidget(QLabel("Tool:"))
         self.tool_group = QButtonGroup(self)
-        for name in ["brush", "eraser", "polygon", "fill", "relabel"]:
+        for name in ["brush", "eraser", "polygon", "fill", "relabel",
+                     "delete"]:
             rb = QRadioButton(name)
             rb.toggled.connect(lambda checked, n=name: self._on_tool(n, checked))
             tools.addWidget(rb)
@@ -466,6 +469,10 @@ class MaskEditor(QMainWindow):
         QShortcut(QKeySequence("P"), self, activated=lambda: self._select_tool("polygon"))
         QShortcut(QKeySequence("F"), self, activated=lambda: self._select_tool("fill"))
         QShortcut(QKeySequence("R"), self, activated=lambda: self._select_tool("relabel"))
+        QShortcut(QKeySequence("X"), self, activated=lambda: self._select_tool("delete"))
+        # `Delete` key as an immediate alias — switch to delete tool
+        # and stay there until user picks another.
+        QShortcut(QKeySequence("Delete"), self, activated=lambda: self._select_tool("delete"))
         QShortcut(QKeySequence("I"), self,
                   activated=lambda: self.chk_show_ids.toggle())
         # 1-9 select cells 1-9; 0 = cell 10. Shift+1..Shift+9 select
@@ -664,13 +671,22 @@ class MaskEditor(QMainWindow):
             # always targets the file the editor was launched against.
             if mask_path.lower().endswith(".npz"):
                 self.canonical_mask_path = mask_path
+                # Track which keys the original file had — on save we
+                # round-trip ALL of them (so e.g. an IC295 masks.npz
+                # with {labels, masks, fusion_source_stack} comes back
+                # with labels updated to the edited stack, masks
+                # regenerated from the new label foreground, and
+                # fusion_source_stack preserved unchanged).
                 try:
                     _peek = np.load(mask_path)
-                    self._canonical_mask_key = (
-                        "masks" if "masks" in _peek.files
-                        else list(_peek.files)[0])
+                    self._canonical_original_keys = tuple(_peek.files)
                 except Exception:
-                    self._canonical_mask_key = "labels"
+                    self._canonical_original_keys = ("labels",)
+                # The primary key (used by analyze + GUI loaders)
+                self._canonical_mask_key = (
+                    "labels" if "labels" in self._canonical_original_keys
+                    else ("masks" if "masks" in self._canonical_original_keys
+                          else self._canonical_original_keys[0]))
                 self.setWindowTitle(
                     f"Mask Editor — {os.path.basename(mask_path)} "
                     f"(editing in place)")
@@ -707,7 +723,18 @@ class MaskEditor(QMainWindow):
         """Load a mask stack from .npz or a folder of PNGs."""
         if path.endswith(".npz"):
             data = np.load(path)
-            key = "masks" if "masks" in data else list(data.keys())[0]
+            # Prefer the int32 multi-cell stack (`labels`) over the
+            # boolean foreground union (`masks`). The IC295 pipeline
+            # writes BOTH keys — picking `masks` collapses every cell
+            # into a single connected blob and gives every cell ID=1,
+            # which is what the legacy code did. The focused GUI
+            # loader uses this same priority since 2026-05-29.
+            if "labels" in data.files:
+                key = "labels"
+            elif "masks" in data.files:
+                key = "masks"
+            else:
+                key = list(data.files)[0]
             arr = data[key]
             if arr.shape != self.masks.shape:
                 QMessageBox.warning(
@@ -822,24 +849,39 @@ class MaskEditor(QMainWindow):
 
     def _on_save_in_place(self):
         """Overwrite the masks file the editor was launched against,
-        preserving its original key + dtype. Used by reviewer
-        workflows where edits should land at the source path
-        (e.g. ic295_review.py)."""
+        round-tripping every key the original file had so the file's
+        schema is preserved. For IC295 pipeline outputs that means:
+        `labels` (the int32 multi-cell stack — updated from the editor's
+        in-memory edits), `masks` (the boolean foreground union —
+        regenerated from the new labels), and `fusion_source_stack`
+        (preserved untouched from the original file)."""
         path = getattr(self, "canonical_mask_path", None)
         if not path or self.masks is None:
             return
-        key = getattr(self, "_canonical_mask_key", None) or "labels"
+        keys = getattr(self, "_canonical_original_keys", None) or ("labels",)
         try:
-            # Preserve the original on-disk dtype where possible. For
-            # bool-keyed files (the legacy "masks" key holding a
-            # foreground union), write back as bool. For int label
-            # stacks ("labels" key), keep int32.
-            if key == "masks":
-                arr = (self.masks > 0).astype(bool)
-            else:
-                arr = self.masks.astype(np.int32)
+            save = {}
+            # Read the original to preserve any non-mask sidecars
+            # (e.g. fusion_source_stack) without rebuilding them.
+            try:
+                _orig = np.load(path)
+            except Exception:
+                _orig = None
+            for k in keys:
+                if k == "labels":
+                    save[k] = self.masks.astype(np.int32)
+                elif k == "masks":
+                    # Regenerate the foreground union from the
+                    # (possibly edited) label stack.
+                    save[k] = (self.masks > 0).astype(bool)
+                elif _orig is not None and k in _orig.files:
+                    save[k] = _orig[k]
+            # If we don't have any key (shouldn't happen), fall back to
+            # writing just `labels`.
+            if not save:
+                save["labels"] = self.masks.astype(np.int32)
             tmp = path + ".tmp"
-            np.savez_compressed(tmp, **{key: arr})
+            np.savez_compressed(tmp, **save)
             os.replace(tmp, path)
         except Exception as e:
             QMessageBox.critical(self, "Save failed",
@@ -1323,6 +1365,41 @@ class MaskEditor(QMainWindow):
             labeled, _ = ndimage.label(m == 0)
             comp = labeled == labeled[y, x]
             m[comp] = self.active_cell
+        self._redraw()
+
+    def delete_cell(self, x, y):
+        """Delete the entire cell whose connected component is under
+        the cursor — clears it from the CURRENT frame in one click.
+        For wholesale removal of a track across all frames, see
+        `delete_cell_all_frames` (Shift+Click)."""
+        if self.masks is None:
+            return
+        idx = self.current_frame
+        m = self.masks[idx]
+        h, w = m.shape
+        if not (0 <= x < w and 0 <= y < h):
+            return
+        label = int(m[y, x])
+        if label == 0:
+            self.status.showMessage("No cell under cursor to delete")
+            return
+        # Find the connected component holding this pixel
+        from scipy import ndimage
+        labeled, _ = ndimage.label(m == label)
+        comp_id = labeled[y, x]
+        if comp_id == 0:
+            return
+        component = labeled == comp_id
+        # Push undo for THIS frame only (single-frame action)
+        self.undo_stacks.setdefault(idx, []).append(m.copy())
+        if len(self.undo_stacks[idx]) > self.max_undo:
+            self.undo_stacks[idx].pop(0)
+        self.redo_stacks.pop(idx, None)
+        m[component] = 0
+        self._dirty_frames.add(idx)
+        n_px = int(component.sum())
+        self.status.showMessage(
+            f"Deleted cell {label} from frame {idx} ({n_px:,} px)", 4000)
         self._redraw()
 
     def relabel_cell(self, x, y):
