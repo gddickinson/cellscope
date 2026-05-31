@@ -119,14 +119,23 @@ def on_load_pipeline_results(win, path=None):
             win, "Open Pipeline Results", "")
         if not path:
             return
-    pr_dir = path
-    # User can pick either the recording folder OR pipeline_results/.
-    if not os.path.exists(os.path.join(pr_dir, "masks.npz")):
-        candidate = os.path.join(path, "pipeline_results")
-        if os.path.isdir(candidate) and os.path.exists(
-                os.path.join(candidate, "masks.npz")):
-            pr_dir = candidate
-    masks_path = os.path.join(pr_dir, "masks.npz")
+    # New: accept a path to a .npz file directly (e.g. `masks_original.npz`
+    # or `masks_unfiltered.npz`) — load THAT file, not the canonical
+    # masks.npz in the same dir. This makes the "compare to original"
+    # flow work (drag masks_original.npz to view the pre-edit masks,
+    # drag masks.npz to view the current).
+    if path and path.lower().endswith(".npz") and os.path.isfile(path):
+        masks_path = path
+        pr_dir = os.path.dirname(path) or "."
+    else:
+        pr_dir = path
+        # User can pick either the recording folder OR pipeline_results/.
+        if not os.path.exists(os.path.join(pr_dir, "masks.npz")):
+            candidate = os.path.join(path, "pipeline_results")
+            if os.path.isdir(candidate) and os.path.exists(
+                    os.path.join(candidate, "masks.npz")):
+                pr_dir = candidate
+        masks_path = os.path.join(pr_dir, "masks.npz")
     if not os.path.exists(masks_path):
         QMessageBox.warning(
             win, "Open Pipeline Results",

@@ -208,7 +208,65 @@ python scripts/ic295_prefetch.py --lookahead 5 --interval 120 \
 ## Manual mask review (between Phase 1 and Phase 2)
 
 After detection finishes for a recording, you can fix any
-mis-segmentations before Phase 2 runs:
+mis-segmentations before Phase 2 runs. The **`ic295_review.py`**
+script wraps this in a safe, state-tracked workflow:
+
+```bash
+# See the queue — counts pending / accepted / edited / skipped per condition
+conda run -n cellpose4 python scripts/ic295_review.py status
+conda run -n cellpose4 python scripts/ic295_review.py status -v   # full list
+
+# Open the next pending recording in the focused GUI (auto-loaded)
+conda run -n cellpose4 python scripts/ic295_review.py next
+
+# Or pick a specific one
+conda run -n cellpose4 python scripts/ic295_review.py open Pos21-KO
+
+# After you've edited a few, re-run Phase 2 on the ones you changed
+conda run -n cellpose4 python scripts/ic295_review.py reanalyze-pending
+```
+
+What it does, per `open`/`next`:
+
+1. **Refuses** to open a recording the analyze watcher is currently
+   running on (avoids the read-during-save race).
+2. **Backs up** `pipeline_results/masks.npz` → `masks_original.npz`
+   (once per recording, never overwritten — your ground-zero is safe).
+3. **Launches** `main_focused.py` as a subprocess with
+   `CELLSCOPE_REMOTE=8765` and uses the RPC to auto-load the
+   recording's `.cellscope` project file. The recording + masks appear
+   immediately.
+4. **Waits** for you to close the GUI window.
+5. **Captures** a before/after MD5 + per-cell area diff if you saved
+   changes; marks the recording `accepted` (no change) or `edited`
+   (with diff stats + `needs_reanalysis: true`); appends to
+   `_runs/review_audit.log`.
+
+**Compare original vs edits inside the GUI** — drag
+`pipeline_results/masks_original.npz` onto the window to view the
+pre-edit masks, then drag `masks.npz` back to see your current
+edits. The loader picks up whichever .npz you drop directly.
+
+**State** lives in `ic295_analysis/_runs/review_state.json` (per
+condition × recording) + an append-only audit log. The review tool
+uses its own `_runs/review.lock` so two review sessions can't open
+the same recording concurrently — but it doesn't conflict with the
+detect driver / analyze watcher / prefetcher.
+
+**Other subcommands:**
+
+```bash
+# Diff between the current and the original for one recording
+conda run -n cellpose4 python scripts/ic295_review.py diff Pos21-KO
+
+# Manually mark a recording's status (e.g. you reviewed in the GUI
+# directly without going through the tool):
+conda run -n cellpose4 python scripts/ic295_review.py mark Pos21-KO --status accepted
+```
+
+### Without the review tool (direct GUI workflow)
+
+If you'd rather drive the GUI manually:
 
 1. Drag `ic295_analysis/by_condition/<cond>/<label>/<label>.cellscope`
    into the focused GUI (or `File → Open Project`).
@@ -218,18 +276,16 @@ mis-segmentations before Phase 2 runs:
 4. `File → Save Project` (Ctrl-S) — overwrites
    `pipeline_results/masks.npz` in place.
 
-The Phase 2 watcher reads whatever's at that path on its next poll,
-including your edits. The drive copy of the masks is **not modified**
-— `pipeline_results/masks.npz` in `by_condition/` is a *real file*
-(copied from the drive during adoption, or written fresh by
-detection), so editing here is local to this analysis run.
-
-If you edit **after** Phase 2 already ran (`analysis.json` present),
-the watcher's idempotency will skip it. To re-analyze with your edits:
+The Phase 2 watcher reads whatever's at that path on its next poll.
+If `analysis.json` already existed, the watcher skips it — re-analyze
+manually:
 
 ```bash
 conda run -n cellpose4 python scripts/ic295_analyze_one.py <label> --force
 ```
+
+This direct path doesn't get the backup or diff capture — `ic295_review.py`
+is recommended for the systematic pass through the corpus.
 
 ---
 

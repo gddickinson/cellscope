@@ -734,11 +734,13 @@ class FocusedMainWindow(QMainWindow):
                 self._load_path(path)
                 return
             if low.endswith(self._DROP_MASKS_EXTS):
-                import os
                 from gui_focused.project_handlers import (
                     on_load_pipeline_results)
-                on_load_pipeline_results(
-                    self, path=os.path.dirname(path))
+                # Pass the file path directly — loader handles both
+                # file (loads exactly that .npz) and folder (looks for
+                # masks.npz inside). File-mode lets review/compare
+                # workflows drop masks_original.npz etc.
+                on_load_pipeline_results(self, path=path)
                 return
 
     def _on_detect(self):
@@ -1265,14 +1267,16 @@ class FocusedMainWindow(QMainWindow):
         on_load_pipeline_results(self)
 
     def _on_load_masks_file(self):
-        import os
         from gui_focused.project_handlers import on_load_pipeline_results
         path, _ = QFileDialog.getOpenFileName(
             self, "Open Masks File", "",
             "Masks (*.npz);;All files (*)")
         if not path:
             return
-        on_load_pipeline_results(self, path=os.path.dirname(path))
+        # Pass the file path so the loader uses THIS .npz, not the
+        # canonical masks.npz in the same dir (needed for comparing
+        # masks_original.npz / masks_unfiltered.npz).
+        on_load_pipeline_results(self, path=path)
 
     def _on_save_screenshot(self):
         """Save a PNG of the full window (window contents incl.
