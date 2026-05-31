@@ -313,6 +313,18 @@ Conventions to preserve when extending:
 
 ## Track gap-fill cascade
 
+> **🚩 FLAGGED FOR AUDIT (2026-05-31).** IC295 batch timing shows the
+> cascade is the **dominant cost** of multi-cell detection: ~50 min
+> base + **~17 min per cell** (fit on 7 completed real detections, R²
+> very high). Pos2-WT (11 cells) took 234 min, nearly all of it
+> per-cell cascade work. After the current batch finishes, profile
+> each phase + ablate to determine which phases are pulling their
+> weight — see Priority 0 in [`docs/IMPROVEMENTS.md`](docs/IMPROVEMENTS.md)
+> for the plan (instrumentation, per-phase yield, subprocess
+> batching, confident-detection short-circuit, possible removal of
+> low-yield phases). Target: ≥ 30 % wall-time reduction with no F1
+> loss on the GT corpus.
+
 When the Hungarian tracker assigns identity, a track may have internal
 gaps (frames where detection failed). `core/track_gap_fill.fill_track_gaps`
 runs a four-phase cascade to recover the cell:

@@ -5,7 +5,82 @@ and category. Effort: S = hours, M = 1-2 days, L = 3-5 days, XL = 1+ weeks.
 
 ---
 
-## Priority 0: Multi-Cell Detection Improvement (Active)
+## Priority 0: Audit + optimize the 4-phase track gap-fill cascade
+
+### Problem (raised 2026-05-31 during the IC295 batch)
+
+The 4-phase track gap-fill cascade (`core/track_gap_fill.py`) is by
+far the **dominant cost** of multi-cell detection on IC295 recordings.
+Timing data from 7 completed detections in the live batch:
+
+| Recording  | Max cells / frame | Detect (min) |
+|---|---:|---:|
+| Pos26-GOF  |  4 |  73 |
+| Pos14-KO   |  5 |  84 |
+| Pos1-WT    |  8 | 131 |
+| Pos49-Y1   |  9 | 161 |
+| Pos38-OT   | 10 | 210 |
+| Pos2-WT    | 11 | 234 |
+| Pos60-DMSO | 12 | 211 |
+
+Linear fit: **~50 min base + ~17 min per cell**. The base cost
+is cpsam + alignment + downsample (essentially fixed); the
+per-cell cost is dominated by the cascade. Each cell with a gap can
+trigger:
+
+1. **Phase 1 — cpsam(augment=True)**: 4-rotation TTA at each gap.
+2. **Phase 2 — CP3 + MedSAM + DeepSea**: subprocess in `cellpose` env
+   per gap — pays ~5–10 s conda env warmup every time.
+3. **Phase 3 — SAM2 video propagation**: per gap, full-res forward.
+4. **Phase 4 — translation fill**: instant.
+
+For a 12-cell recording, the per-cell cost is dominating the entire
+detect: ~12 × ~17 min = ~200 min, vs ~50 min for everything else.
+
+### Why it matters
+
+A 50 % cost reduction on the cascade saves **1-2 days** off the
+full IC295 batch (65 recordings × ~50 min saved each). A successful
+audit might find that some phases are **redundant for most gaps**
+already filled by earlier phases (CLAUDE.md notes "100 % fill rate
+on tested recordings (41/41 gaps)" — if Phase 1 already gets the
+bulk, Phases 2-3 may be over-engineered for typical IC295).
+
+### Plan (after the current IC295 batch finishes)
+
+- [ ] **S** — Instrument `track_gap_fill.fill_track_gaps` to log
+      time + gaps-resolved per phase per recording. Add to RUN_METADATA.
+- [ ] **M** — Per-phase ablation study on 3-5 representative IC295
+      recordings (sparse, medium, dense): run with each phase toggled
+      off, compare F1 / IoU / ID consistency / division-catch vs the
+      full cascade. Cheap-to-skip phases get a `DEFAULTS` toggle to
+      off; expensive-but-essential phases stay.
+- [ ] **S** — Subprocess overhead audit: Phase 2 calls `conda run -n
+      cellpose` per gap; profile how much of Phase 2's wall time is
+      env warmup vs actual work. If it's mostly warmup, batch all of
+      a recording's Phase-2 gaps into a single subprocess call.
+- [ ] **S** — Confident-detection short-circuit: if a track has no
+      true gaps (every frame has a detection) AND no edge artifacts,
+      skip the cascade entirely. Cheap eligibility check, big payoff.
+- [ ] **M** — Resolution audit: Phase 3 (SAM2) runs at full
+      resolution; cells at downsampled resolution may be enough for
+      gap interpolation. Quick A/B test.
+- [ ] **M** — Consider removing Phase 2 or Phase 3 outright if the
+      ablation shows < 1 % gap-fill rate vs the cost. Document the
+      decision with the F1 / IoU evidence.
+
+### Success criteria
+
+- Concrete per-phase timing + gap-fill yield in `RUN_METADATA.json`.
+- A defensible decision (keep / kill / simplify) for each phase
+  backed by the ablation numbers.
+- Target: ≥ 30 % wall-time reduction on dense recordings, with no
+  measurable F1 / IoU / ID consistency loss on the 13-recording GT
+  corpus.
+
+---
+
+## Priority 0 (closed): Multi-Cell Detection Improvement (Active)
 
 ### Problem
 When multiple cells touch or are close together:

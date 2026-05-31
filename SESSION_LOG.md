@@ -10,6 +10,33 @@ Format: **DATE — short title** with bullets describing what changed
 
 ---
 
+## 2026-05-31 — Flag: 4-phase gap-fill cascade dominates IC295 detect cost
+
+Live timing data from the in-progress IC295 batch (7 real detections
+complete) gave a clean linear fit:
+
+  detect_minutes = ~50 + ~17 * max_cells_per_frame   (R² very high)
+
+For a 12-cell recording (Pos60-DMSO, Pos2-WT, etc), 75-80 % of the
+~3.5 h detect time is per-cell work, and the 4-phase track gap-fill
+cascade (`core/track_gap_fill.fill_track_gaps`) is the bulk of it
+(cpsam-augment / CP3-MedSAM-DeepSea subprocess / SAM2 video / mask
+translation). Phase 2 in particular pays ~5-10 s conda env warmup per
+gap call — likely amortizable.
+
+Flagged for post-batch investigation:
+- `docs/IMPROVEMENTS.md` Priority 0: per-phase instrumentation +
+  ablation study + subprocess batching + confident-detection
+  short-circuit + possible removal of low-yield phases. Target ≥ 30 %
+  wall-time reduction without losing F1 on the 13-recording GT
+  corpus.
+- `CLAUDE.md` "Track gap-fill cascade" section: added a 🚩 marker
+  pointing future agents at the audit.
+
+A 30 % reduction on the cascade is ~1-2 days off the IC295 batch
+(65 recordings × ~50 min saved each), so the optimization payoff is
+concrete.
+
 ## 2026-05-30 — IC295 analysis-run operations guide (`docs/ic295_analysis_run.md`)
 
 Created a dedicated operations guide for the long-running IC295 batch:
