@@ -558,7 +558,12 @@ class MaskEditor(QMainWindow):
         self._update_cell_color_label()
         tools.addWidget(self.cell_color_label)
         btn_new_cell = QPushButton("New Cell")
-        btn_new_cell.setToolTip("Add a new cell ID (next unused)")
+        btn_new_cell.setToolTip(
+            "Set the active cell ID to the lowest unused ID across "
+            "the WHOLE recording. Reuses IDs freed by deleted tracks. "
+            "Use this before adding a brand-new cell (e.g. with the "
+            "SAM2 point tool) so the new mask starts its own track "
+            "instead of accidentally extending an existing one.")
         btn_new_cell.clicked.connect(self._on_new_cell)
         tools.addWidget(btn_new_cell)
         self.chk_show_ids = QCheckBox("Cell IDs")
@@ -1980,12 +1985,25 @@ class MaskEditor(QMainWindow):
         self.cell_spin.setValue(val)
 
     def _on_new_cell(self):
+        """Set the active cell ID to the lowest unused ID across the
+        whole recording (not just the current frame). Reuses IDs left
+        free by deleted tracks. Caps at the spinbox max (30)."""
         if self.masks is None:
             return
-        new_id = next_cell_id(self.masks[self.current_frame])
-        if new_id > 30:
-            new_id = 30
-        self.cell_spin.setValue(new_id)
+        used = set(int(v) for v in np.unique(self.masks))
+        used.discard(0)
+        for cid in range(1, 31):
+            if cid not in used:
+                self.cell_spin.setValue(cid)
+                self.status.showMessage(
+                    f"New cell ID: {cid}  ({len(used)} IDs in use)",
+                    5000)
+                return
+        # All 30 IDs used — keep current spinbox value, warn user
+        self.status.showMessage(
+            "All cell IDs 1–30 are in use across this recording; "
+            "delete a track first or pick an ID to replace.",
+            8000)
 
     def _update_cell_color_label(self):
         r, g, b = cell_color(self.active_cell)
