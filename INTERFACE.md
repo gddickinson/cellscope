@@ -149,6 +149,13 @@ suite 8771. See `gui_focused/remote_control.py` and `CLAUDE.md` for usage.
     and exponential backoff retries. Synthesizes `.ome.json`
     sidecars and repoints `by_condition/<cond>/<label>/` symlinks
     at the local cache. Idempotent / resume-friendly.
+- **gui/mask_editor_sam2_point.py** — SAM2 point-and-click cell
+  detection for the mask editor. Picks "sam2" in the tool palette,
+  one click on a missed cell adds a mask with the active cell ID.
+  Runs SAM2 (Hiera Tiny) on a 512×512 crop around the click for
+  100-200 ms latency. Guards reject too-small / too-large blobs
+  and clicks outside the predicted mask. Apply uses the editor's
+  existing undo stack (Cmd+Z restores).
 - **_paths.py** — Project-root resolver + `benchmark_data_root()` helper
   (env var `BENCHMARK_DATA_ROOT` overrides the default sibling lookup).
   Imported by every benchmark / training script via the standard preamble:

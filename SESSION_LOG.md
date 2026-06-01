@@ -10,6 +10,38 @@ Format: **DATE — short title** with bullets describing what changed
 
 ---
 
+## 2026-06-01 — SAM2 point-and-click cell-detect tool (`gui/mask_editor_sam2_point.py`)
+
+New mask-editor tool addressing the most common review pain point:
+adding a cell that the original cellpose pass missed. Pick "sam2"
+in the tool palette, left-click anywhere on the missed cell, and a
+mask appears under the active cell ID from the spinner.
+
+Why SAM2-on-crop over alternatives:
+- One click vs cellpose-on-rectangle (lower cognitive load)
+- Click is an explicit "this is where" prompt — no missing
+- SAM2 encoder is O(N²); 512×512 crop is ~16× faster than full
+  2048×2048 frame → 100-200 ms per click with no first-click warm-up
+  surprise (which a frame-cache approach would have)
+- Reuses the existing SAM2 tiny checkpoint already in the repo for
+  video gap-fill — no new model dependency
+
+Guards (refuse with clear status message):
+- min/max area: 200 ≤ area ≤ 50000 px. The max guard catches the
+  silent failure mode where SAM2 segments a featureless background
+  region as one giant blob — observed in smoke testing: a click on
+  empty space returned a 260k-px mask with score 0.97 → would have
+  silently corrupted the labels.
+- click must lie inside the predicted mask
+- active cell ID must not already exist in this frame
+
+On success: existing undo stack handles regret (Cmd+Z restores
+frame state). Editor changes minimal: one item added to the tool
+radio list, one elif in canvas mousePressEvent, one ~35-line
+handler `run_sam2_at` on the editor class. New module is 189 lines.
+
+Commit 38f4056.
+
 ## 2026-06-01 — Drive failure recovery: copy source TIFFs from Pathak lab share
 
 GeorgeDrive (Seagate Backup Plus, the IC295 primary store) went into
