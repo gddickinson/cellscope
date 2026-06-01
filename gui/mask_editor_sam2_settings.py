@@ -30,6 +30,8 @@ def default_settings():
         "min_box_area_px": 4096,
         "constrain_to_box": True,
         "box_expand_pct": 10,
+        # quality / speed
+        "use_tta": False,
     }
 
 
@@ -141,6 +143,22 @@ class SAM2SettingsDialog:
         f_box.addRow("Box expand margin:", sp_expand)
         root.addWidget(gb_box)
 
+        # ── Quality / speed ──
+        gb_q = QGroupBox("Quality (slower)")
+        f_q = QFormLayout(gb_q)
+        cb_tta = QCheckBox(
+            "Use test-time augmentation (4 rotations, ~4× slower)")
+        cb_tta.setChecked(bool(settings["use_tta"]))
+        cb_tta.setToolTip(
+            "Run SAM2 at 0°/90°/180°/270° rotations of the crop and "
+            "majority-vote at 0.5. Catches features SAM2 misses at "
+            "the default orientation; particularly useful for cells "
+            "with low-contrast or asymmetric boundaries. Cost: ~250 ms "
+            "per click instead of ~60 ms (warm); first call still pays "
+            "the model-load tax (~3 s).")
+        f_q.addRow(cb_tta)
+        root.addWidget(gb_q)
+
         # ── Buttons ──
         btn_row = QHBoxLayout()
         btn_reset = QPushButton("Reset to defaults")
@@ -165,6 +183,7 @@ class SAM2SettingsDialog:
             sp_minbox.setValue(d["min_box_area_px"])
             cb_constrain.setChecked(d["constrain_to_box"])
             sp_expand.setValue(d["box_expand_pct"])
+            cb_tta.setChecked(d["use_tta"])
 
         btn_reset.clicked.connect(_do_reset)
         btn_cancel.clicked.connect(dlg.reject)
@@ -181,5 +200,6 @@ class SAM2SettingsDialog:
             settings["min_box_area_px"]  = sp_minbox.value()
             settings["constrain_to_box"] = cb_constrain.isChecked()
             settings["box_expand_pct"]   = sp_expand.value()
+            settings["use_tta"]          = cb_tta.isChecked()
             return True
         return False

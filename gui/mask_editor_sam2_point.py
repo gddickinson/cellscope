@@ -78,6 +78,113 @@ def _compute_crop(x, y, H, W, size):
     return x0, y0, x1, y1
 
 
+def _rot_coords_ccw(x, y, k, src_w, src_h):
+    """Rotate a point (x, y) by k × 90° counter-clockwise.
+
+    src_w / src_h are the SOURCE image dimensions (pre-rotation).
+    Returns (x', y') in the rotated image.
+    """
+    k = k % 4
+    if k == 0:
+        return float(x), float(y)
+    if k == 1:
+        return float(y), float(src_w - 1 - x)
+    if k == 2:
+        return float(src_w - 1 - x), float(src_h - 1 - y)
+    return float(src_h - 1 - y), float(x)
+
+
+def _rot_box_ccw(box, k, src_w, src_h):
+    """Rotate axis-aligned box [x0,y0,x1,y1] by k × 90° CCW.
+
+    Result is still axis-aligned (the box's two corners may swap
+    positions; we re-normalise so x0<x1, y0<y1).
+    """
+    x0, y0, x1, y1 = float(box[0]), float(box[1]), float(box[2]), float(box[3])
+    p1 = _rot_coords_ccw(x0, y0, k, src_w, src_h)
+    p2 = _rot_coords_ccw(x1, y1, k, src_w, src_h)
+    import numpy as _np
+    return _np.array([
+        min(p1[0], p2[0]), min(p1[1], p2[1]),
+        max(p1[0], p2[0]), max(p1[1], p2[1]),
+    ], dtype=_np.float32)
+
+
+def _predict_with_tta(predictor, crop_rgb, point_coords, point_labels,
+                     box, allowed, use_tta):
+    """Run SAM2 once or with 4-rotation TTA.
+
+    Returns (best_mask, score) where best_mask is a 2-D bool array
+    in original (un-rotated) crop coordinates and score is the SAM2
+    confidence (per-rotation average when TTA is on).
+
+    When `allowed` is given (the box+margin region in crop coords),
+    candidate selection per rotation is biased toward fits-the-box
+    via score × inside_frac. Otherwise (point mode) the highest-
+    confidence candidate is taken.
+    """
+    crop_h, crop_w = crop_rgb.shape[:2]
+
+    def _pick(masks, scores, allowed_in_rot):
+        if allowed_in_rot is None:
+            return int(np.argmax(scores))
+        best_idx = 0
+        best_combined = -1.0
+        for i in range(len(masks)):
+            m_i = masks[i].astype(bool)
+            tot = int(m_i.sum())
+            if tot == 0:
+                continue
+            inside_frac = float((m_i & allowed_in_rot).sum()) / tot
+            combined = float(scores[i]) * inside_frac
+            if combined > best_combined:
+                best_combined = combined
+                best_idx = i
+        return best_idx
+
+    if not use_tta:
+        predictor.set_image(crop_rgb)
+        masks, scores, _ = predictor.predict(
+            point_coords=point_coords,
+            point_labels=point_labels,
+            box=box,
+            multimask_output=True,
+        )
+        best_idx = _pick(masks, scores, allowed)
+        return masks[best_idx].astype(bool), float(scores[best_idx])
+
+    # 4-rotation TTA. Per rotation: rotate image + prompts + allowed
+    # region, predict, pick best candidate, rotate mask back to k=0.
+    # Final mask = (sum of 4 binary masks) >= 2 — i.e. majority vote.
+    accum = None
+    score_sum = 0.0
+    for k in range(4):
+        rot_img = np.ascontiguousarray(np.rot90(crop_rgb, k))
+        rot_pts = (np.array(
+            [_rot_coords_ccw(p[0], p[1], k, crop_w, crop_h)
+             for p in point_coords], dtype=np.float32)
+            if point_coords is not None else None)
+        rot_box = (_rot_box_ccw(box, k, crop_w, crop_h)
+                   if box is not None else None)
+        rot_allowed = (np.ascontiguousarray(np.rot90(allowed, k))
+                       if allowed is not None else None)
+        predictor.set_image(rot_img)
+        masks, scores, _ = predictor.predict(
+            point_coords=rot_pts,
+            point_labels=point_labels,
+            box=rot_box,
+            multimask_output=True,
+        )
+        best_idx = _pick(masks, scores, rot_allowed)
+        mask_back = np.ascontiguousarray(
+            np.rot90(masks[best_idx].astype(bool), -k))
+        accum = (mask_back.astype(np.float32) if accum is None
+                 else accum + mask_back.astype(np.float32))
+        score_sum += float(scores[best_idx])
+    final = accum >= 2.0  # ≥ 2 of 4 rotations agree
+    return final, score_sum / 4.0
+
+
 def _disk_struct(radius):
     """Circular structuring element of given pixel radius."""
     y, x = np.ogrid[-radius:radius + 1, -radius:radius + 1]
@@ -141,7 +248,8 @@ def predict_at_point(frame_image, click_x, click_y,
                      crop_size=512, min_area_px=200,
                      max_area_px=50000,
                      smooth_radius=2, keep_largest=True,
-                     fill_holes=True):
+                     fill_holes=True,
+                     use_tta=False):
     """Run SAM2 at (click_x, click_y) on a cropped region of frame_image.
 
     Returns a SAM2PointResult. On failure result.ok is False and
@@ -173,19 +281,15 @@ def predict_at_point(frame_image, click_x, click_y,
 
     try:
         with torch.inference_mode():
-            predictor.set_image(crop_rgb)
-            masks, scores, _ = predictor.predict(
+            raw_mask, score = _predict_with_tta(
+                predictor, crop_rgb,
                 point_coords=np.array([[local_x, local_y]]),
                 point_labels=np.array([1]),
-                multimask_output=True,
-            )
+                box=None, allowed=None, use_tta=use_tta)
     except Exception as e:
         return SAM2PointResult(
             False, message=f"SAM2 inference failed: {e!r}")
 
-    best_idx = int(np.argmax(scores))
-    raw_mask = masks[best_idx].astype(bool)
-    score = float(scores[best_idx])
     best_mask = _postprocess_mask(
         raw_mask,
         smooth_radius=smooth_radius,
@@ -225,7 +329,8 @@ def predict_at_box(frame_image, x0, y0, x1, y1,
                    smooth_radius=2, keep_largest=True,
                    fill_holes=True,
                    constrain_to_box=True,
-                   box_expand_frac=0.10):
+                   box_expand_frac=0.10,
+                   use_tta=False):
     """Run SAM2 with a BOX prompt (+ implicit centroid click) on a
     padded crop of frame_image. Returns a SAM2PointResult.
 
@@ -290,64 +395,41 @@ def predict_at_box(frame_image, x0, y0, x1, y1,
         return SAM2PointResult(
             False, message=f"SAM2 load failed: {e!r}")
 
-    try:
-        with torch.inference_mode():
-            predictor.set_image(crop_rgb)
-            masks, scores, _ = predictor.predict(
-                point_coords=np.array([[local_cx, local_cy]]),
-                point_labels=np.array([1]),
-                box=local_box,
-                multimask_output=True,
-            )
-    except Exception as e:
-        return SAM2PointResult(
-            False, message=f"SAM2 inference failed: {e!r}")
-
-    # ── Multi-candidate selection biased toward the user's box ──
-    # SAM2's box prompt is a SOFT constraint — candidates can leak
-    # outside (typical failure: box around a nucleus → SAM2 segments
-    # the whole cell). Build a binary "allowed" region = box expanded
-    # by box_expand_frac on each side. Score each of SAM2's 3
-    # candidates by SAM2-confidence × (fraction of mask inside the
-    # allowed region). The fraction-inside multiplier penalises
-    # candidates that leak, even if SAM2 thinks they're confident.
+    # Build the box+margin "allowed" region once in crop coords.
+    # _predict_with_tta rotates it per rotation to keep the bias
+    # consistent across TTA augmentations. constrain_to_box=False
+    # disables both the bias and the hard clip; allowed is then None.
     crop_h, crop_w = crop.shape[:2]
     box_w_local = local_box[2] - local_box[0]
     box_h_local = local_box[3] - local_box[1]
     mx = int(box_w_local * box_expand_frac)
     my = int(box_h_local * box_expand_frac)
-    allowed = np.zeros((crop_h, crop_w), dtype=bool)
-    ax0 = max(0, int(local_box[0]) - mx)
-    ay0 = max(0, int(local_box[1]) - my)
-    ax1 = min(crop_w, int(local_box[2]) + mx)
-    ay1 = min(crop_h, int(local_box[3]) + my)
-    allowed[ay0:ay1, ax0:ax1] = True
-
+    allowed = None
     if constrain_to_box:
-        best_idx = 0
-        best_combined = -1.0
-        for i in range(len(masks)):
-            m_i = masks[i].astype(bool)
-            tot = int(m_i.sum())
-            if tot == 0:
-                continue
-            inside_frac = float((m_i & allowed).sum()) / tot
-            combined = float(scores[i]) * inside_frac
-            if combined > best_combined:
-                best_combined = combined
-                best_idx = i
-    else:
-        best_idx = int(np.argmax(scores))
+        allowed = np.zeros((crop_h, crop_w), dtype=bool)
+        ax0 = max(0, int(local_box[0]) - mx)
+        ay0 = max(0, int(local_box[1]) - my)
+        ax1 = min(crop_w, int(local_box[2]) + mx)
+        ay1 = min(crop_h, int(local_box[3]) + my)
+        allowed[ay0:ay1, ax0:ax1] = True
 
-    raw_mask = masks[best_idx].astype(bool)
-    score = float(scores[best_idx])
+    try:
+        with torch.inference_mode():
+            raw_mask, score = _predict_with_tta(
+                predictor, crop_rgb,
+                point_coords=np.array([[local_cx, local_cy]]),
+                point_labels=np.array([1]),
+                box=local_box, allowed=allowed, use_tta=use_tta)
+    except Exception as e:
+        return SAM2PointResult(
+            False, message=f"SAM2 inference failed: {e!r}")
 
     # Hard clip: drop any predicted pixels outside the allowed
     # region. This is the second line of defence — even if the
     # picked candidate still leaks, we force the result to respect
     # the user's box (plus margin).
     clipped_pixels = 0
-    if constrain_to_box:
+    if constrain_to_box and allowed is not None:
         before = int(raw_mask.sum())
         raw_mask = raw_mask & allowed
         clipped_pixels = before - int(raw_mask.sum())
