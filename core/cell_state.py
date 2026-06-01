@@ -117,8 +117,14 @@ def state_segments(states):
 
     Returns list of (state, start_frame, end_frame_inclusive).
     Useful for picking pure-state segments for motility analysis.
+
+    Accepts either a Python list or a numpy array — the previous
+    `if not states:` truthiness check raised ValueError on numpy
+    arrays, silently breaking per-state speed analysis (the
+    ic295_analyze_one caller swallowed the exception and wrote
+    mean_speed_attached/balled = None for every cell in the corpus).
     """
-    if not states:
+    if len(states) == 0:
         return []
     out = []
     cur = states[0]
