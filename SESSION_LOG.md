@@ -10,6 +10,53 @@ Format: **DATE — short title** with bullets describing what changed
 
 ---
 
+## 2026-06-01 — Drive failure recovery: copy source TIFFs from Pathak lab share
+
+GeorgeDrive (Seagate Backup Plus, the IC295 primary store) went into
+a SCSI-INQUIRY wedge mid-batch (2026-05-31 ~23 Z). USB enumerates
+cleanly but `IOUSBMassStorageDriver` never publishes an `IOMedia`
+node — `diskutil list external` hangs, Disk Utility shows zero
+devices when the drive is plugged in. Survived cold-boot + cable
+swap; symptom is below `diskarbitrationd`, in the storage stack.
+Drive is functionally dead until cable/enclosure/recovery service
+resolves it.
+
+Two changes to keep working:
+
+1. `scripts/ic295_common.py::inventory_drive()` falls back to scan
+   `CACHE_DIR` when both DRIVE_SOURCES are unreachable. Lets the 5
+   prefetched TIFFs (Pos16-KO + Pos28/41/52/62 from the
+   non-WT/KO/DMSO conditions) keep flowing through the existing
+   pipeline. Detect-and-analyze on those 5 finished cleanly while
+   the drive was gone (commit 837b4fe). New per-condition totals:
+   WT 6, KO 5, GOF 5, Y1 4, OT 5, DMSO 4 → 29 detected, all six
+   conditions at n ≥ 4.
+
+2. `scripts/ic295_copy_from_lab.py` — recovery script to copy
+   master TIFFs from the lab share
+   (`/Volumes/pathaklab/Lab/Ignasi/IC295_ECmigrationwithSirActin/IC295__1`)
+   to local `_cache/`. Driven by `progress.json`, defaults to all
+   `detect.state == 'done'` labels. Atomic `.tmp` + rename copy,
+   size verify, exponential-backoff retries, idempotent. Synthesizes
+   `.ome.json` sidecars (lab source has none — all IC295 recordings
+   share identical microscope metadata so they template trivially
+   from any known-good one). Repoints `by_condition/<cond>/<label>/`
+   symlinks at the local cache so existing pipeline + GUI work
+   transparently. Smoke-tested end-to-end on Pos68-DMSO: 2.45 GB
+   copied, sidecar synthesized, symlinks updated, 0 failures.
+   Observed throughput ~2.6 MB/s on WiFi → 24-label full run is
+   ~6h; wired ethernet should cut that to ~30 min.
+
+Pos60-DMSO and Pos61-DMSO are flagged for re-analysis (mask edits
+applied during the review session before the drive crashed). They'll
+be re-analyzable once their TIFFs land via the copy script.
+
+Plan after recovery: review the 29 detected recordings (currently
+2 accepted + 1 reset-pending + 26 unreviewed), kick off interim
+`ic295_compare.py` on the 27 already-analyzed recordings to see
+treatment signals, and decide whether to detect more beyond n=4 or
+freeze the analysis at the current cohort.
+
 ## 2026-05-31 — Flag: 4-phase gap-fill cascade dominates IC295 detect cost
 
 Live timing data from the in-progress IC295 batch (7 real detections

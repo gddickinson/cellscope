@@ -142,6 +142,13 @@ suite 8771. See `gui_focused/remote_control.py` and `CLAUDE.md` for usage.
     Mann-Whitney (Bonferroni), box+scatter plots. Outputs
     `per_recording.csv` + `per_treatment.csv` + `stats.json` +
     `plots/*.png` under `ic295_analysis/compare/`.
+  - **ic295_copy_from_lab.py** — disaster recovery: copy source
+    TIFFs from `/Volumes/pathaklab/...` to local `_cache/` when the
+    primary drive fails. Driven by `progress.json` (detect.state ==
+    'done' by default). Atomic `.tmp`+rename copy with size verify
+    and exponential backoff retries. Synthesizes `.ome.json`
+    sidecars and repoints `by_condition/<cond>/<label>/` symlinks
+    at the local cache. Idempotent / resume-friendly.
 - **_paths.py** — Project-root resolver + `benchmark_data_root()` helper
   (env var `BENCHMARK_DATA_ROOT` overrides the default sibling lookup).
   Imported by every benchmark / training script via the standard preamble:
