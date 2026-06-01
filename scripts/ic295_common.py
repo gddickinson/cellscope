@@ -57,14 +57,23 @@ def parse_condition(label):
 
 
 def inventory_drive():
-    """Map label -> info dict for every IC295 recording on the drive.
+    """Map label -> info dict for every IC295 recording we can locate.
 
-    Prefers IC295_batch2 on collision (mini's IoU+area run).
+    Primary source: drive folders in DRIVE_SOURCES. Prefers
+    IC295_batch2 on collision (mini's IoU+area run).
+
+    Fallback: when both drive sources are unreachable (drive
+    disconnected, mount stuck, etc.), scan CACHE_DIR for prefetched
+    TIFFs and build entries pointing at the cached copies. This keeps
+    detect/analyze running on whatever's locally available — the
+    queue shrinks to the cached labels but the pipeline still works.
     """
     out = {}
+    drive_seen = False
     for src_name, src_dir in DRIVE_SOURCES.items():
         if not os.path.isdir(src_dir):
             continue
+        drive_seen = True
         for tif in sorted(glob.glob(
                 os.path.join(src_dir, "IC295__1_MMStack_*.ome.tif"))):
             base = os.path.basename(tif)
@@ -89,6 +98,32 @@ def inventory_drive():
             if label in out and src_name == "IC295":
                 continue
             out[label] = info
+    if not drive_seen and os.path.isdir(CACHE_DIR):
+        # Drive offline → fall back to the prefetch cache. video_path
+        # points at the cached TIFF directly; the json sidecar should
+        # also be in the cache (see synthesize_cache_sidecars).
+        for tif in sorted(glob.glob(
+                os.path.join(CACHE_DIR, "IC295__1_MMStack_*.ome.tif"))):
+            base = os.path.basename(tif)
+            label = base.replace("IC295__1_MMStack_", "")\
+                        .replace(".ome.tif", "")
+            cond = parse_condition(label)
+            if cond not in CONDITIONS:
+                continue
+            out[label] = {
+                "label":         label,
+                "condition":     cond,
+                "source_dir":    CACHE_DIR,
+                "source_name":   "_cache",
+                "video_path":    tif,
+                "json_sidecar":  tif.replace(".ome.tif", ".ome.json"),
+                "metadata_txt":  tif.replace(".ome.tif", "_metadata.txt"),
+                # No "drive_masks" adoption path when running offline
+                # — point at a non-existent path so has_drive_detection
+                # returns False.
+                "drive_masks":   os.path.join(
+                    CACHE_DIR, "_no_drive_masks", label, "masks.npz"),
+            }
     return out
 
 
