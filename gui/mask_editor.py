@@ -751,6 +751,15 @@ class MaskEditor(QMainWindow):
             "the 'delete' tool is active.")
         btn_del_id.clicked.connect(self._on_delete_by_id)
         rev.addWidget(btn_del_id)
+        btn_trim = QPushButton("✂ Trim Edges…")
+        btn_trim.setToolTip(
+            "Bulk-remove mask pixels within a user-defined band "
+            "along one or more image edges. Targets the vignette / "
+            "black-margin artefact that produces thin slivers of "
+            "mask along an edge across many frames. Preview before "
+            "applying.")
+        btn_trim.clicked.connect(self._on_trim_edges)
+        rev.addWidget(btn_trim)
         rev.addStretch()
         self.chk_warn_unsaved = QCheckBox("Warn on unsaved")
         self.chk_warn_unsaved.setChecked(True)
@@ -2049,6 +2058,15 @@ class MaskEditor(QMainWindow):
                                       "Load a recording with masks first.")
             return
         FilterCellsDialog(self).exec_()
+
+    def _on_trim_edges(self):
+        """Open the Trim Edges dialog."""
+        if self.masks is None:
+            QMessageBox.information(self, "No masks",
+                                      "Load a recording with masks first.")
+            return
+        from gui.mask_editor_trim_edges import TrimEdgesDialog
+        TrimEdgesDialog(self).exec_()
 
     def delete_cell(self, x, y):
         """Delete the entire cell whose connected component is under
