@@ -78,6 +78,51 @@ def _compute_crop(x, y, H, W, size):
     return x0, y0, x1, y1
 
 
+def _disk_struct(radius):
+    """Circular structuring element of given pixel radius."""
+    y, x = np.ogrid[-radius:radius + 1, -radius:radius + 1]
+    return (x * x + y * y) <= radius * radius
+
+
+def _postprocess_mask(raw_mask, smooth_radius=2,
+                      keep_largest=True, fill_holes=True):
+    """Clean up a raw SAM2 mask. Applied to every predicted mask
+    before the guards run (so the area check sees the final, cleaned
+    mask, not the raw noisy one).
+
+    Steps, in order:
+      1. keep_largest: drop detached connected components, keep only
+         the biggest. Removes the small "noise blobs" SAM2 sometimes
+         outputs alongside the main cell on textured DIC backgrounds.
+      2. fill_holes: fill background pixels fully surrounded by the
+         mask. Handles single-pixel gaps inside the cell body that
+         would otherwise show as little holes.
+      3. smooth_radius: morphological closing with a disk of given
+         radius. Smooths the jagged single-pixel-staircase boundary
+         SAM2 produces on low-contrast edges. Default radius 2 is
+         conservative — closes gaps up to ~4 px wide without changing
+         overall cell shape.
+
+    Returns a clean bool mask of the same shape as raw_mask.
+    """
+    from scipy import ndimage
+    m = raw_mask.astype(bool)
+    if not m.any():
+        return m
+    if keep_largest:
+        labeled, n = ndimage.label(m)
+        if n > 1:
+            sizes = ndimage.sum(m, labeled, range(1, n + 1))
+            pick = int(np.argmax(sizes)) + 1
+            m = labeled == pick
+    if fill_holes:
+        m = ndimage.binary_fill_holes(m)
+    if smooth_radius > 0:
+        struct = _disk_struct(smooth_radius)
+        m = ndimage.binary_closing(m, structure=struct)
+    return m.astype(bool)
+
+
 class SAM2PointResult:
     """Outcome of a single point-prediction attempt."""
 
@@ -94,7 +139,9 @@ class SAM2PointResult:
 
 def predict_at_point(frame_image, click_x, click_y,
                      crop_size=512, min_area_px=200,
-                     max_area_px=50000):
+                     max_area_px=50000,
+                     smooth_radius=2, keep_largest=True,
+                     fill_holes=True):
     """Run SAM2 at (click_x, click_y) on a cropped region of frame_image.
 
     Returns a SAM2PointResult. On failure result.ok is False and
@@ -137,8 +184,13 @@ def predict_at_point(frame_image, click_x, click_y,
             False, message=f"SAM2 inference failed: {e!r}")
 
     best_idx = int(np.argmax(scores))
-    best_mask = masks[best_idx].astype(bool)
+    raw_mask = masks[best_idx].astype(bool)
     score = float(scores[best_idx])
+    best_mask = _postprocess_mask(
+        raw_mask,
+        smooth_radius=smooth_radius,
+        keep_largest=keep_largest,
+        fill_holes=fill_holes)
 
     if not best_mask[local_y, local_x]:
         return SAM2PointResult(
@@ -169,7 +221,9 @@ def predict_at_box(frame_image, x0, y0, x1, y1,
                    min_box_area_px=4096,
                    max_box_area_frac=0.5,
                    min_area_px=200,
-                   max_area_cap_px=50000):
+                   max_area_cap_px=50000,
+                   smooth_radius=2, keep_largest=True,
+                   fill_holes=True):
     """Run SAM2 with a BOX prompt (+ implicit centroid click) on a
     padded crop of frame_image. Returns a SAM2PointResult.
 
@@ -248,8 +302,13 @@ def predict_at_box(frame_image, x0, y0, x1, y1,
             False, message=f"SAM2 inference failed: {e!r}")
 
     best_idx = int(np.argmax(scores))
-    best_mask = masks[best_idx].astype(bool)
+    raw_mask = masks[best_idx].astype(bool)
     score = float(scores[best_idx])
+    best_mask = _postprocess_mask(
+        raw_mask,
+        smooth_radius=smooth_radius,
+        keep_largest=keep_largest,
+        fill_holes=fill_holes)
 
     area = int(best_mask.sum())
     if area < min_area_px:
@@ -275,22 +334,3 @@ def id_exists_in_frame(labels_3d, frame_idx, target_id):
     """True if any pixel of frame_idx is labelled target_id."""
     return bool(np.any(labels_3d[frame_idx] == target_id))
 
-
-def apply_to_labels(labels_3d, frame_idx, result, target_id):
-    """Paste result.mask into labels_3d[frame_idx] with target_id.
-
-    Returns the pre-modification snapshot of labels_3d[frame_idx]
-    for the caller to push onto the undo stack.
-
-    Pixels outside the predicted mask — even within the crop bounds
-    — are untouched. Existing labels at pixels INSIDE the new mask
-    are overwritten (the user clicked there on purpose).
-    """
-    snapshot = labels_3d[frame_idx].copy()
-    h_crop, w_crop = result.mask.shape
-    y0 = result.y0
-    x0 = result.x0
-    region = labels_3d[frame_idx, y0:y0 + h_crop, x0:x0 + w_crop]
-    region[result.mask] = target_id
-    labels_3d[frame_idx, y0:y0 + h_crop, x0:x0 + w_crop] = region
-    return snapshot

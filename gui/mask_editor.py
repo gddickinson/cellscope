@@ -430,6 +430,10 @@ class MaskEditor(QMainWindow):
         self.frames = None          # (N, H, W) uint8
         self.masks = None           # (N, H, W) int32 — 0=bg, 1,2,...=cell IDs
         self.name = "recording"
+        # SAM2 tool settings (mutated by the SAM2 → Options dialog;
+        # threaded into predict_at_point / predict_at_box at click time)
+        from gui.mask_editor_sam2_settings import default_settings
+        self.sam2_settings = default_settings()
         # Canonical path the editor was launched against (passed to
         # `__init__`). Used by Save-In-Place (Ctrl+S) so reviewer
         # workflows can write back to the source `masks.npz`. Drag-drop
@@ -804,6 +808,14 @@ class MaskEditor(QMainWindow):
         self.status = QStatusBar()
         self.setStatusBar(self.status)
         self.status.showMessage("Ready — load a video to begin")
+
+        # Menubar — currently just holds the SAM2 settings entry.
+        # On macOS this appears in the global menu bar at top of
+        # screen; on Linux/Windows it's attached to the window.
+        mb = self.menuBar()
+        sam2_menu = mb.addMenu("SAM2")
+        act_settings = sam2_menu.addAction("Options…")
+        act_settings.triggered.connect(self._on_sam2_settings)
 
         # Keyboard shortcuts
         QShortcut(QKeySequence("Left"), self, activated=self.prev_frame)
@@ -1816,6 +1828,15 @@ class MaskEditor(QMainWindow):
             m[comp] = self.active_cell
         self._redraw()
 
+    def _on_sam2_settings(self):
+        """Menu handler: open the SAM2 Options dialog and update
+        self.sam2_settings in place if the user accepts."""
+        from gui.mask_editor_sam2_settings import SAM2SettingsDialog
+        if SAM2SettingsDialog.show(self, self.sam2_settings):
+            self.status.showMessage(
+                "SAM2 settings updated — next click uses new values",
+                5000)
+
     def run_sam2_box_at(self, x0, y0, x1, y1):
         """SAM2 box-drag tool handler. Detect cell within the box and
         add to current frame with self.active_cell as the ID. The
@@ -1838,7 +1859,16 @@ class MaskEditor(QMainWindow):
         self.status.showMessage(
             f"SAM2 box [{x0},{y0}–{x1},{y1}] for ID {target_id}…")
         QApplication.processEvents()
-        result = predict_at_box(self.frames[fi], x0, y0, x1, y1)
+        s = self.sam2_settings
+        result = predict_at_box(
+            self.frames[fi], x0, y0, x1, y1,
+            pad_px=s["pad_px"],
+            min_box_area_px=s["min_box_area_px"],
+            min_area_px=s["min_area_px"],
+            max_area_cap_px=s["max_area_cap_px"],
+            smooth_radius=s["smooth_radius"],
+            keep_largest=s["keep_largest"],
+            fill_holes=s["fill_holes"])
         if not result.ok:
             self.status.showMessage(f"SAM2 box: {result.message}", 8000)
             return
@@ -1878,7 +1908,15 @@ class MaskEditor(QMainWindow):
         self.status.showMessage(
             f"SAM2 running at ({x}, {y}) for ID {target_id}…")
         QApplication.processEvents()
-        result = predict_at_point(self.frames[fi], x, y)
+        s = self.sam2_settings
+        result = predict_at_point(
+            self.frames[fi], x, y,
+            crop_size=s["crop_size"],
+            min_area_px=s["min_area_px"],
+            max_area_px=s["max_area_cap_px"],
+            smooth_radius=s["smooth_radius"],
+            keep_largest=s["keep_largest"],
+            fill_holes=s["fill_holes"])
         if not result.ok:
             self.status.showMessage(f"SAM2: {result.message}", 8000)
             return
