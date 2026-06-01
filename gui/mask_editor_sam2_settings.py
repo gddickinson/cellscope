@@ -32,6 +32,9 @@ def default_settings():
         "box_expand_pct": 10,
         # quality / speed
         "use_tta": False,
+        # input channels
+        "use_fluo": True,
+        "fluo_min_max": 30,
     }
 
 
@@ -159,6 +162,35 @@ class SAM2SettingsDialog:
         f_q.addRow(cb_tta)
         root.addWidget(gb_q)
 
+        # ── Input channels ──
+        gb_inp = QGroupBox("Input channels")
+        f_inp = QFormLayout(gb_inp)
+        cb_fluo = QCheckBox(
+            "Use fluorescence channel when present")
+        cb_fluo.setChecked(bool(settings["use_fluo"]))
+        cb_fluo.setToolTip(
+            "When the recording has a fluorescence channel (e.g. Cy5), "
+            "pack it into SAM2's red channel alongside DIC in "
+            "green+blue. SAM2's encoder sees both signals — "
+            "fluorescence as a localisation cue (nucleus stains "
+            "are bright), DIC for boundary detection. No extra "
+            "inference cost — same one encoder pass with a richer "
+            "input.")
+        f_inp.addRow(cb_fluo)
+        sp_fluo_min = QSpinBox()
+        sp_fluo_min.setRange(0, 255)
+        sp_fluo_min.setValue(int(settings["fluo_min_max"]))
+        sp_fluo_min.setToolTip(
+            "Per-crop guard against weak fluorescence harming the "
+            "detection. If the crop's brightest fluo pixel is below "
+            "this value (0-255), we silently fall back to DIC-only "
+            "for that cell — strong-Cy5 cells use both channels, "
+            "weak-Cy5 cells use just DIC. The status bar shows "
+            '"+Cy5" or "Cy5 off (weak)" after each click so you '
+            "can see which path was taken.")
+        f_inp.addRow("Min fluo signal (0-255):", sp_fluo_min)
+        root.addWidget(gb_inp)
+
         # ── Buttons ──
         btn_row = QHBoxLayout()
         btn_reset = QPushButton("Reset to defaults")
@@ -184,6 +216,8 @@ class SAM2SettingsDialog:
             cb_constrain.setChecked(d["constrain_to_box"])
             sp_expand.setValue(d["box_expand_pct"])
             cb_tta.setChecked(d["use_tta"])
+            cb_fluo.setChecked(d["use_fluo"])
+            sp_fluo_min.setValue(d["fluo_min_max"])
 
         btn_reset.clicked.connect(_do_reset)
         btn_cancel.clicked.connect(dlg.reject)
@@ -201,5 +235,7 @@ class SAM2SettingsDialog:
             settings["constrain_to_box"] = cb_constrain.isChecked()
             settings["box_expand_pct"]   = sp_expand.value()
             settings["use_tta"]          = cb_tta.isChecked()
+            settings["use_fluo"]         = cb_fluo.isChecked()
+            settings["fluo_min_max"]     = sp_fluo_min.value()
             return True
         return False

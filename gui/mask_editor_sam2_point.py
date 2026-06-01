@@ -69,6 +69,34 @@ def _grayscale_to_rgb(arr):
     return arr
 
 
+def _compose_rgb(dic, fluo=None, fluo_min_max=30):
+    """Build a 3-channel uint8 RGB image for SAM2 from microscopy
+    channels.
+
+    No fluo: tile DIC to all 3 channels (same as _grayscale_to_rgb).
+    With fluo + meaningful signal: pack as R=fluo, G=DIC, B=DIC.
+      SAM2's encoder then sees the fluorescence signal as a
+      localisation cue (nucleus stains are bright on the R channel)
+      while still having DIC for boundary information in G+B. No
+      extra inference cost — same one encoder pass with a richer
+      input.
+    With fluo but weak signal (crop's max < fluo_min_max):
+      auto fall back to DIC-only. Otherwise SAM2 would see a
+      near-black R channel which can be misinterpreted as a
+      shadow / boundary feature, subtly pulling the mask. Default
+      threshold 30/255 ≈ 12 % of full range — anything dimmer is
+      mostly noise.
+
+    Convention R=fluo follows microscopy display norms (Cy5 → red).
+    Channels must already have matching (H, W) shapes.
+    """
+    if fluo is None or dic.shape != fluo.shape:
+        return _grayscale_to_rgb(dic), False
+    if int(fluo.max()) < int(fluo_min_max):
+        return _grayscale_to_rgb(dic), False
+    return np.stack([fluo, dic, dic], axis=-1), True
+
+
 def _compute_crop(x, y, H, W, size):
     half = size // 2
     y0 = max(0, y - half)
@@ -78,111 +106,7 @@ def _compute_crop(x, y, H, W, size):
     return x0, y0, x1, y1
 
 
-def _rot_coords_ccw(x, y, k, src_w, src_h):
-    """Rotate a point (x, y) by k × 90° counter-clockwise.
-
-    src_w / src_h are the SOURCE image dimensions (pre-rotation).
-    Returns (x', y') in the rotated image.
-    """
-    k = k % 4
-    if k == 0:
-        return float(x), float(y)
-    if k == 1:
-        return float(y), float(src_w - 1 - x)
-    if k == 2:
-        return float(src_w - 1 - x), float(src_h - 1 - y)
-    return float(src_h - 1 - y), float(x)
-
-
-def _rot_box_ccw(box, k, src_w, src_h):
-    """Rotate axis-aligned box [x0,y0,x1,y1] by k × 90° CCW.
-
-    Result is still axis-aligned (the box's two corners may swap
-    positions; we re-normalise so x0<x1, y0<y1).
-    """
-    x0, y0, x1, y1 = float(box[0]), float(box[1]), float(box[2]), float(box[3])
-    p1 = _rot_coords_ccw(x0, y0, k, src_w, src_h)
-    p2 = _rot_coords_ccw(x1, y1, k, src_w, src_h)
-    import numpy as _np
-    return _np.array([
-        min(p1[0], p2[0]), min(p1[1], p2[1]),
-        max(p1[0], p2[0]), max(p1[1], p2[1]),
-    ], dtype=_np.float32)
-
-
-def _predict_with_tta(predictor, crop_rgb, point_coords, point_labels,
-                     box, allowed, use_tta):
-    """Run SAM2 once or with 4-rotation TTA.
-
-    Returns (best_mask, score) where best_mask is a 2-D bool array
-    in original (un-rotated) crop coordinates and score is the SAM2
-    confidence (per-rotation average when TTA is on).
-
-    When `allowed` is given (the box+margin region in crop coords),
-    candidate selection per rotation is biased toward fits-the-box
-    via score × inside_frac. Otherwise (point mode) the highest-
-    confidence candidate is taken.
-    """
-    crop_h, crop_w = crop_rgb.shape[:2]
-
-    def _pick(masks, scores, allowed_in_rot):
-        if allowed_in_rot is None:
-            return int(np.argmax(scores))
-        best_idx = 0
-        best_combined = -1.0
-        for i in range(len(masks)):
-            m_i = masks[i].astype(bool)
-            tot = int(m_i.sum())
-            if tot == 0:
-                continue
-            inside_frac = float((m_i & allowed_in_rot).sum()) / tot
-            combined = float(scores[i]) * inside_frac
-            if combined > best_combined:
-                best_combined = combined
-                best_idx = i
-        return best_idx
-
-    if not use_tta:
-        predictor.set_image(crop_rgb)
-        masks, scores, _ = predictor.predict(
-            point_coords=point_coords,
-            point_labels=point_labels,
-            box=box,
-            multimask_output=True,
-        )
-        best_idx = _pick(masks, scores, allowed)
-        return masks[best_idx].astype(bool), float(scores[best_idx])
-
-    # 4-rotation TTA. Per rotation: rotate image + prompts + allowed
-    # region, predict, pick best candidate, rotate mask back to k=0.
-    # Final mask = (sum of 4 binary masks) >= 2 — i.e. majority vote.
-    accum = None
-    score_sum = 0.0
-    for k in range(4):
-        rot_img = np.ascontiguousarray(np.rot90(crop_rgb, k))
-        rot_pts = (np.array(
-            [_rot_coords_ccw(p[0], p[1], k, crop_w, crop_h)
-             for p in point_coords], dtype=np.float32)
-            if point_coords is not None else None)
-        rot_box = (_rot_box_ccw(box, k, crop_w, crop_h)
-                   if box is not None else None)
-        rot_allowed = (np.ascontiguousarray(np.rot90(allowed, k))
-                       if allowed is not None else None)
-        predictor.set_image(rot_img)
-        masks, scores, _ = predictor.predict(
-            point_coords=rot_pts,
-            point_labels=point_labels,
-            box=rot_box,
-            multimask_output=True,
-        )
-        best_idx = _pick(masks, scores, rot_allowed)
-        mask_back = np.ascontiguousarray(
-            np.rot90(masks[best_idx].astype(bool), -k))
-        accum = (mask_back.astype(np.float32) if accum is None
-                 else accum + mask_back.astype(np.float32))
-        score_sum += float(scores[best_idx])
-    final = accum >= 2.0  # ≥ 2 of 4 rotations agree
-    return final, score_sum / 4.0
+from gui.mask_editor_sam2_ensemble import _predict_with_tta  # noqa: E402
 
 
 def _disk_struct(radius):
@@ -245,6 +169,7 @@ class SAM2PointResult:
 
 
 def predict_at_point(frame_image, click_x, click_y,
+                     fluo_image=None, fluo_min_max=30,
                      crop_size=512, min_area_px=200,
                      max_area_px=50000,
                      smooth_radius=2, keep_largest=True,
@@ -269,7 +194,10 @@ def predict_at_point(frame_image, click_x, click_y,
 
     x0, y0, x1, y1 = _compute_crop(click_x, click_y, H, W, crop_size)
     crop = frame_image[y0:y1, x0:x1]
-    crop_rgb = _grayscale_to_rgb(crop)
+    fluo_crop = (fluo_image[y0:y1, x0:x1]
+                 if fluo_image is not None else None)
+    crop_rgb, used_fluo = _compose_rgb(
+        crop, fluo_crop, fluo_min_max=fluo_min_max)
     local_x = click_x - x0
     local_y = click_y - y0
 
@@ -314,13 +242,16 @@ def predict_at_point(frame_image, click_x, click_y,
             message=(f"detected mask too large ({area} px) — likely "
                      f"background blob; click closer to the cell"))
 
+    fluo_note = "" if fluo_image is None else (
+        ", +Cy5" if used_fluo else ", Cy5 off (weak)")
     return SAM2PointResult(
         True, mask=best_mask, x0=x0, y0=y0,
         score=score, area=area,
-        message=f"area={area} px, score={score:.2f}")
+        message=f"area={area} px, score={score:.2f}{fluo_note}")
 
 
 def predict_at_box(frame_image, x0, y0, x1, y1,
+                   fluo_image=None, fluo_min_max=30,
                    pad_px=64,
                    min_box_area_px=4096,
                    max_box_area_frac=0.5,
@@ -380,7 +311,10 @@ def predict_at_box(frame_image, x0, y0, x1, y1,
     cx1 = min(W, x1n + pad_px)
     cy1 = min(H, y1n + pad_px)
     crop = frame_image[cy0:cy1, cx0:cx1]
-    crop_rgb = _grayscale_to_rgb(crop)
+    fluo_crop = (fluo_image[cy0:cy1, cx0:cx1]
+                 if fluo_image is not None else None)
+    crop_rgb, used_fluo = _compose_rgb(
+        crop, fluo_crop, fluo_min_max=fluo_min_max)
 
     local_box = np.array(
         [x0n - cx0, y0n - cy0, x1n - cx0, y1n - cy0], dtype=np.float32)
@@ -457,10 +391,13 @@ def predict_at_box(frame_image, x0, y0, x1, y1,
     clip_note = (f", clipped {clipped_pixels} px to box+"
                  f"{int(box_expand_frac * 100)}%"
                  if clipped_pixels > 0 else "")
+    fluo_note = "" if fluo_image is None else (
+        ", +Cy5" if used_fluo else ", Cy5 off (weak)")
     return SAM2PointResult(
         True, mask=best_mask, x0=cx0, y0=cy0,
         score=score, area=area,
-        message=f"box: area={area} px, score={score:.2f}{clip_note}")
+        message=(f"box: area={area} px, score={score:.2f}"
+                 f"{clip_note}{fluo_note}"))
 
 
 def apply_to_labels(labels_3d, frame_idx, result, target_id):

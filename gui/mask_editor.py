@@ -1891,8 +1891,14 @@ class MaskEditor(QMainWindow):
         self.status.showMessage(
             f"SAM2 box [{x0},{y0}–{x1},{y1}] for ID {target_id}…")
         s = self.sam2_settings
+        fluo = (self.fluo_frames[fi]
+                if (s.get("use_fluo", True)
+                    and getattr(self, "fluo_frames", None) is not None)
+                else None)
         result = predict_at_box(
             self.frames[fi], x0, y0, x1, y1,
+            fluo_image=fluo,
+            fluo_min_max=s.get("fluo_min_max", 30),
             pad_px=s["pad_px"],
             min_box_area_px=s["min_box_area_px"],
             min_area_px=s["min_area_px"],
@@ -1951,8 +1957,14 @@ class MaskEditor(QMainWindow):
         self.status.showMessage(
             f"SAM2 running at ({x}, {y}) for ID {target_id}…")
         s = self.sam2_settings
+        fluo = (self.fluo_frames[fi]
+                if (s.get("use_fluo", True)
+                    and getattr(self, "fluo_frames", None) is not None)
+                else None)
         result = predict_at_point(
             self.frames[fi], x, y,
+            fluo_image=fluo,
+            fluo_min_max=s.get("fluo_min_max", 30),
             crop_size=s["crop_size"],
             min_area_px=s["min_area_px"],
             max_area_px=s["max_area_cap_px"],
