@@ -23,7 +23,7 @@ import argparse
 import json
 import numpy as np
 import cv2
-from PyQt5.QtCore import Qt, QPointF, pyqtSignal
+from PyQt5.QtCore import Qt, QPointF, QRect, QSize, pyqtSignal
 from PyQt5.QtGui import QImage, QPainter, QPen, QColor, QPixmap, QKeySequence
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -31,7 +31,7 @@ from PyQt5.QtWidgets import (
     QRadioButton, QSpinBox, QMessageBox, QShortcut, QStatusBar,
     QCheckBox, QGraphicsView, QGraphicsScene, QGraphicsPixmapItem,
     QDialog, QDoubleSpinBox, QListWidget, QListWidgetItem,
-    QInputDialog, QTabWidget, QDesktopWidget,
+    QInputDialog, QTabWidget, QDesktopWidget, QRubberBand,
 )
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -59,6 +59,11 @@ class MaskCanvas(QGraphicsView):
         # Right-button drag panning state
         self.panning = False
         self._pan_start = None
+        # SAM2 box-prompt drag state. Rubber band is created lazily
+        # on first sam2-box drag (so unused tool doesn't cost a widget).
+        self.rubber_band = None
+        self.sam2_box_origin = None       # viewport coords at drag start
+        self.sam2_box_dragging = False
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         # Accept drops here too — QGraphicsView fills most of the
@@ -121,6 +126,16 @@ class MaskCanvas(QGraphicsView):
                     self.editor.delete_cell(x, y)
             elif tool == "sam2":
                 self.editor.run_sam2_at(x, y)
+            elif tool == "sam2-box":
+                # Start a rubber-band drag in viewport coordinates.
+                if self.rubber_band is None:
+                    self.rubber_band = QRubberBand(
+                        QRubberBand.Rectangle, self.viewport())
+                self.sam2_box_origin = event.pos()
+                self.sam2_box_dragging = True
+                self.rubber_band.setGeometry(
+                    QRect(self.sam2_box_origin, QSize(0, 0)))
+                self.rubber_band.show()
         elif event.button() == Qt.RightButton:
             # Shift + Right-click starts a drag-pan. Plain right-click
             # is reserved for the polygon tool (commits the polygon
@@ -141,6 +156,10 @@ class MaskCanvas(QGraphicsView):
     def mouseMoveEvent(self, event):
         x, y = self._scene_pos(event)
         self.editor.show_coords(x, y)
+        if self.sam2_box_dragging and self.rubber_band is not None:
+            self.rubber_band.setGeometry(
+                QRect(self.sam2_box_origin, event.pos()).normalized())
+            return
         if self.panning and self._pan_start is not None:
             # Translate scrollbars by the cursor delta so the image
             # follows the mouse. Note: y axis uses inverse delta because
@@ -161,6 +180,20 @@ class MaskCanvas(QGraphicsView):
         if self.drawing:
             self.drawing = False
             self.editor.end_stroke()
+        if (self.sam2_box_dragging
+                and event.button() == Qt.LeftButton):
+            self.sam2_box_dragging = False
+            if self.rubber_band is not None:
+                self.rubber_band.hide()
+            # Map viewport corners → scene (image) coordinates.
+            # Both corners must go through mapToScene so zoom + pan
+            # are honoured. _scene_pos handles the rounding for one
+            # corner; do the same for the origin.
+            p0_sc = self.mapToScene(self.sam2_box_origin)
+            x0 = int(round(p0_sc.x()))
+            y0 = int(round(p0_sc.y()))
+            x1, y1 = self._scene_pos(event)
+            self.editor.run_sam2_box_at(x0, y0, x1, y1)
         if self.panning and event.button() == Qt.RightButton:
             self.panning = False
             self._pan_start = None
@@ -495,14 +528,22 @@ class MaskEditor(QMainWindow):
         tools.addWidget(QLabel("Tool:"))
         self.tool_group = QButtonGroup(self)
         for name in ["brush", "eraser", "polygon", "fill", "relabel",
-                     "delete", "sam2"]:
+                     "delete", "sam2", "sam2-box"]:
             rb = QRadioButton(name)
             if name == "sam2":
                 rb.setToolTip(
                     "SAM2 point-click: left-click on an unlabelled "
                     "cell to detect and add it to this frame using "
                     "the active cell ID from the spinner. Runs on a "
-                    "512×512 crop centred at the click (~100-200 ms).")
+                    "512×512 crop centred at the click (~100-200 ms). "
+                    "Best for cells with clear boundaries.")
+            elif name == "sam2-box":
+                rb.setToolTip(
+                    "SAM2 box-drag: click-drag a rectangle around a "
+                    "single cell. The box hints at the cell's size, "
+                    "so SAM2 finds the boundary even when contrast "
+                    "is low (DIC membrane edges, shadowed cells). "
+                    "Use this when the point-click tool undershoots.")
             rb.toggled.connect(lambda checked, n=name: self._on_tool(n, checked))
             tools.addWidget(rb)
             self.tool_group.addButton(rb)
@@ -1774,6 +1815,42 @@ class MaskEditor(QMainWindow):
             comp = labeled == labeled[y, x]
             m[comp] = self.active_cell
         self._redraw()
+
+    def run_sam2_box_at(self, x0, y0, x1, y1):
+        """SAM2 box-drag tool handler. Detect cell within the box and
+        add to current frame with self.active_cell as the ID. The
+        backend rejects tiny / huge boxes (accidental drags) and
+        masks that leak beyond box_area × 1.3.
+        """
+        if self.masks is None or self.frames is None:
+            self.status.showMessage("Load a recording first")
+            return
+        from gui.mask_editor_sam2_point import (
+            predict_at_box, apply_to_labels, id_exists_in_frame)
+        target_id = int(self.active_cell)
+        fi = self.current_frame
+        if id_exists_in_frame(self.masks, fi, target_id):
+            self.status.showMessage(
+                f"Cell ID {target_id} already present on frame {fi} "
+                f"— pick a different ID or delete the existing first",
+                8000)
+            return
+        self.status.showMessage(
+            f"SAM2 box [{x0},{y0}–{x1},{y1}] for ID {target_id}…")
+        QApplication.processEvents()
+        result = predict_at_box(self.frames[fi], x0, y0, x1, y1)
+        if not result.ok:
+            self.status.showMessage(f"SAM2 box: {result.message}", 8000)
+            return
+        snapshot = apply_to_labels(self.masks, fi, result, target_id)
+        self.undo_stacks.setdefault(fi, []).append(snapshot)
+        if len(self.undo_stacks[fi]) > self.max_undo:
+            self.undo_stacks[fi].pop(0)
+        self._dirty_frames.add(fi)
+        self._redraw()
+        self.status.showMessage(
+            f"SAM2 box: added cell {target_id} on frame {fi}  "
+            f"({result.message})", 8000)
 
     def run_sam2_at(self, x, y):
         """SAM2 point-click tool handler. Detect cell at (x, y) and
