@@ -119,6 +119,8 @@ class MaskCanvas(QGraphicsView):
                             self.editor.delete_cell_track(cid)
                 else:
                     self.editor.delete_cell(x, y)
+            elif tool == "sam2":
+                self.editor.run_sam2_at(x, y)
         elif event.button() == Qt.RightButton:
             # Shift + Right-click starts a drag-pan. Plain right-click
             # is reserved for the polygon tool (commits the polygon
@@ -493,8 +495,14 @@ class MaskEditor(QMainWindow):
         tools.addWidget(QLabel("Tool:"))
         self.tool_group = QButtonGroup(self)
         for name in ["brush", "eraser", "polygon", "fill", "relabel",
-                     "delete"]:
+                     "delete", "sam2"]:
             rb = QRadioButton(name)
+            if name == "sam2":
+                rb.setToolTip(
+                    "SAM2 point-click: left-click on an unlabelled "
+                    "cell to detect and add it to this frame using "
+                    "the active cell ID from the spinner. Runs on a "
+                    "512×512 crop centred at the click (~100-200 ms).")
             rb.toggled.connect(lambda checked, n=name: self._on_tool(n, checked))
             tools.addWidget(rb)
             self.tool_group.addButton(rb)
@@ -1761,6 +1769,46 @@ class MaskEditor(QMainWindow):
             comp = labeled == labeled[y, x]
             m[comp] = self.active_cell
         self._redraw()
+
+    def run_sam2_at(self, x, y):
+        """SAM2 point-click tool handler. Detect cell at (x, y) and
+        add to current frame with self.active_cell as the ID.
+
+        Refuses on:
+          - no recording loaded
+          - ID already used in this frame
+          - SAM2 returns no usable mask (low area / click outside)
+        Pushes the prior frame state to undo on success.
+        """
+        if self.masks is None or self.frames is None:
+            self.status.showMessage("Load a recording first")
+            return
+        from gui.mask_editor_sam2_point import (
+            predict_at_point, apply_to_labels, id_exists_in_frame)
+        target_id = int(self.active_cell)
+        fi = self.current_frame
+        if id_exists_in_frame(self.masks, fi, target_id):
+            self.status.showMessage(
+                f"Cell ID {target_id} already present on frame {fi} "
+                f"— pick a different ID or delete the existing first",
+                8000)
+            return
+        self.status.showMessage(
+            f"SAM2 running at ({x}, {y}) for ID {target_id}…")
+        QApplication.processEvents()
+        result = predict_at_point(self.frames[fi], x, y)
+        if not result.ok:
+            self.status.showMessage(f"SAM2: {result.message}", 8000)
+            return
+        snapshot = apply_to_labels(self.masks, fi, result, target_id)
+        self.undo_stacks.setdefault(fi, []).append(snapshot)
+        if len(self.undo_stacks[fi]) > self.max_undo:
+            self.undo_stacks[fi].pop(0)
+        self._dirty_frames.add(fi)
+        self._redraw()
+        self.status.showMessage(
+            f"SAM2: added cell {target_id} on frame {fi}  "
+            f"({result.message})", 8000)
 
     def delete_cell_track(self, cell_id):
         """Remove the given cell ID from every frame it appears in.
