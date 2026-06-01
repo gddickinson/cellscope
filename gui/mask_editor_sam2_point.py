@@ -330,6 +330,26 @@ def predict_at_box(frame_image, x0, y0, x1, y1,
         message=f"box: area={area} px, score={score:.2f}")
 
 
+def apply_to_labels(labels_3d, frame_idx, result, target_id):
+    """Paste result.mask into labels_3d[frame_idx] with target_id.
+
+    Returns the pre-modification snapshot of labels_3d[frame_idx]
+    so the caller can push it onto the undo stack.
+
+    Pixels outside the predicted mask — even within the crop bounds
+    — are untouched. Existing labels at pixels INSIDE the new mask
+    are overwritten (the user prompted there on purpose).
+    """
+    snapshot = labels_3d[frame_idx].copy()
+    h_crop, w_crop = result.mask.shape
+    y0 = result.y0
+    x0 = result.x0
+    region = labels_3d[frame_idx, y0:y0 + h_crop, x0:x0 + w_crop]
+    region[result.mask] = target_id
+    labels_3d[frame_idx, y0:y0 + h_crop, x0:x0 + w_crop] = region
+    return snapshot
+
+
 def id_exists_in_frame(labels_3d, frame_idx, target_id):
     """True if any pixel of frame_idx is labelled target_id."""
     return bool(np.any(labels_3d[frame_idx] == target_id))

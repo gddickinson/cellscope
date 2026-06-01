@@ -185,15 +185,26 @@ class MaskCanvas(QGraphicsView):
             self.sam2_box_dragging = False
             if self.rubber_band is not None:
                 self.rubber_band.hide()
-            # Map viewport corners → scene (image) coordinates.
-            # Both corners must go through mapToScene so zoom + pan
-            # are honoured. _scene_pos handles the rounding for one
-            # corner; do the same for the origin.
-            p0_sc = self.mapToScene(self.sam2_box_origin)
-            x0 = int(round(p0_sc.x()))
-            y0 = int(round(p0_sc.y()))
-            x1, y1 = self._scene_pos(event)
-            self.editor.run_sam2_box_at(x0, y0, x1, y1)
+            # All of this is wrapped in try/except: any unhandled
+            # Python exception bubbling out of a Qt event override
+            # (here mouseReleaseEvent on QGraphicsView) is converted
+            # by PyQt to qFatal() and aborts the process. Catching
+            # the exception keeps the editor alive and lets us
+            # surface the error in the status bar + stderr.
+            try:
+                # Map viewport corners → scene (image) coordinates.
+                # Both corners must go through mapToScene so zoom +
+                # pan are honoured.
+                p0_sc = self.mapToScene(self.sam2_box_origin)
+                x0 = int(round(p0_sc.x()))
+                y0 = int(round(p0_sc.y()))
+                x1, y1 = self._scene_pos(event)
+                self.editor.run_sam2_box_at(x0, y0, x1, y1)
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                self.editor.status.showMessage(
+                    f"SAM2-box release error: {e!r}", 12000)
         if self.panning and event.button() == Qt.RightButton:
             self.panning = False
             self._pan_start = None
@@ -1842,7 +1853,22 @@ class MaskEditor(QMainWindow):
         add to current frame with self.active_cell as the ID. The
         backend rejects tiny / huge boxes (accidental drags) and
         masks that leak beyond box_area × 1.3.
+
+        Wrapped in try/except so any future Python error inside SAM2
+        or the post-process surfaces as a status-bar message instead
+        of aborting Qt (PyQt's default behaviour on unhandled
+        exceptions inside event-handler call chains is qFatal+abort).
         """
+        try:
+            self._run_sam2_box_impl(x0, y0, x1, y1)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            self.status.showMessage(
+                f"SAM2 box error: {e!r} — see stderr for traceback",
+                12000)
+
+    def _run_sam2_box_impl(self, x0, y0, x1, y1):
         if self.masks is None or self.frames is None:
             self.status.showMessage("Load a recording first")
             return
@@ -1856,9 +1882,14 @@ class MaskEditor(QMainWindow):
                 f"— pick a different ID or delete the existing first",
                 8000)
             return
+        # Note: we deliberately do NOT call QApplication.processEvents()
+        # here — that's a known PyQt footgun inside a mouse-event call
+        # chain (reentrancy → reliable SIGABRT). The "running…" status
+        # message won't repaint until SAM2 returns, which is fine: the
+        # inference is fast enough (100-300 ms on the warm path) that
+        # the brief freeze is not jarring.
         self.status.showMessage(
             f"SAM2 box [{x0},{y0}–{x1},{y1}] for ID {target_id}…")
-        QApplication.processEvents()
         s = self.sam2_settings
         result = predict_at_box(
             self.frames[fi], x0, y0, x1, y1,
@@ -1886,12 +1917,18 @@ class MaskEditor(QMainWindow):
         """SAM2 point-click tool handler. Detect cell at (x, y) and
         add to current frame with self.active_cell as the ID.
 
-        Refuses on:
-          - no recording loaded
-          - ID already used in this frame
-          - SAM2 returns no usable mask (low area / click outside)
-        Pushes the prior frame state to undo on success.
+        Wrapped in try/except — see _run_sam2_box_impl for rationale.
         """
+        try:
+            self._run_sam2_point_impl(x, y)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            self.status.showMessage(
+                f"SAM2 error: {e!r} — see stderr for traceback",
+                12000)
+
+    def _run_sam2_point_impl(self, x, y):
         if self.masks is None or self.frames is None:
             self.status.showMessage("Load a recording first")
             return
@@ -1905,9 +1942,11 @@ class MaskEditor(QMainWindow):
                 f"— pick a different ID or delete the existing first",
                 8000)
             return
+        # No QApplication.processEvents() — see note in
+        # _run_sam2_box_impl (reentrancy footgun inside mouse-event
+        # call chain).
         self.status.showMessage(
             f"SAM2 running at ({x}, {y}) for ID {target_id}…")
-        QApplication.processEvents()
         s = self.sam2_settings
         result = predict_at_point(
             self.frames[fi], x, y,
