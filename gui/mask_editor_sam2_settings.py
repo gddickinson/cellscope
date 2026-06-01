@@ -28,6 +28,8 @@ def default_settings():
         # box tool
         "pad_px": 64,
         "min_box_area_px": 4096,
+        "constrain_to_box": True,
+        "box_expand_pct": 10,
     }
 
 
@@ -117,6 +119,26 @@ class SAM2SettingsDialog:
             "Reject drags whose box area is smaller than this. "
             "Catches accidental clicks-without-drag.")
         f_box.addRow("Min box area (px):", sp_minbox)
+        cb_constrain = QCheckBox(
+            "Constrain mask to drawn box (+ margin)")
+        cb_constrain.setChecked(bool(settings["constrain_to_box"]))
+        cb_constrain.setToolTip(
+            "SAM2 box prompts are a SOFT constraint — masks can leak "
+            "outside, especially when the box is around a subobject "
+            "(e.g. nucleus only). When this is on, the predicted "
+            "mask gets clipped to the box plus a percentage margin "
+            "so it never extends far beyond what you drew.")
+        f_box.addRow(cb_constrain)
+        sp_expand = QSpinBox()
+        sp_expand.setRange(0, 100)
+        sp_expand.setSingleStep(5)
+        sp_expand.setSuffix(" %")
+        sp_expand.setValue(int(settings["box_expand_pct"]))
+        sp_expand.setToolTip(
+            "How much to expand the box before clipping. 0 = mask "
+            "must stay exactly inside the drawn rectangle; 10 % "
+            "(default) = small slack for imperfect drawing.")
+        f_box.addRow("Box expand margin:", sp_expand)
         root.addWidget(gb_box)
 
         # ── Buttons ──
@@ -141,19 +163,23 @@ class SAM2SettingsDialog:
             sp_crop.setValue(d["crop_size"])
             sp_pad.setValue(d["pad_px"])
             sp_minbox.setValue(d["min_box_area_px"])
+            cb_constrain.setChecked(d["constrain_to_box"])
+            sp_expand.setValue(d["box_expand_pct"])
 
         btn_reset.clicked.connect(_do_reset)
         btn_cancel.clicked.connect(dlg.reject)
         btn_ok.clicked.connect(dlg.accept)
 
         if dlg.exec_() == QDialog.Accepted:
-            settings["smooth_radius"]   = sp_smooth.value()
-            settings["keep_largest"]    = cb_largest.isChecked()
-            settings["fill_holes"]      = cb_holes.isChecked()
-            settings["min_area_px"]     = sp_min.value()
-            settings["max_area_cap_px"] = sp_maxcap.value()
-            settings["crop_size"]       = sp_crop.value()
-            settings["pad_px"]          = sp_pad.value()
-            settings["min_box_area_px"] = sp_minbox.value()
+            settings["smooth_radius"]    = sp_smooth.value()
+            settings["keep_largest"]     = cb_largest.isChecked()
+            settings["fill_holes"]       = cb_holes.isChecked()
+            settings["min_area_px"]      = sp_min.value()
+            settings["max_area_cap_px"]  = sp_maxcap.value()
+            settings["crop_size"]        = sp_crop.value()
+            settings["pad_px"]           = sp_pad.value()
+            settings["min_box_area_px"]  = sp_minbox.value()
+            settings["constrain_to_box"] = cb_constrain.isChecked()
+            settings["box_expand_pct"]   = sp_expand.value()
             return True
         return False

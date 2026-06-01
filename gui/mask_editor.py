@@ -1899,7 +1899,9 @@ class MaskEditor(QMainWindow):
             max_area_cap_px=s["max_area_cap_px"],
             smooth_radius=s["smooth_radius"],
             keep_largest=s["keep_largest"],
-            fill_holes=s["fill_holes"])
+            fill_holes=s["fill_holes"],
+            constrain_to_box=s["constrain_to_box"],
+            box_expand_frac=s["box_expand_pct"] / 100.0)
         if not result.ok:
             self.status.showMessage(f"SAM2 box: {result.message}", 8000)
             return

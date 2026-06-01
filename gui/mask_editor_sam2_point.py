@@ -223,7 +223,9 @@ def predict_at_box(frame_image, x0, y0, x1, y1,
                    min_area_px=200,
                    max_area_cap_px=50000,
                    smooth_radius=2, keep_largest=True,
-                   fill_holes=True):
+                   fill_holes=True,
+                   constrain_to_box=True,
+                   box_expand_frac=0.10):
     """Run SAM2 with a BOX prompt (+ implicit centroid click) on a
     padded crop of frame_image. Returns a SAM2PointResult.
 
@@ -301,9 +303,55 @@ def predict_at_box(frame_image, x0, y0, x1, y1,
         return SAM2PointResult(
             False, message=f"SAM2 inference failed: {e!r}")
 
-    best_idx = int(np.argmax(scores))
+    # ── Multi-candidate selection biased toward the user's box ──
+    # SAM2's box prompt is a SOFT constraint — candidates can leak
+    # outside (typical failure: box around a nucleus → SAM2 segments
+    # the whole cell). Build a binary "allowed" region = box expanded
+    # by box_expand_frac on each side. Score each of SAM2's 3
+    # candidates by SAM2-confidence × (fraction of mask inside the
+    # allowed region). The fraction-inside multiplier penalises
+    # candidates that leak, even if SAM2 thinks they're confident.
+    crop_h, crop_w = crop.shape[:2]
+    box_w_local = local_box[2] - local_box[0]
+    box_h_local = local_box[3] - local_box[1]
+    mx = int(box_w_local * box_expand_frac)
+    my = int(box_h_local * box_expand_frac)
+    allowed = np.zeros((crop_h, crop_w), dtype=bool)
+    ax0 = max(0, int(local_box[0]) - mx)
+    ay0 = max(0, int(local_box[1]) - my)
+    ax1 = min(crop_w, int(local_box[2]) + mx)
+    ay1 = min(crop_h, int(local_box[3]) + my)
+    allowed[ay0:ay1, ax0:ax1] = True
+
+    if constrain_to_box:
+        best_idx = 0
+        best_combined = -1.0
+        for i in range(len(masks)):
+            m_i = masks[i].astype(bool)
+            tot = int(m_i.sum())
+            if tot == 0:
+                continue
+            inside_frac = float((m_i & allowed).sum()) / tot
+            combined = float(scores[i]) * inside_frac
+            if combined > best_combined:
+                best_combined = combined
+                best_idx = i
+    else:
+        best_idx = int(np.argmax(scores))
+
     raw_mask = masks[best_idx].astype(bool)
     score = float(scores[best_idx])
+
+    # Hard clip: drop any predicted pixels outside the allowed
+    # region. This is the second line of defence — even if the
+    # picked candidate still leaks, we force the result to respect
+    # the user's box (plus margin).
+    clipped_pixels = 0
+    if constrain_to_box:
+        before = int(raw_mask.sum())
+        raw_mask = raw_mask & allowed
+        clipped_pixels = before - int(raw_mask.sum())
+
     best_mask = _postprocess_mask(
         raw_mask,
         smooth_radius=smooth_radius,
@@ -324,10 +372,13 @@ def predict_at_box(frame_image, x0, y0, x1, y1,
                      f"{box_area}) — SAM2 leaked beyond the box; "
                      f"try a tighter box"))
 
+    clip_note = (f", clipped {clipped_pixels} px to box+"
+                 f"{int(box_expand_frac * 100)}%"
+                 if clipped_pixels > 0 else "")
     return SAM2PointResult(
         True, mask=best_mask, x0=cx0, y0=cy0,
         score=score, area=area,
-        message=f"box: area={area} px, score={score:.2f}")
+        message=f"box: area={area} px, score={score:.2f}{clip_note}")
 
 
 def apply_to_labels(labels_3d, frame_idx, result, target_id):
