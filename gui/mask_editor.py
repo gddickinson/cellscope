@@ -258,10 +258,18 @@ class FilterCellsDialog(QDialog):
 
         layout.addWidget(QLabel(
             "<b>Per-frame filters</b> — remove individual instances"))
+        # Safe defaults from cross-recording filter-learning analysis on
+        # 4 reviewed recordings (71 cells: 16 REMOVED, 11 TRIMMED, 44 kept):
+        # min=947  → smallest real cell observed; never removes a real cell
+        # max=15000 → above largest real cell (12006) but below the only
+        # observed huge artefact (79855 px). Catches ~56% of artefacts
+        # while preserving all kept cells. For more aggressive cleanup,
+        # the dialog's Preview lets you raise min and visually deselect
+        # any real cells flagged.
         self.chk_min_area, self.spin_min_area = self._row(
-            "Min area (px)", 1, 1000000, 500, layout)
+            "Min area (px)", 1, 1000000, 947, layout)
         self.chk_max_area, self.spin_max_area = self._row(
-            "Max area (px)", 1, 100000000, 50000, layout)
+            "Max area (px)", 1, 100000000, 15000, layout)
         self.chk_edge, self.spin_edge = self._row(
             "Min distance to frame edge (px)", 0, 5000, 30, layout)
 
