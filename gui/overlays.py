@@ -156,6 +156,182 @@ def draw_overlays(rgb, frame_idx, um_per_px, dt_min, settings):
                         lthick, cv2.LINE_AA)
 
 
+def paint_overlays_qpainter(painter, view_w, view_h, view_scale,
+                            frame_idx, um_per_px, dt_min, settings):
+    """Paint timestamp + scale bar in VIEWPORT coords with a QPainter.
+
+    Use this from a QGraphicsView's drawForeground override after
+    resetting the transform so the painter is in viewport (widget)
+    coordinates. The overlay then sits at a fixed position on the
+    visible area regardless of the user's zoom / pan state — which
+    is what users actually want for a live preview.
+
+    view_w / view_h: the viewport widget size (px)
+    view_scale: image pixels → viewport pixels scaling (== QGraphicsView
+        transform's m11/m22 when uniform). Used to size the scale bar
+        so it represents the user-selected length in µm at the
+        current zoom.
+    """
+    from PyQt5.QtGui import QColor, QFont, QFontMetrics, QPen
+    from PyQt5.QtCore import Qt
+
+    pad = max(10, int(0.02 * min(view_w, view_h)))
+    show_ts = bool(settings.get("show_timestamp")) and dt_min
+    show_sb = bool(settings.get("show_scale_bar")) and um_per_px
+
+    if show_ts:
+        fmt = settings.get("timestamp_format", "MM:SS")
+        text = _fmt_time(frame_idx, dt_min, fmt)
+        c = settings.get("timestamp_color", [255, 255, 255])
+        # Font size: scale 1.0 → 14pt baseline, picked to match a
+        # readable corner annotation on a 1440×900 viewport. The user
+        # can adjust via the dialog spinbox.
+        font_pt = max(6, int(14 * float(
+            settings.get("timestamp_font_scale", 1.0))))
+        font = QFont("Arial", font_pt)
+        if int(settings.get("timestamp_thickness", 2)) >= 3:
+            font.setBold(True)
+        painter.setFont(font)
+        painter.setPen(QPen(QColor(c[0], c[1], c[2])))
+        fm = QFontMetrics(font)
+        rect = fm.boundingRect(text)
+        x, y = _anchor(view_w, view_h, rect.width(), rect.height(),
+                       settings.get("timestamp_position", "top-right"),
+                       pad)
+        painter.drawText(x, y + rect.height(), text)
+
+    if show_sb:
+        length_um = float(settings.get("scale_bar_length_um", 100))
+        # Bar length in viewport px = (µm / µm-per-image-px) * view_scale
+        bar_px = max(2, int(round(
+            length_um / float(um_per_px) * float(view_scale))))
+        thick = int(settings.get("scale_bar_thickness_px", 6))
+        c = settings.get("scale_bar_color", [255, 255, 255])
+        show_label = bool(settings.get("scale_bar_show_label", True))
+        label = f"{int(length_um)} µm"
+        font_pt = max(6, int(12 * float(
+            settings.get("scale_bar_label_font_scale", 0.9))))
+        font = QFont("Arial", font_pt)
+        painter.setFont(font)
+        fm = QFontMetrics(font)
+        if show_label:
+            lrect = fm.boundingRect(label)
+            box_w = max(bar_px, lrect.width())
+            box_h = thick + 4 + lrect.height()
+        else:
+            box_w = bar_px
+            box_h = thick
+        bx, by = _anchor(view_w, view_h, box_w, box_h,
+                         settings.get("scale_bar_position",
+                                       "bottom-right"), pad)
+        bar_x = bx + (box_w - bar_px) // 2
+        bar_y = by + box_h - thick
+        painter.fillRect(bar_x, bar_y, bar_px, thick,
+                         QColor(c[0], c[1], c[2]))
+        if show_label:
+            painter.setPen(QPen(QColor(c[0], c[1], c[2])))
+            lw = fm.boundingRect(label).width()
+            lx = bx + (box_w - lw) // 2
+            ly = bar_y - 4
+            painter.drawText(lx, ly, label)
+
+
+def paint_overlays_axes(ax, frame_idx, um_per_px, dt_min, settings):
+    """Paint timestamp + scale bar onto a matplotlib Axes in
+    axes-fraction coordinates (always visible regardless of xlim/ylim).
+
+    Call after the image is drawn with imshow. The overlay sits at
+    the chosen corner relative to the axes bounding box, so it stays
+    in view when the user zooms / pans via xlim / ylim.
+    """
+    show_ts = bool(settings.get("show_timestamp")) and dt_min
+    show_sb = bool(settings.get("show_scale_bar")) and um_per_px
+
+    def _frac(pos, w_frac, h_frac):
+        # Convert anchor + (w_frac, h_frac) to (x, y) corner-anchor
+        # in axes fraction coords. Axes (0,0) is bottom-left.
+        pad = 0.02
+        if pos == "top-left":
+            return pad, 1 - pad - h_frac
+        if pos == "top-right":
+            return 1 - pad - w_frac, 1 - pad - h_frac
+        if pos == "bottom-left":
+            return pad, pad
+        return 1 - pad - w_frac, pad     # bottom-right default
+
+    def _rgb01(c):
+        return (c[0] / 255.0, c[1] / 255.0, c[2] / 255.0)
+
+    if show_ts:
+        fmt = settings.get("timestamp_format", "MM:SS")
+        text = _fmt_time(frame_idx, dt_min, fmt)
+        c = settings.get("timestamp_color", [255, 255, 255])
+        fs = max(6, int(14 * float(
+            settings.get("timestamp_font_scale", 1.0))))
+        weight = ("bold" if int(settings.get("timestamp_thickness", 2))
+                  >= 3 else "normal")
+        pos = settings.get("timestamp_position", "top-right")
+        # Use matplotlib's text anchoring via ha/va
+        if pos.endswith("left"):
+            ha, x = "left", 0.02
+        else:
+            ha, x = "right", 0.98
+        if pos.startswith("top"):
+            va, y = "top", 0.98
+        else:
+            va, y = "bottom", 0.02
+        ax.text(x, y, text, transform=ax.transAxes, color=_rgb01(c),
+                fontsize=fs, fontweight=weight, ha=ha, va=va,
+                zorder=10)
+
+    if show_sb:
+        # Scale bar length as a fraction of axes width.
+        # Axes shows the image at xlim covering some image pixel range;
+        # bar_image_px = length_um / um_per_px. bar_fraction = bar_image_px / xlim_width.
+        try:
+            xlim = ax.get_xlim()
+            xrange = abs(xlim[1] - xlim[0])
+            if xrange <= 0:
+                return
+        except Exception:
+            return
+        length_um = float(settings.get("scale_bar_length_um", 100))
+        bar_image_px = length_um / float(um_per_px)
+        bar_frac_w = bar_image_px / xrange
+        thick_px = int(settings.get("scale_bar_thickness_px", 6))
+        # Convert thickness from image px to axes fraction using ylim
+        try:
+            ylim = ax.get_ylim()
+            yrange = abs(ylim[1] - ylim[0])
+        except Exception:
+            yrange = xrange
+        bar_frac_h = max(0.002, thick_px / yrange)
+        c = settings.get("scale_bar_color", [255, 255, 255])
+        pos = settings.get("scale_bar_position", "bottom-right")
+        show_label = bool(settings.get("scale_bar_show_label", True))
+
+        x, y = _frac(pos, bar_frac_w, bar_frac_h + 0.03 if show_label
+                     else bar_frac_h)
+        # Centre the bar in its column when label is on (no-op otherwise)
+        ax.add_patch(_axes_patch(x, y, bar_frac_w, bar_frac_h,
+                                   _rgb01(c), ax))
+        if show_label:
+            label = f"{int(length_um)} µm"
+            fs = max(6, int(12 * float(
+                settings.get("scale_bar_label_font_scale", 0.9))))
+            ax.text(x + bar_frac_w / 2, y + bar_frac_h + 0.005,
+                    label, transform=ax.transAxes, color=_rgb01(c),
+                    fontsize=fs, ha="center", va="bottom", zorder=10)
+
+
+def _axes_patch(x, y, w, h, rgb01, ax):
+    """Build a Rectangle patch in axes-fraction coords."""
+    from matplotlib.patches import Rectangle
+    p = Rectangle((x, y), w, h, transform=ax.transAxes,
+                  facecolor=rgb01, edgecolor="none", zorder=10)
+    return p
+
+
 # ─────── settings dialog ───────
 class OverlaySettingsDialog:
     """Modal dialog editing an overlay settings dict in place."""

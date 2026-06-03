@@ -547,16 +547,18 @@ class ImageViewer(QWidget):
             # grayscale so the overlay path stays uniform.
             img = self._apply_bc(self.frames[idx])
             rgb = np.stack([img, img, img], axis=-1).astype(np.uint8)
-        # Paint timestamp + scale bar onto rgb. No-op when both
-        # toggles are off in self.overlay_settings. Wrapped in
-        # try/except so a render-bug can't break the GUI.
+        self.ax.imshow(rgb)
+        # Paint timestamp + scale bar via matplotlib's axes-fraction
+        # transform — stays visible regardless of xlim/ylim zoom/pan.
+        # No-op when both toggles are off; wrapped in try/except so an
+        # overlay glitch can't break the canvas paint.
         try:
-            from gui.overlays import draw_overlays
-            draw_overlays(rgb, idx, self.um_per_px, self.dt_min,
-                          self.overlay_settings)
+            from gui.overlays import paint_overlays_axes
+            paint_overlays_axes(
+                self.ax, idx, self.um_per_px, self.dt_min,
+                self.overlay_settings)
         except Exception:
             pass
-        self.ax.imshow(rgb)
         # Track trajectories — drawn before IDs so labels stay on top
         if (self.show_tracks and self._track_centroids is not None):
             self._draw_track_trails(idx)

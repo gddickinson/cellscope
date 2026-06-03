@@ -221,6 +221,33 @@ class MaskCanvas(QGraphicsView):
         factor = 1.15 if event.angleDelta().y() > 0 else 1 / 1.15
         self.scale(factor, factor)
 
+    def drawForeground(self, painter, rect):
+        """Paint timestamp + scale bar overlays AFTER the scene
+        contents, in viewport coords so they stay visible at any
+        zoom / pan. View → Overlay Options… controls them."""
+        try:
+            settings = getattr(self.editor, "overlay_settings", None)
+            if not settings:
+                return
+            if (not settings.get("show_timestamp")
+                    and not settings.get("show_scale_bar")):
+                return
+            from gui.overlays import paint_overlays_qpainter
+            painter.save()
+            painter.resetTransform()  # → viewport coords
+            view_w = self.viewport().width()
+            view_h = self.viewport().height()
+            view_scale = float(self.transform().m11())   # x-axis zoom
+            paint_overlays_qpainter(
+                painter, view_w, view_h, view_scale,
+                self.editor.current_frame,
+                self.editor.um_per_px,
+                self.editor.dt_min,
+                settings)
+            painter.restore()
+        except Exception:
+            pass
+
 
 class FilterCellsDialog(QDialog):
     """Bulk-filter cell instances by per-frame and per-track criteria.
@@ -1891,8 +1918,13 @@ class MaskEditor(QMainWindow):
         scale bar) and refresh the canvas if the user accepts."""
         from gui.overlays import OverlaySettingsDialog
         if OverlaySettingsDialog.show(self, self.overlay_settings):
-            self._redraw()
-            self.status.showMessage("Overlay settings updated", 4000)
+            # Force a viewport repaint so drawForeground runs with
+            # the new settings. update() alone is enough — _redraw
+            # would rebuild the (unchanged) pixmap unnecessarily.
+            self.canvas.viewport().update()
+            self.status.showMessage(
+                "Overlay settings updated — overlays render in the "
+                "viewport corners (visible at any zoom).", 6000)
 
     def run_sam2_box_at(self, x0, y0, x1, y1):
         """SAM2 box-drag tool handler. Detect cell within the box and
@@ -2256,15 +2288,10 @@ class MaskEditor(QMainWindow):
                 pts = np.array(polygon_preview, dtype=np.int32)
                 cv2.polylines(rgb, [pts], False, (255, 255, 255), 1)
 
-        # Paint timestamp + scale bar overlays directly onto rgb.
-        # No-op when both overlay toggles are off in self.overlay_settings.
-        try:
-            from gui.overlays import draw_overlays
-            draw_overlays(rgb, idx, self.um_per_px, self.dt_min,
-                          self.overlay_settings)
-        except Exception:
-            # Never let an overlay failure break the editor render.
-            pass
+        # Note: timestamp + scale bar overlays are drawn in VIEWPORT
+        # coords by MaskCanvas.drawForeground (so they're visible at
+        # any zoom). They are NOT baked into rgb — keeps the image
+        # data clean for mask edits / exports.
 
         qimg = QImage(rgb.data, w, h, 3 * w, QImage.Format_RGB888)
         pix = QPixmap.fromImage(qimg)
