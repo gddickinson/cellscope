@@ -145,7 +145,9 @@ class FocusedMainWindow(QMainWindow):
                 is not None else ""))
         self.viewer.set_data(
             self.recording["frames"],
-            fluo_frames=self.recording.get("cy5_frames"))
+            fluo_frames=self.recording.get("cy5_frames"),
+            um_per_px=self.recording.get("um_per_px"),
+            dt_min=self.recording.get("time_interval_min"))
         self.detect_result = None
         self.analysis_result = None
         self.analysis.clear()
@@ -561,6 +563,10 @@ class FocusedMainWindow(QMainWindow):
         act_rbc.triggered.connect(self.viewer._reset_bc)
         view_menu.addAction(act_rbc)
         view_menu.addSeparator()
+        act_overlay = QAction("Overlay Options…", self)
+        act_overlay.triggered.connect(self._on_overlay_settings)
+        view_menu.addAction(act_overlay)
+        view_menu.addSeparator()
 
         # --- Panels submenu: show/hide each dock individually ---
         panels_menu = view_menu.addMenu("Panels")
@@ -690,7 +696,9 @@ class FocusedMainWindow(QMainWindow):
         self.logger.log("info", f"Loaded {name}: {n} frames{cy5_note}")
         self.viewer.set_data(
             self.recording["frames"],
-            fluo_frames=self.recording.get("cy5_frames"))
+            fluo_frames=self.recording.get("cy5_frames"),
+            um_per_px=self.recording.get("um_per_px"),
+            dt_min=self.recording.get("time_interval_min"))
         self.detect_result = None
         self.analysis_result = None
         self.analysis.clear()
@@ -1177,6 +1185,14 @@ class FocusedMainWindow(QMainWindow):
         self.roi.clear()
         self.params.use_roi.setChecked(False)
         self.status.showMessage("ROI cleared")
+
+    def _on_overlay_settings(self):
+        """View → Overlay Options… handler. Edits the viewer's
+        overlay settings dict in place and refreshes the canvas."""
+        from gui.overlays import OverlaySettingsDialog
+        if OverlaySettingsDialog.show(self, self.viewer.overlay_settings):
+            self.viewer._redraw()
+            self.status.showMessage("Overlay settings updated", 4000)
 
     def _on_roi_toggled(self, checked):
         if checked and not self.roi.has_roi():

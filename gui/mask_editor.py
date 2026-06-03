@@ -453,6 +453,14 @@ class MaskEditor(QMainWindow):
         # threaded into predict_at_point / predict_at_box at click time)
         from gui.mask_editor_sam2_settings import default_settings
         self.sam2_settings = default_settings()
+        # Overlay settings (timestamp + scale bar). View → Overlay
+        # Options… opens the dialog; defaults off until enabled.
+        from gui.overlays import default_overlay_settings
+        self.overlay_settings = default_overlay_settings()
+        # Recording metadata for overlay rendering. Populated by
+        # load_video; pass-throughs when no recording is loaded.
+        self.um_per_px = None
+        self.dt_min = None
         # Canonical path the editor was launched against (passed to
         # `__init__`). Used by Save-In-Place (Ctrl+S) so reviewer
         # workflows can write back to the source `masks.npz`. Drag-drop
@@ -837,13 +845,16 @@ class MaskEditor(QMainWindow):
         self.setStatusBar(self.status)
         self.status.showMessage("Ready — load a video to begin")
 
-        # Menubar — currently just holds the SAM2 settings entry.
-        # On macOS this appears in the global menu bar at top of
-        # screen; on Linux/Windows it's attached to the window.
+        # Menubar — SAM2 and View entries. On macOS this appears in
+        # the global menu bar at top of screen; on Linux/Windows it's
+        # attached to the window.
         mb = self.menuBar()
         sam2_menu = mb.addMenu("SAM2")
         act_settings = sam2_menu.addAction("Options…")
         act_settings.triggered.connect(self._on_sam2_settings)
+        view_menu = mb.addMenu("View")
+        act_overlay = view_menu.addAction("Overlay Options…")
+        act_overlay.triggered.connect(self._on_overlay_settings)
 
         # Keyboard shortcuts
         QShortcut(QKeySequence("Left"), self, activated=self.prev_frame)
@@ -1066,6 +1077,16 @@ class MaskEditor(QMainWindow):
                 self.dic_frames = self.frames
                 meta = load_metadata(video_path)
             self.name = meta.get("name", os.path.basename(video_path))
+            # Cache scale + time metadata for the overlay renderer.
+            try:
+                self.um_per_px = float(meta.get("um_per_px") or 0) or None
+            except (TypeError, ValueError):
+                self.um_per_px = None
+            try:
+                self.dt_min = (
+                    float(meta.get("time_interval_min") or 0) or None)
+            except (TypeError, ValueError):
+                self.dt_min = None
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to load: {e}")
             return
@@ -1865,6 +1886,14 @@ class MaskEditor(QMainWindow):
                 "SAM2 settings updated — next click uses new values",
                 5000)
 
+    def _on_overlay_settings(self):
+        """Menu handler: open the Overlay Options dialog (timestamp +
+        scale bar) and refresh the canvas if the user accepts."""
+        from gui.overlays import OverlaySettingsDialog
+        if OverlaySettingsDialog.show(self, self.overlay_settings):
+            self._redraw()
+            self.status.showMessage("Overlay settings updated", 4000)
+
     def run_sam2_box_at(self, x0, y0, x1, y1):
         """SAM2 box-drag tool handler. Detect cell within the box and
         add to current frame with self.active_cell as the ID. The
@@ -2226,6 +2255,16 @@ class MaskEditor(QMainWindow):
             if polygon_preview and len(polygon_preview) >= 2:
                 pts = np.array(polygon_preview, dtype=np.int32)
                 cv2.polylines(rgb, [pts], False, (255, 255, 255), 1)
+
+        # Paint timestamp + scale bar overlays directly onto rgb.
+        # No-op when both overlay toggles are off in self.overlay_settings.
+        try:
+            from gui.overlays import draw_overlays
+            draw_overlays(rgb, idx, self.um_per_px, self.dt_min,
+                          self.overlay_settings)
+        except Exception:
+            # Never let an overlay failure break the editor render.
+            pass
 
         qimg = QImage(rgb.data, w, h, 3 * w, QImage.Format_RGB888)
         pix = QPixmap.fromImage(qimg)

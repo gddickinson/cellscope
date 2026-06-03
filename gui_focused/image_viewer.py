@@ -119,6 +119,12 @@ class ImageViewer(QWidget):
         self._dragging = False
         self._drag_start = None
         self._roi_selector = None
+        # Overlay (timestamp + scale bar) — set via main_window's
+        # View → Overlay Options… menu. Defaults off until enabled.
+        from gui.overlays import default_overlay_settings
+        self.overlay_settings = default_overlay_settings()
+        self.um_per_px = None
+        self.dt_min = None
         self._build_ui()
 
     def _build_ui(self):
@@ -298,7 +304,8 @@ class ImageViewer(QWidget):
         H, W = self.frames[0].shape[:2]
         return (0, W), (H, 0)
 
-    def set_data(self, frames, masks=None, fluo_frames=None):
+    def set_data(self, frames, masks=None, fluo_frames=None,
+                 um_per_px=None, dt_min=None):
         """Load image data into the viewer.
 
         Args:
@@ -309,7 +316,21 @@ class ImageViewer(QWidget):
                 channel (e.g. Cy5 / SiR-actin). When given, the
                 Channel toggle (DIC / Fluo) appears in the control
                 row. When None, the toggle stays hidden.
+            um_per_px: physical pixel size in microns — needed by the
+                scale-bar overlay. Pass None / 0 to disable the scale
+                bar regardless of overlay settings.
+            dt_min: time interval between frames (minutes) — needed by
+                the timestamp overlay. Pass None / 0 to disable the
+                timestamp.
         """
+        try:
+            self.um_per_px = (float(um_per_px) if um_per_px else None) or None
+        except (TypeError, ValueError):
+            self.um_per_px = None
+        try:
+            self.dt_min = (float(dt_min) if dt_min else None) or None
+        except (TypeError, ValueError):
+            self.dt_min = None
         self.dic_frames = frames
         self.fluo_frames = fluo_frames
         # Reset both channels' BC to defaults on new data
@@ -521,11 +542,21 @@ class ImageViewer(QWidget):
         self.ax.axis("off")
         idx = self.current_frame
         rgb = self._render_frame(idx)
-        if rgb is not None:
-            self.ax.imshow(rgb)
-        else:
+        if rgb is None:
+            # No mask layers — build a plain RGB from the BC-adjusted
+            # grayscale so the overlay path stays uniform.
             img = self._apply_bc(self.frames[idx])
-            self.ax.imshow(img, cmap="gray", vmin=0, vmax=255)
+            rgb = np.stack([img, img, img], axis=-1).astype(np.uint8)
+        # Paint timestamp + scale bar onto rgb. No-op when both
+        # toggles are off in self.overlay_settings. Wrapped in
+        # try/except so a render-bug can't break the GUI.
+        try:
+            from gui.overlays import draw_overlays
+            draw_overlays(rgb, idx, self.um_per_px, self.dt_min,
+                          self.overlay_settings)
+        except Exception:
+            pass
+        self.ax.imshow(rgb)
         # Track trajectories — drawn before IDs so labels stay on top
         if (self.show_tracks and self._track_centroids is not None):
             self._draw_track_trails(idx)
