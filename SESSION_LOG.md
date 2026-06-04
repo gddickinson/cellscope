@@ -10,6 +10,35 @@ Format: **DATE — short title** with bullets describing what changed
 
 ---
 
+## 2026-06-04 — Lossless re-compress of the recording masters (−35 GB)
+
+The IC295 `.ome.tif` masters were 16-bit, 3-channel, **uncompressed**
+(~2.45 GB each; one channel is the empty "None" channel). Re-saving
+them with a lossless codec keeps the pixels bit-for-bit identical, so
+every analysis result is unchanged — it just stores the same data in
+fewer bytes. (PNG/JPEG would be wrong for the analysis path: JPEG is
+8-bit + lossy; the masters carry ~13 real bits. Sharing-format question
+came up while building the shareable-image export.)
+
+`scripts/recompress_recordings.py` — per file: read → write
+Deflate-compressed `.tmp` → **verify every page bit-for-bit identical +
+`detect_channels` unchanged** → only then atomic `os.replace`. Never
+removes an original without a verified replacement. `--dry-run` /
+`--force` / `--keep-backup` / `--codec`.
+
+Proof before trusting it (Pos0-WT, via the real loader + detector):
+DIC + Cy5 frames bit-identical, channels/µm-per-px identical, and
+**cpsam detection labels identical (4 cells on frame 48)** vs the
+uncompressed original. Lossless ⇒ identical deterministic results,
+confirmed end-to-end.
+
+Batch over all 29 `_cache` masters: **70.93 GB → 35.88 GB (1.98×,
+saved 35 GB)**, 0 errors. Files are gitignored so no git change; the
+`data/ic295_gt_full/` + `gt_review/` symlinks point to the same paths
+so they keep resolving (spot-checked: detect_channels=3, load_recording
+OK, µm/px 0.6523 from sidecar). Masters also exist on the lab share if
+ever needed.
+
 ## 2026-06-04 — Shareable image export + cell-division graphs (focused GUI)
 
 Two requested focused-GUI additions.

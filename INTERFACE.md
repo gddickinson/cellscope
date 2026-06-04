@@ -187,6 +187,14 @@ suite 8771. See `gui_focused/remote_control.py` and `CLAUDE.md` for usage.
   each removed target to `DEAD_SYMLINK_RECOVERY.md`). `--dry-run`
   previews. Touches only dangling symlinks — never real files or
   `gt_masks/*.png`.
+- **recompress_recordings.py** — losslessly re-compress recording
+  TIFFs (Deflate by default) to shrink storage with ZERO effect on
+  results. Per file: read → write compressed `.tmp` → **verify
+  bit-for-bit page-by-page + unchanged `detect_channels`** → only then
+  atomic `os.replace`. Never removes an original without a verified
+  replacement. `--dry-run` / `--force` / `--keep-backup` / `--codec`.
+  On the IC295 16-bit uncompressed masters: ~1.97× (2.45 GB → 1.25 GB)
+  with identical `load_recording` frames + identical cpsam labels.
 - **test_missed_cell_recovery.py** — compare default cpsam vs TTA vs
   multi-cell pipeline on missed-cell frames.
 - **train_*.py / prepare_*.py** — model training + data prep scripts
