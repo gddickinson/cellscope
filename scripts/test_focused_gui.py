@@ -231,6 +231,39 @@ def main():
             check(f"graph_{safe}", False, str(e))
     w.dock_summary.raise_()  # back to Summary
 
+    print("\n=== 7b. Colour masks by result (viewer + metric_coloring) ===")
+    from gui.metric_coloring import metric_names, ID_METRIC
+    all_render = True
+    for name in metric_names():
+        try:
+            w.viewer.color_combo.setCurrentText(name)
+            app.processEvents()
+        except Exception as e:
+            all_render = False
+            check(f"colour_by[{name}]", False, str(e))
+    check("colour_by_all_render", all_render,
+          f"{len(metric_names())} options")
+    # Continuous metric → colorizer + gradient legend active
+    w.viewer.color_combo.setCurrentText("Mean speed")
+    app.processEvents()
+    screenshot(w, "07b_colour_mean_speed")
+    check("colour_by_colorizer_active",
+          w.viewer._metric_colorizer is not None)
+    check("colour_by_legend_visible",
+          not w.viewer.metric_legend.isHidden())
+    # Categorical cell-state metric
+    w.viewer.color_combo.setCurrentText("Cell state (balled / attached)")
+    app.processEvents()
+    screenshot(w, "07b_colour_cell_state")
+    check("colour_by_state_active",
+          w.viewer._metric_colorizer is not None)
+    # Back to Cell ID clears the colorizer + hides the legend
+    w.viewer.color_combo.setCurrentText(ID_METRIC)
+    app.processEvents()
+    check("colour_by_id_clears",
+          w.viewer._metric_colorizer is None
+          and w.viewer.metric_legend.isHidden())
+
     print("\n=== 8. Export ===")
     export_dir = os.path.join(OUT_DIR, "export_single")
     os.makedirs(export_dir, exist_ok=True)

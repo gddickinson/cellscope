@@ -209,8 +209,9 @@ suite 8771. See `gui_focused/remote_control.py` and `CLAUDE.md` for usage.
   May-2026 class of "the same recording analysed via batch vs
   focused gave different debris filtering" bugs.
 - **test_focused_gui.py** — Phase A of the GUI test suite: full
-  single-cell load → detect → analyze → 16 graph types → export
-  flow with screenshots. 59 checks. Runs headless via
+  single-cell load → detect → analyze → 16 graph types → colour-by-
+  result (all metric_coloring options + legend) → export flow with
+  screenshots. 64 checks. Runs headless via
   `QT_QPA_PLATFORM=offscreen`. Recording resolves from CLI arg →
   `$CELLSCOPE_TEST_RECORDING` → bundled `data/examples/single_cell_crop_wt`
   → `single_cell_phase_WT` (no longer a hard-coded path).
