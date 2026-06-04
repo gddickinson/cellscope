@@ -11,7 +11,6 @@ Skips if analysis.json already exists (unless --force).
 """
 import os
 import sys
-import csv
 import time
 import argparse
 import traceback
@@ -25,6 +24,13 @@ from scripts.ic295_common import (
     inventory_drive, recording_dir, atomic_write_json,
     write_cellscope_project,
 )
+# Per-cell row + aggregation + per-state annotation are shared with the
+# focused GUI (gui_focused export + workers) so both produce identical
+# per_cell.csv / recording_summary.json schemas and per-state metrics.
+from core.cell_metrics_table import (
+    per_cell_row, aggregate_recording, write_per_cell_csv,
+)
+from core.state_analysis import annotate_state
 
 
 def rebuild_tracks_from_labels(labels):
@@ -45,71 +51,6 @@ def rebuild_tracks_from_labels(labels):
     return tracks
 
 
-def per_cell_row(c, ti):
-    ss   = c.get("shape_summary", {}) or {}
-    es   = c.get("edge_summary", {}) or {}
-    area = ss.get("area_um2") or {}
-    return {
-        "cell_id":                  c.get("cell_id"),
-        "first_frame":              ti.get("first_frame"),
-        "frames_tracked":           ti.get("frames_tracked"),
-        "parent_id":                ti.get("parent_id"),
-        "division_frame":           ti.get("division_frame"),
-        "division_score":           ti.get("division_score"),
-        "mean_speed":               c.get("mean_speed"),
-        "total_distance":           c.get("total_distance"),
-        "net_displacement":         c.get("net_displacement"),
-        "persistence":              c.get("persistence"),
-        "mean_area_um2":            area.get("mean"),
-        "median_area_um2":          area.get("median"),
-        "mean_circularity":         (ss.get("circularity") or {}).get("mean"),
-        "mean_solidity":            (ss.get("solidity") or {}).get("mean"),
-        "mean_aspect_ratio":        (ss.get("aspect_ratio") or {}).get("mean"),
-        "mean_eccentricity":        (ss.get("eccentricity") or {}).get("mean"),
-        "mean_protrusion_velocity": es.get("mean_protrusion_velocity"),
-        "mean_retraction_velocity": es.get("mean_retraction_velocity"),
-        "mean_boundary_confidence": c.get("mean_boundary_confidence"),
-        "state_frac_balled":        c.get("state_frac_balled"),
-        "state_frac_attached":      c.get("state_frac_attached"),
-        "mean_speed_balled":        c.get("mean_speed_balled"),
-        "mean_speed_attached":      c.get("mean_speed_attached"),
-    }
-
-
-def aggregate_recording(rows, n_divisions):
-    """Reduce across cells → one-row recording summary. Each cell is
-    treated as an independent observation within this recording; the
-    cross-recording phase treats each recording as one experiment."""
-    n = len(rows)
-    out = {"n_cells": n, "n_divisions": int(n_divisions),
-           "division_rate": (float(n_divisions) / n) if n else 0.0}
-    if not n:
-        return out
-    cols = [k for k in rows[0].keys()
-            if k not in ("cell_id", "first_frame", "frames_tracked",
-                          "parent_id", "division_frame", "division_score")]
-    for k in cols:
-        vals = [r[k] for r in rows
-                if isinstance(r.get(k), (int, float))
-                   and r[k] is not None and np.isfinite(r[k])]
-        out[f"{k}_mean"]   = float(np.mean(vals))   if vals else None
-        out[f"{k}_median"] = float(np.median(vals)) if vals else None
-        out[f"{k}_std"]    = float(np.std(vals))    if len(vals) > 1 else None
-        out[f"{k}_n"]      = len(vals)
-    return out
-
-
-def write_per_cell_csv(rows, path):
-    if not rows:
-        return
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
-        w.writeheader()
-        for r in rows:
-            w.writerow(r)
-
-
 # Strip large per-frame arrays so analysis.json stays small.
 _DROP_KEYS = {
     "frames", "masks", "centroids_px", "centroids_um", "trajectory",
@@ -121,38 +62,6 @@ _DROP_KEYS = {
 
 def _strip(d):
     return {k: v for k, v in d.items() if k not in _DROP_KEYS}
-
-
-def _annotate_state(result, cell_stack, um, dt):
-    """Cell-state classification + per-state mean speed."""
-    from core.cell_state import (
-        classify_track_states, state_fraction,
-        STATE_BALLED, STATE_ATTACHED, STATE_TRANSITIONAL)
-    try:
-        from core.motility_state import state_speeds
-        from core.tracking import extract_centroids
-    except Exception:
-        state_speeds = None
-        extract_centroids = None
-    sd = classify_track_states(cell_stack.astype(bool))
-    states = np.asarray(sd["states"])
-    result["state_per_frame"]         = states.tolist()
-    result["state_frac_balled"]       = float(state_fraction(states, STATE_BALLED))
-    result["state_frac_attached"]     = float(state_fraction(states, STATE_ATTACHED))
-    result["state_frac_transitional"] = float(state_fraction(
-        states, STATE_TRANSITIONAL))
-    if state_speeds is None or extract_centroids is None:
-        return
-    cents = extract_centroids(cell_stack.astype(bool))
-    for state, prefix in ((STATE_BALLED, "balled"),
-                           (STATE_ATTACHED, "attached")):
-        try:
-            sp = state_speeds(cents, states, state, um, dt)
-            vals = [v for v in sp if v is not None and np.isfinite(v)]
-            result[f"mean_speed_{prefix}"] = (
-                float(np.mean(vals)) if vals else None)
-        except Exception:
-            result[f"mean_speed_{prefix}"] = None
 
 
 def main():
@@ -256,7 +165,7 @@ def main():
         }
         if not args.no_state:
             try:
-                _annotate_state(r, t["stack"], um, dt)
+                annotate_state(r, t["stack"], um, dt)
             except Exception as e:
                 print(f"  cell {i+1} state failed: {e}", file=sys.stderr)
         cell_results.append(r)

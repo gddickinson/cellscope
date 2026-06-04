@@ -49,7 +49,8 @@ def cell_color(cell_id):
 
 def render_label_overlay(frame, labels, opacity=0.4,
                          active_cell=None, polygon_preview=None,
-                         show_ids=False, draw_contours=True):
+                         show_ids=False, draw_contours=True,
+                         color_lut=None):
     """Render a frame with colored per-cell label overlay.
 
     Args:
@@ -64,10 +65,22 @@ def render_label_overlay(frame, labels, opacity=0.4,
         polygon_preview: list of (x, y) points to draw as preview
         show_ids: when True, draw the cell ID number at each cell's
             centroid in white text on a translucent black background
+        color_lut: optional {cell_id: (r, g, b)} override used by the
+            "Colour by result" overlay (mask editor). Cells absent from
+            the dict fall back to the per-ID palette colour, so partial
+            LUTs (e.g. a freshly-added cell not yet in the metrics
+            cache) still render.
 
     Returns:
         (H, W, 3) uint8 RGB image
     """
+    def _color(cid):
+        if color_lut is not None:
+            c = color_lut.get(int(cid))
+            if c is not None:
+                return c
+        return cell_color(int(cid))
+
     h, w = frame.shape
     rgb = np.stack([frame, frame, frame], axis=-1).astype(np.float32)
 
@@ -81,7 +94,7 @@ def render_label_overlay(frame, labels, opacity=0.4,
         present = np.unique(labels)
         present = present[present > 0]
         for cid in present:
-            lut[cid] = cell_color(int(cid))
+            lut[cid] = _color(int(cid))
         is_cell = labels > 0
         if is_cell.any():
             colors_per_pixel = lut[labels]
@@ -99,7 +112,7 @@ def render_label_overlay(frame, labels, opacity=0.4,
             contours, _ = cv2.findContours(
                 mask.astype(np.uint8), cv2.RETR_EXTERNAL,
                 cv2.CHAIN_APPROX_NONE)
-            color = cell_color(cell_id)
+            color = _color(cell_id)
             thickness = 2 if cell_id == active_cell else 1
             cv2.drawContours(rgb, contours, -1, color, thickness)
 

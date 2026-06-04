@@ -22,15 +22,40 @@ from PyQt5.QtCore import QTimer
 app = QApplication.instance() or QApplication(sys.argv)
 
 OUT_DIR = "results/focused_gui_tests"
-os.makedirs(OUT_DIR, exist_ok=True)
+try:
+    os.makedirs(OUT_DIR, exist_ok=True)
+except OSError:
+    # `results/` can be a dead symlink (e.g. pointing at an unmounted
+    # drive). Fall back to a local, always-writable directory so the
+    # test still runs and saves its screenshots.
+    OUT_DIR = os.path.join("_test_output", "focused_gui_tests")
+    os.makedirs(OUT_DIR, exist_ok=True)
+    print(f"[note] results/ unwritable; using {OUT_DIR}")
 
-# The Ignasi cropped WT recording lives in the piezo1_analysis project
-# (sibling repo). This path is now resolved by the data-move symlinks
-# under /Volumes/GeorgeDrive/cellscope_data/piezo1_analysis/data/ignasi/.
-RECORDING = (
-    "/Users/george/claude_test/piezo1_analysis/data/ignasi/"
-    "C1-IC293__1_MMStack_Pos0-WT.ome-1cropped.tif"
-)
+# Test recording — overridable so the test never hard-codes a path that
+# can disappear (the original IC293 cropped WT lived on a drive that
+# failed; its local pointers are now dead symlinks). Resolution order:
+#   1. first positional CLI arg (a path)
+#   2. $CELLSCOPE_TEST_RECORDING
+#   3. the bundled single-cell crop (generated from a reviewed IC295 mask
+#      stack by scripts/make_single_cell_example.py)
+#   4. the single-cell phase example
+def _resolve_recording():
+    cli = (sys.argv[1] if len(sys.argv) > 1
+           and not sys.argv[1].startswith("-") else None)
+    for c in (cli,
+              os.environ.get("CELLSCOPE_TEST_RECORDING"),
+              "data/examples/single_cell_crop_wt/single_cell_crop_wt.tif",
+              "data/examples/single_cell_phase_WT/single_cell_phase_WT.tif"):
+        if c and os.path.exists(c):
+            return c
+    raise SystemExit(
+        "No test recording found. Pass a path, set "
+        "CELLSCOPE_TEST_RECORDING=<path>, or generate one with "
+        "scripts/make_single_cell_example.py.")
+
+
+RECORDING = _resolve_recording()
 
 passed = []
 failed = []
@@ -56,8 +81,9 @@ def check(name, condition, detail=""):
 
 def main():
     from gui_focused.main_window import FocusedMainWindow
-    from core.io import load_recording
+    from core.io import load_recording, detect_channels
     from core.pipeline import detect, analyze_recording
+    print(f"Test recording: {RECORDING}")
 
     w = FocusedMainWindow()
     w.resize(1400, 900)
@@ -96,7 +122,12 @@ def main():
     check("search_radius_disabled", not w.params.search_radius.isEnabled())
 
     print("\n=== 3. Load recording ===")
-    rec = load_recording(RECORDING)
+    # Channel-aware: a multichannel .ome.tif loads DIC=ch1, fluo=ch0;
+    # a plain single-channel stack loads as-is.
+    _nch = (detect_channels(RECORDING)
+            if RECORDING.lower().endswith((".tif", ".tiff")) else 1)
+    rec = (load_recording(RECORDING, dic_channel=1, fluo_channel=0)
+           if _nch > 1 else load_recording(RECORDING))
     w.recording = rec
     n = len(rec["frames"])
     w.viewer.set_data(rec["frames"])
@@ -111,9 +142,10 @@ def main():
     check("frame_count", len(w.viewer.frames) == n)
 
     print("\n=== 4. Image viewer controls ===")
-    w.viewer._on_frame(50)
+    nav = min(50, n - 1)  # relative to recording length (was hardcoded 50)
+    w.viewer._on_frame(nav)
     app.processEvents()
-    check("frame_nav", w.viewer.current_frame == 50)
+    check("frame_nav", w.viewer.current_frame == nav)
 
     w.viewer._auto_bc()
     app.processEvents()

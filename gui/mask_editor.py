@@ -31,7 +31,7 @@ from PyQt5.QtWidgets import (
     QRadioButton, QSpinBox, QMessageBox, QShortcut, QStatusBar,
     QCheckBox, QGraphicsView, QGraphicsScene, QGraphicsPixmapItem,
     QDialog, QDoubleSpinBox, QListWidget, QListWidgetItem,
-    QInputDialog, QTabWidget, QDesktopWidget, QRubberBand,
+    QInputDialog, QTabWidget, QDesktopWidget, QRubberBand, QComboBox,
 )
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -500,6 +500,14 @@ class MaskEditor(QMainWindow):
         self.brush_size = 10
         self.mask_opacity = 0.4
         self.show_ids = False       # draw cell ID numbers on the overlay
+        # Colour-by-result overlay. color_metric is the selected option
+        # name (default = native per-ID palette); _metric_colorizer maps
+        # (cell_id, frame) → RGB; _metric_cache holds the computed
+        # per-cell metrics, recomputed on metric change / via Refresh.
+        from gui.metric_coloring import ID_METRIC
+        self.color_metric = ID_METRIC
+        self._metric_colorizer = None
+        self._metric_cache = None
         self.tool = "brush"         # brush / eraser / polygon / fill / none
         self.active_cell = 1        # which cell ID to paint with
         # Ground-truth labeling helpers — populated by load_video() when
@@ -672,12 +680,39 @@ class MaskEditor(QMainWindow):
             "Keyboard shortcut: I")
         self.chk_show_ids.toggled.connect(self._on_toggle_ids)
         tools.addWidget(self.chk_show_ids)
+        # Colour-by-result dropdown + recompute button
+        tools.addWidget(QLabel("  Colour:"))
+        self.color_combo = QComboBox()
+        from gui.metric_coloring import metric_names
+        self.color_combo.addItems(metric_names())
+        self.color_combo.setToolTip(
+            "Colour each cell by a measured value instead of its ID:\n"
+            "  Cell state — balled (red) / attached (green) /\n"
+            "      transitional (amber), per frame.\n"
+            "  Mean speed, persistence, % time balled, area, … —\n"
+            "      one colour per cell from a continuous colormap.\n"
+            "Computed from the masks (no Analyze needed). After editing,\n"
+            "click ↻ to recompute. The bar below is the colour key.")
+        self.color_combo.currentTextChanged.connect(self._on_color_metric)
+        tools.addWidget(self.color_combo)
+        self.btn_refresh_color = QPushButton("↻")
+        self.btn_refresh_color.setMaximumWidth(30)
+        self.btn_refresh_color.setToolTip(
+            "Recompute the colour-by-result metrics from the current "
+            "(edited) masks.")
+        self.btn_refresh_color.clicked.connect(self._on_refresh_metric)
+        tools.addWidget(self.btn_refresh_color)
         tools.addStretch()
         layout.addLayout(tools)
 
         # Canvas
         self.canvas = MaskCanvas(self)
         layout.addWidget(self.canvas, stretch=1)
+        # Colour-by-result legend (gradient bar / state swatches);
+        # hidden until a non-ID metric is selected.
+        from gui.metric_coloring import MetricLegend
+        self.metric_legend = MetricLegend()
+        layout.addWidget(self.metric_legend)
 
         # Below the canvas: a tabbed control panel that consolidates
         # the GT-labeling row (used when creating training data) and
@@ -1164,6 +1199,11 @@ class MaskEditor(QMainWindow):
         self.undo_stacks.clear()
         self.redo_stacks.clear()
         self._dirty_frames.clear()
+        # New recording → colour-by metrics are stale. Drop the cache and
+        # rebuild the colorizer for the new masks if a metric is active.
+        self._metric_cache = None
+        if getattr(self, "_metric_colorizer", None) is not None:
+            self._rebuild_colorizer()
         self.current_frame = 0
         self.frame_slider.setEnabled(True)
         self.frame_slider.setRange(0, n - 1)
@@ -1498,6 +1538,59 @@ class MaskEditor(QMainWindow):
     def _on_toggle_ids(self, checked):
         self.show_ids = checked
         self._redraw()
+
+    # --- Colour-by-result overlay ---
+    def _on_color_metric(self, name):
+        from gui.metric_coloring import ID_METRIC
+        self.color_metric = name
+        if name == ID_METRIC:
+            self._metric_colorizer = None
+            self.metric_legend.set_colorizer(None)
+        else:
+            self._rebuild_colorizer()
+        self._redraw()
+
+    def _on_refresh_metric(self):
+        """Recompute metrics from the current (possibly edited) masks."""
+        self._metric_cache = None
+        from gui.metric_coloring import ID_METRIC
+        if self.color_metric != ID_METRIC:
+            self._rebuild_colorizer()
+            self._redraw()
+            self.status.showMessage("Colour-by metrics recomputed", 3000)
+
+    def _ensure_metrics(self):
+        if self._metric_cache is not None:
+            return self._metric_cache
+        if self.masks is None or getattr(self.masks, "ndim", 0) != 3:
+            self._metric_cache = None
+            return None
+        try:
+            from core.mask_metrics import compute_label_metrics
+            self._metric_cache = compute_label_metrics(
+                self.masks, um_per_px=self.um_per_px, dt_min=self.dt_min)
+        except Exception:
+            self._metric_cache = None
+        return self._metric_cache
+
+    def _rebuild_colorizer(self):
+        from gui.metric_coloring import (
+            get_metric, MetricColorizer, ID_METRIC)
+        if self.color_metric == ID_METRIC:
+            self._metric_colorizer = None
+            self.metric_legend.set_colorizer(None)
+            return
+        metrics = self._ensure_metrics()
+        if not metrics or not metrics.get("cell_ids"):
+            self._metric_colorizer = None
+            self.metric_legend.set_colorizer(None)
+            return
+        try:
+            self._metric_colorizer = MetricColorizer(
+                metrics, get_metric(self.color_metric))
+        except Exception:
+            self._metric_colorizer = None
+        self.metric_legend.set_colorizer(self._metric_colorizer)
 
     def _on_frame(self, idx):
         prev = self.current_frame
@@ -2276,12 +2369,23 @@ class MaskEditor(QMainWindow):
         h, w = img.shape
 
         if self.masks is not None and self.masks[idx].any():
+            # Colour-by-result overlay: when a metric is active, map each
+            # present cell ID → its metric colour for this frame. Cells
+            # missing from the LUT fall back to the per-ID palette.
+            color_lut = None
+            if self._metric_colorizer is not None and not draft:
+                try:
+                    color_lut = self._metric_colorizer.lut_for_frame(
+                        self.masks[idx], idx)
+                except Exception:
+                    color_lut = None
             rgb = render_label_overlay(
                 img, self.masks[idx], opacity=self.mask_opacity,
                 active_cell=self.active_cell,
                 polygon_preview=polygon_preview,
                 show_ids=self.show_ids,
-                draw_contours=not draft)
+                draw_contours=not draft,
+                color_lut=color_lut)
         else:
             rgb = np.stack([img, img, img], axis=-1).copy()
             if polygon_preview and len(polygon_preview) >= 2:

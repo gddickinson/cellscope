@@ -547,9 +547,15 @@ class ParamsPanel(QWidget):
             "adds ~1 s per frame for the texture-contrast computation.")
         form.addRow("Membrane quality:", self.compute_membrane)
 
+        # Canonical analysis defaults live in core.pipeline_defaults —
+        # read from there (rule 1) so the focused GUI, batch GUI, and
+        # workers stay in lockstep instead of drifting on hardcoded
+        # literals.
+        from core.pipeline_defaults import DEFAULTS as _PD
+
         form.addRow(QLabel("<b>Shape analysis:</b>"))
         self.compute_vampire = QCheckBox()
-        self.compute_vampire.setChecked(False)
+        self.compute_vampire.setChecked(_PD.compute_vampire)
         self.compute_vampire.setToolTip(
             "VAMPIRE shape mode analysis: PCA + K-means clustering\n"
             "of cell contours. Identifies morphological phenotypes\n"
@@ -559,14 +565,14 @@ class ParamsPanel(QWidget):
 
         self.vampire_clusters = QSpinBox()
         self.vampire_clusters.setRange(2, 15)
-        self.vampire_clusters.setValue(5)
+        self.vampire_clusters.setValue(_PD.vampire_n_clusters)
         self.vampire_clusters.setToolTip("Number of shape mode clusters")
         form.addRow("Shape mode clusters:", self.vampire_clusters)
 
         # --- Cell state classification (balled vs attached) ---
         form.addRow(QLabel("<b>Cell state classification:</b>"))
         self.compute_states = QCheckBox()
-        self.compute_states.setChecked(False)
+        self.compute_states.setChecked(_PD.compute_state_classification)
         self.compute_states.setToolTip(
             "Classify each cell-frame as balled (rounded, mitotic /\n"
             "pre-mitotic) or attached (spread, adherent), based on\n"

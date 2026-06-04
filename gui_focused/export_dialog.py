@@ -228,6 +228,38 @@ class ExportDialog(QDialog):
                                                f"metrics_cell{cid}.json"), "w") as f:
                             json.dump(self._build_metrics(mr), f, indent=2,
                                       default=str)
+                    # IC295-schema per-cell CSV + recording summary — the
+                    # SAME files the batch (scripts/ic295_analyze_one.py)
+                    # writes, via the shared core.cell_metrics_table, so a
+                    # focused-GUI export drops straight into the
+                    # cross-treatment comparison (scripts/ic295_compare.py).
+                    try:
+                        from core.cell_metrics_table import (
+                            per_cell_row, aggregate_recording,
+                            write_per_cell_csv)
+                        rows = [per_cell_row(mr, mr.get("track_info", {}))
+                                for mr in self.multi_results]
+                        write_per_cell_csv(
+                            rows, os.path.join(out_dir, "per_cell.csv"))
+                        n_div = sum(
+                            1 for mr in self.multi_results
+                            if mr.get("track_info", {}).get("parent_id")
+                            is not None)
+                        summary = aggregate_recording(rows, n_div)
+                        summary["name"] = self.recording.get("name")
+                        summary["um_per_px"] = self.recording.get(
+                            "um_per_px")
+                        summary["time_interval_min"] = self.recording.get(
+                            "time_interval_min")
+                        with open(os.path.join(
+                                out_dir, "recording_summary.json"),
+                                "w") as f:
+                            json.dump(summary, f, indent=2, default=str)
+                    except Exception as e:
+                        import logging
+                        logging.getLogger(__name__).warning(
+                            "per_cell.csv / recording_summary failed: %s",
+                            e)
                 steps += 1; self.progress.setValue(steps)
 
             if self.chk_log.isChecked() and self.logger:

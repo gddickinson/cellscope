@@ -3,7 +3,7 @@ import numpy as np
 from PyQt5.QtCore import pyqtSignal, Qt
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QSlider, QLabel, QPushButton,
-    QCheckBox, QRadioButton, QButtonGroup, QFrame,
+    QCheckBox, QRadioButton, QButtonGroup, QFrame, QComboBox,
 )
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
@@ -105,6 +105,14 @@ class ImageViewer(QWidget):
         # `show_dropped` is on. Lets users assess what the filter cut.
         self.dropped_labels = None
         self.show_dropped = False
+        # Colour-by-result overlay. color_metric is the selected option
+        # name (default = native per-ID palette); _metric_colorizer maps
+        # (cell_id, frame) → RGB; _metric_cache holds the
+        # compute_label_metrics output, invalidated whenever masks change.
+        from gui.metric_coloring import ID_METRIC
+        self.color_metric = ID_METRIC
+        self._metric_colorizer = None
+        self._metric_cache = None
         self.current_frame = 0
         self.brightness = 0.0
         self.contrast = 1.0
@@ -264,6 +272,25 @@ class ImageViewer(QWidget):
         self.chk_dropped.toggled.connect(self._on_toggle_dropped)
         view_row.addWidget(self.chk_dropped)
 
+        # --- Colour-by-result dropdown ---
+        view_row.addSpacing(8)
+        view_row.addWidget(QLabel("Colour by:"))
+        self.color_combo = QComboBox()
+        from gui.metric_coloring import metric_names
+        self.color_combo.addItems(metric_names())
+        self.color_combo.setToolTip(
+            "Colour each cell by a measured value instead of its ID:\n"
+            "  Cell state — balled (red) / attached (green) /\n"
+            "      transitional (amber), per frame.\n"
+            "  Mean speed, persistence, area, % time balled, … —\n"
+            "      one colour per cell from a continuous colormap.\n"
+            "  '— per frame' options recolour each frame.\n\n"
+            "Computed straight from the masks, so it works right after\n"
+            "detection (no Analyze needed). The legend below shows the\n"
+            "colour key.")
+        self.color_combo.currentTextChanged.connect(self._on_color_metric)
+        view_row.addWidget(self.color_combo)
+
         # --- Channel toggle (shown only when fluorescence is loaded) ---
         self._channel_divider = QFrame()
         self._channel_divider.setFrameShape(QFrame.VLine)
@@ -297,6 +324,12 @@ class ImageViewer(QWidget):
 
         view_row.addStretch()
         layout.addLayout(view_row)
+
+        # Colour-by legend (gradient bar / state swatches). Hidden until
+        # a non-ID metric is selected.
+        from gui.metric_coloring import MetricLegend
+        self.metric_legend = MetricLegend()
+        layout.addWidget(self.metric_legend)
 
     def _full_extent(self):
         if self.frames is None:
@@ -404,6 +437,13 @@ class ImageViewer(QWidget):
         # Track centroids depend on the labels stack — invalidate so
         # the toggle recomputes them on next use.
         self._track_centroids = None
+        # Colour-by-result metrics are derived from the labels too —
+        # invalidate the cache and rebuild the colorizer if a metric is
+        # currently active (keeps colours in sync after edits / detect).
+        self._metric_cache = None
+        from gui.metric_coloring import ID_METRIC
+        if self.color_metric != ID_METRIC:
+            self._rebuild_colorizer()
         self._redraw()
 
     def _compute_track_centroids(self):
@@ -455,6 +495,9 @@ class ImageViewer(QWidget):
         # red/yellow/green per-cell instead of the cell-ID palette.
         use_source = (self.color_by_source
                       and self.source_stack is not None)
+        # Colour-by-result takes priority over source colouring when a
+        # metric is active (both are per-cell recolourings).
+        use_metric = self._metric_colorizer is not None
 
         # Dropped-cell overlay — only the cells the Cy5 filter
         # rejected. Drawn BEFORE kept masks so the kept colour wins
@@ -483,7 +526,11 @@ class ImageViewer(QWidget):
                     m = self.masks[idx] == lab
                     if not m.any():
                         continue
-                    if use_source:
+                    if use_metric:
+                        c = np.array(
+                            self._metric_colorizer.color_for_cell(lab, idx),
+                            dtype=np.float32)
+                    elif use_source:
                         # cv2 BGR → matplotlib RGB swap for the fill
                         bgr = self._cell_source_color(lab, idx)
                         c = np.array([bgr[2], bgr[1], bgr[0]],
@@ -495,7 +542,13 @@ class ImageViewer(QWidget):
             else:
                 m = self.masks[idx] > 0
                 alpha = self.mask_opacity
-                rgb[m] = rgb[m] * (1 - alpha) + np.array([0, 255, 0]) * alpha
+                if use_metric:
+                    c = np.array(
+                        self._metric_colorizer.color_for_cell(1, idx),
+                        dtype=np.float32)
+                else:
+                    c = np.array([0, 255, 0], dtype=np.float32)
+                rgb[m] = rgb[m] * (1 - alpha) + c * alpha
 
         rgb = np.clip(rgb, 0, 255).astype(np.uint8)
 
@@ -509,7 +562,10 @@ class ImageViewer(QWidget):
                     contours, _ = cv2.findContours(
                         m.astype(np.uint8), cv2.RETR_EXTERNAL,
                         cv2.CHAIN_APPROX_NONE)
-                    if use_source:
+                    if use_metric:
+                        color = self._metric_colorizer.color_for_cell(
+                            lab, idx)
+                    elif use_source:
                         color = self._cell_source_color(lab, idx)
                     else:
                         color = cell_color(lab)
@@ -518,7 +574,9 @@ class ImageViewer(QWidget):
                 m = (self.masks[idx] > 0).astype(np.uint8)
                 contours, _ = cv2.findContours(
                     m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-                cv2.drawContours(rgb, contours, -1, (0, 255, 0), 1)
+                color = (self._metric_colorizer.color_for_cell(1, idx)
+                         if use_metric else (0, 255, 0))
+                cv2.drawContours(rgb, contours, -1, color, 1)
 
         # Dropped-cell contour — magenta, 2 px so it reads as
         # distinct from the kept-cell contour (1 px green).
@@ -679,6 +737,59 @@ class ImageViewer(QWidget):
     def _on_toggle_dropped(self, checked):
         self.show_dropped = checked
         self._redraw()
+
+    # --- Colour-by-result overlay ---
+    def _on_color_metric(self, name):
+        """Switch the per-cell colouring to metric `name` (or back to
+        the per-ID palette when name is the Cell-ID option)."""
+        from gui.metric_coloring import ID_METRIC
+        self.color_metric = name
+        if name == ID_METRIC:
+            self._metric_colorizer = None
+            if hasattr(self, "metric_legend"):
+                self.metric_legend.set_colorizer(None)
+        else:
+            self._rebuild_colorizer()
+        self._redraw()
+
+    def _ensure_metrics(self):
+        """Compute (and cache) per-cell metrics from the current label
+        stack. Cheap subset of analyze_recording — see core.mask_metrics."""
+        if self._metric_cache is not None:
+            return self._metric_cache
+        if (self.masks is None or getattr(self.masks, "ndim", 0) != 3):
+            self._metric_cache = None
+            return None
+        try:
+            from core.mask_metrics import compute_label_metrics
+            self._metric_cache = compute_label_metrics(
+                self.masks, um_per_px=self.um_per_px, dt_min=self.dt_min)
+        except Exception:
+            self._metric_cache = None
+        return self._metric_cache
+
+    def _rebuild_colorizer(self):
+        """(Re)build the colorizer for the current metric + masks."""
+        from gui.metric_coloring import (
+            get_metric, MetricColorizer, ID_METRIC)
+        if self.color_metric == ID_METRIC:
+            self._metric_colorizer = None
+            if hasattr(self, "metric_legend"):
+                self.metric_legend.set_colorizer(None)
+            return
+        metrics = self._ensure_metrics()
+        if not metrics or not metrics.get("cell_ids"):
+            self._metric_colorizer = None
+            if hasattr(self, "metric_legend"):
+                self.metric_legend.set_colorizer(None)
+            return
+        try:
+            self._metric_colorizer = MetricColorizer(
+                metrics, get_metric(self.color_metric))
+        except Exception:
+            self._metric_colorizer = None
+        if hasattr(self, "metric_legend"):
+            self.metric_legend.set_colorizer(self._metric_colorizer)
 
     def set_dropped_labels(self, labels):
         """Attach pre-Cy5-filter labels (N, H, W) int32 — same shape

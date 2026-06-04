@@ -416,48 +416,16 @@ class FocusedAnalyzeWorker(QThread):
     def _annotate_with_state(self, result, masks_or_stack, um_per_px,
                               dt_min):
         """Add state classification + per-state motility to a single
-        cell's analysis result. `masks_or_stack` is (N, H, W) bool."""
-        from core.cell_state import (
-            classify_track_states, state_fraction,
-            STATE_BALLED, STATE_ATTACHED, STATE_TRANSITIONAL)
-        from core.motility_state import (
-            state_speeds, state_msd, state_persistence,
-            state_total_displacement)
-        from core.tracking import extract_centroids
+        cell's analysis result. `masks_or_stack` is (N, H, W) bool.
 
-        thresholds = self.state_params.get("thresholds")
-        sd = classify_track_states(
-            masks_or_stack.astype(bool), thresholds)
-        states = sd["states"]
-        cents = extract_centroids(masks_or_stack.astype(bool))
-        result["state_per_frame"] = states
-        result["state_frac_balled"] = state_fraction(
-            states, STATE_BALLED)
-        result["state_frac_attached"] = state_fraction(
-            states, STATE_ATTACHED)
-        result["state_frac_transitional"] = state_fraction(
-            states, STATE_TRANSITIONAL)
-        for state, prefix in ((STATE_BALLED, "balled"),
-                                (STATE_ATTACHED, "attached")):
-            sp = state_speeds(cents, states, state, um_per_px, dt_min)
-            msd = state_msd(cents, states, state, um_per_px,
-                              max_lag=20)
-            per = state_persistence(cents, states, state, um_per_px)
-            td = state_total_displacement(cents, states, state,
-                                            um_per_px)
-            result[f"{prefix}_n_speed_samples"] = int(len(sp))
-            result[f"{prefix}_mean_speed_um_per_min"] = (
-                float(np.mean(sp)) if len(sp) else float("nan"))
-            result[f"{prefix}_median_speed_um_per_min"] = (
-                float(np.median(sp)) if len(sp) else float("nan"))
-            result[f"{prefix}_persistence_lag1"] = per["lag1"]
-            result[f"{prefix}_msd_lag5_um2"] = (
-                float(msd["msd"][4])
-                if len(msd["msd"]) > 4 and not np.isnan(msd["msd"][4])
-                else float("nan"))
-            result[f"{prefix}_total_displacement_um"] = (
-                td["total_displacement_um"])
-            result[f"{prefix}_straightness"] = td["straightness"]
+        Delegates to core.state_analysis.annotate_state — the SAME
+        function scripts/ic295_analyze_one.py uses — so the focused GUI
+        and the IC295 batch compute identical per-state metrics (balled /
+        attached / unattached / non_balled, per-frame speed variants,
+        straightness, plus the extended balled_/attached_ display keys)."""
+        from core.state_analysis import annotate_state
+        annotate_state(result, masks_or_stack, um_per_px, dt_min,
+                       thresholds=self.state_params.get("thresholds"))
 
     def run(self):
         try:

@@ -29,10 +29,10 @@
         "tracks_identity_preserved": true,
         "source_recording": "data/ic295_gt_full/Pos10_WT/IC295__1_MMStack_Pos10-WT.ome.tif",
         "source_accessible": true,
-        "has_pipeline_results": true,
-        "has_evaluation": true,
+        "has_pipeline_results": false,
+        "has_evaluation": false,
         "issues": [],
-        "source_real_path": "/Volumes/GeorgeDrive/ignasi/IC295_batch2/IC295__1_MMStack_Pos10-WT.ome.tif"
+        "source_real_path": "/Users/george/claude_test/cellscope/ic295_analysis/_cache/IC295__1_MMStack_Pos10-WT.ome.tif"
       },
       {
         "name": "Pos20_KO",
@@ -61,10 +61,10 @@
         "tracks_identity_preserved": true,
         "source_recording": "data/ic295_gt_full/Pos20_KO/IC295__1_MMStack_Pos20-KO.ome.tif",
         "source_accessible": true,
-        "has_pipeline_results": true,
-        "has_evaluation": true,
+        "has_pipeline_results": false,
+        "has_evaluation": false,
         "issues": [],
-        "source_real_path": "/Volumes/GeorgeDrive/ignasi/IC295_batch2/IC295__1_MMStack_Pos20-KO.ome.tif"
+        "source_real_path": "/Users/george/claude_test/cellscope/ic295_analysis/_cache/IC295__1_MMStack_Pos20-KO.ome.tif"
       },
       {
         "name": "Pos21_KO",
@@ -93,10 +93,10 @@
         "tracks_identity_preserved": true,
         "source_recording": "data/ic295_gt_full/Pos21_KO/IC295__1_MMStack_Pos21-KO.ome.tif",
         "source_accessible": true,
-        "has_pipeline_results": true,
-        "has_evaluation": true,
+        "has_pipeline_results": false,
+        "has_evaluation": false,
         "issues": [],
-        "source_real_path": "/Volumes/GeorgeDrive/ignasi/IC295_batch2/IC295__1_MMStack_Pos21-KO.ome.tif"
+        "source_real_path": "/Users/george/claude_test/cellscope/ic295_analysis/_cache/IC295__1_MMStack_Pos21-KO.ome.tif"
       },
       {
         "name": "Pos30_GOF",
@@ -125,10 +125,10 @@
         "tracks_identity_preserved": true,
         "source_recording": "data/ic295_gt_full/Pos30_GOF/IC295__1_MMStack_Pos30-GOF.ome.tif",
         "source_accessible": true,
-        "has_pipeline_results": true,
-        "has_evaluation": true,
+        "has_pipeline_results": false,
+        "has_evaluation": false,
         "issues": [],
-        "source_real_path": "/Volumes/GeorgeDrive/ignasi/IC295_batch2/IC295__1_MMStack_Pos30-GOF.ome.tif"
+        "source_real_path": "/Users/george/claude_test/cellscope/ic295_analysis/_cache/IC295__1_MMStack_Pos30-GOF.ome.tif"
       },
       {
         "name": "Pos31_GOF",
@@ -157,10 +157,10 @@
         "tracks_identity_preserved": true,
         "source_recording": "data/ic295_gt_full/Pos31_GOF/IC295__1_MMStack_Pos31-GOF.ome.tif",
         "source_accessible": true,
-        "has_pipeline_results": true,
-        "has_evaluation": true,
+        "has_pipeline_results": false,
+        "has_evaluation": false,
         "issues": [],
-        "source_real_path": "/Volumes/GeorgeDrive/ignasi/IC295_batch2/IC295__1_MMStack_Pos31-GOF.ome.tif"
+        "source_real_path": "/Users/george/claude_test/cellscope/ic295_analysis/_cache/IC295__1_MMStack_Pos31-GOF.ome.tif"
       },
       {
         "name": "Pos39_OT",
@@ -189,10 +189,10 @@
         "tracks_identity_preserved": true,
         "source_recording": "data/ic295_gt_full/Pos39_OT/IC295__1_MMStack_Pos39-OT.ome.tif",
         "source_accessible": true,
-        "has_pipeline_results": true,
-        "has_evaluation": true,
+        "has_pipeline_results": false,
+        "has_evaluation": false,
         "issues": [],
-        "source_real_path": "/Volumes/GeorgeDrive/ignasi/IC295/IC295__1_MMStack_Pos39-OT.ome.tif"
+        "source_real_path": "/Users/george/claude_test/cellscope/ic295_analysis/_cache/IC295__1_MMStack_Pos39-OT.ome.tif"
       },
       {
         "name": "Pos44_OT",
@@ -221,10 +221,10 @@
         "tracks_identity_preserved": true,
         "source_recording": "data/ic295_gt_full/Pos44_OT/IC295__1_MMStack_Pos44-OT.ome.tif",
         "source_accessible": true,
-        "has_pipeline_results": true,
-        "has_evaluation": true,
+        "has_pipeline_results": false,
+        "has_evaluation": false,
         "issues": [],
-        "source_real_path": "/Volumes/GeorgeDrive/ignasi/IC295_batch2/IC295__1_MMStack_Pos44-OT.ome.tif"
+        "source_real_path": "/Users/george/claude_test/cellscope/ic295_analysis/_cache/IC295__1_MMStack_Pos44-OT.ome.tif"
       },
       {
         "name": "Pos51_Y1",
@@ -253,10 +253,10 @@
         "tracks_identity_preserved": true,
         "source_recording": "data/ic295_gt_full/Pos51_Y1/IC295__1_MMStack_Pos51-Y1.ome.tif",
         "source_accessible": true,
-        "has_pipeline_results": true,
-        "has_evaluation": true,
+        "has_pipeline_results": false,
+        "has_evaluation": false,
         "issues": [],
-        "source_real_path": "/Volumes/GeorgeDrive/ignasi/IC295/IC295__1_MMStack_Pos51-Y1.ome.tif"
+        "source_real_path": "/Users/george/claude_test/cellscope/ic295_analysis/_cache/IC295__1_MMStack_Pos51-Y1.ome.tif"
       },
       {
         "name": "Pos53_Y1",
@@ -305,10 +305,10 @@
         "tracks_identity_preserved": true,
         "source_recording": "data/ic295_gt_full/Pos68_DMSO/IC295__1_MMStack_Pos68-DMSO.ome.tif",
         "source_accessible": true,
-        "has_pipeline_results": true,
-        "has_evaluation": true,
+        "has_pipeline_results": false,
+        "has_evaluation": false,
         "issues": [],
-        "source_real_path": "/Volumes/GeorgeDrive/ignasi/IC295_batch2/IC295__1_MMStack_Pos68-DMSO.ome.tif"
+        "source_real_path": "/Users/george/claude_test/cellscope/ic295_analysis/_cache/IC295__1_MMStack_Pos68-DMSO.ome.tif"
       },
       {
         "name": "Pos69_DMSO",
@@ -356,10 +356,10 @@
         "tracks_identity_preserved": true,
         "source_recording": "data/ic295_gt_full/Pos7_WT/IC295__1_MMStack_Pos7-WT.ome.tif",
         "source_accessible": true,
-        "has_pipeline_results": true,
-        "has_evaluation": true,
+        "has_pipeline_results": false,
+        "has_evaluation": false,
         "issues": [],
-        "source_real_path": "/Volumes/GeorgeDrive/ignasi/IC295_batch2/IC295__1_MMStack_Pos7-WT.ome.tif"
+        "source_real_path": "/Users/george/claude_test/cellscope/ic295_analysis/_cache/IC295__1_MMStack_Pos7-WT.ome.tif"
       }
     ]
   },
@@ -478,12 +478,13 @@
         "n_cells_max": 3,
         "n_unique_cell_ids": 3,
         "tracks_identity_preserved": true,
-        "source_recording": "data/legacy_gt/ignasi_3_cells_control_IC293_Pos3/IC293__1_MMStack_Pos3-WT.ome-cropped.tif",
-        "source_accessible": true,
-        "has_pipeline_results": true,
-        "has_evaluation": true,
-        "issues": [],
-        "source_real_path": "/Volumes/GeorgeDrive/cellscope_data/piezo1_analysis/data/ignasi/IC293__1_MMStack_Pos3-WT.ome-cropped.tif"
+        "source_recording": null,
+        "source_accessible": false,
+        "has_pipeline_results": false,
+        "has_evaluation": false,
+        "issues": [
+          "no .tif recording in folder"
+        ]
       },
       {
         "name": "ignasi_control",
@@ -515,12 +516,13 @@
         "n_cells_max": 1,
         "n_unique_cell_ids": 1,
         "tracks_identity_preserved": true,
-        "source_recording": "data/legacy_gt/ignasi_control/ignasi_15frames_for_GT.tif",
-        "source_accessible": true,
-        "has_pipeline_results": true,
-        "has_evaluation": true,
-        "issues": [],
-        "source_real_path": "/Volumes/GeorgeDrive/cellscope_data/piezo1_analysis/data/ignasi/ignasi_15frames_for_GT.tif"
+        "source_recording": null,
+        "source_accessible": false,
+        "has_pipeline_results": false,
+        "has_evaluation": false,
+        "issues": [
+          "no .tif recording in folder"
+        ]
       },
       {
         "name": "ignasi_control_full",
@@ -602,12 +604,13 @@
         "n_cells_max": 1,
         "n_unique_cell_ids": 1,
         "tracks_identity_preserved": true,
-        "source_recording": "data/legacy_gt/ignasi_control_full/C1-IC293__1_MMStack_Pos0-WT.ome-1cropped.tif",
-        "source_accessible": true,
-        "has_pipeline_results": true,
-        "has_evaluation": true,
-        "issues": [],
-        "source_real_path": "/Volumes/GeorgeDrive/cellscope_data/piezo1_analysis/data/ignasi/C1-IC293__1_MMStack_Pos0-WT.ome-1cropped.tif"
+        "source_recording": null,
+        "source_accessible": false,
+        "has_pipeline_results": false,
+        "has_evaluation": false,
+        "issues": [
+          "no .tif recording in folder"
+        ]
       }
     ]
   }

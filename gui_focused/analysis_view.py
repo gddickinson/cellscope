@@ -164,7 +164,57 @@ class AnalysisView(QWidget):
         bc = r.get("mean_boundary_confidence")
         if bc is not None:
             lines.append(f"\nBoundary confidence: {bc:.3f}")
+        # Cell-state classification (when enabled — on by default).
+        if r.get("state_frac_balled") is not None:
+            lines += self._format_cell_state(r)
         self.summary_text.setPlainText("\n".join(lines))
+
+    @staticmethod
+    def _num(v, nd=2):
+        """Format a number, or '—' for None / NaN / non-numbers."""
+        if isinstance(v, (int, float)) and v is not None and np.isfinite(v):
+            return f"{v:.{nd}f}"
+        return "—"
+
+    def _format_cell_state(self, r):
+        """State composition + per-frame speed-by-state lines for a cell."""
+        fb = r.get("state_frac_balled") or 0.0
+        fa = r.get("state_frac_attached") or 0.0
+        out = [f"  State: balled {100*fb:.0f}% / attached {100*fa:.0f}%"]
+        nb = r.get("mean_speed_non_balled_pf")
+        bb = r.get("mean_speed_balled_pf")
+        if nb is not None or bb is not None:
+            out.append(
+                f"  Speed by state (per-frame): non-balled "
+                f"{self._num(nb, 3)} / balled {self._num(bb, 3)} µm/min")
+        return out
+
+    def _format_recording_aggregate(self, agg):
+        """Recording-level mean block — shares the IC295 batch schema."""
+        def g(k):
+            v = agg.get(k)
+            return v if isinstance(v, (int, float)) and v is not None \
+                and np.isfinite(v) else None
+        out = ["", "=== Recording summary (per-cell means) ==="]
+        out.append(
+            f"  Cells: {agg.get('n_cells', '?')}   "
+            f"Divisions: {agg.get('n_divisions', 0)}   "
+            f"Division rate: {self._num(agg.get('division_rate'), 2)}")
+        ms = g("mean_speed_mean")
+        if ms is not None:
+            out.append(
+                f"  Mean speed: {ms:.3f} µm/min   "
+                f"Persistence: {self._num(g('persistence_mean'), 3)}")
+        nb = g("mean_speed_non_balled_pf_mean")
+        bb = g("mean_speed_balled_pf_mean")
+        if nb is not None or bb is not None:
+            out.append(
+                f"  Speed by state (per-frame): non-balled "
+                f"{self._num(nb, 3)} / balled {self._num(bb, 3)} µm/min")
+        fb = g("state_frac_balled_mean")
+        if fb is not None:
+            out.append(f"  Mean % time balled: {100*fb:.0f}%")
+        return out
 
     def _populate_summary_multi(self, results):
         n_divisions = sum(1 for r in results
@@ -172,8 +222,19 @@ class AnalysisView(QWidget):
                           is not None)
         div_txt = (f", {n_divisions} division(s) detected"
                    if n_divisions else "")
-        lines = [f"Multi-cell analysis: {len(results)} cells"
-                  f"{div_txt}\n"]
+        lines = [f"Multi-cell analysis: {len(results)} cells{div_txt}"]
+        # Recording-level aggregate (same per_cell_row / aggregate schema
+        # as the IC295 batch + the focused-GUI export).
+        try:
+            from core.cell_metrics_table import (
+                per_cell_row, aggregate_recording)
+            rows = [per_cell_row(r, r.get("track_info", {}))
+                    for r in results]
+            lines += self._format_recording_aggregate(
+                aggregate_recording(rows, n_divisions))
+        except Exception:
+            pass
+        lines.append("")
         for r in results:
             cid = r.get("cell_id", "?")
             ti = r.get("track_info", {})
@@ -199,6 +260,8 @@ class AnalysisView(QWidget):
             if "area_um2" in ss:
                 lines.append(f"  Area: {ss['area_um2'].get('mean', 0):.0f} um^2")
             lines.append(f"  Persistence: {r.get('persistence', 0):.3f}")
+            if r.get("state_frac_balled") is not None:
+                lines += self._format_cell_state(r)
             lines.append("")
         self.summary_text.setPlainText("\n".join(lines))
 

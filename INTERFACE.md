@@ -65,10 +65,14 @@ suite 8771. See `gui_focused/remote_control.py` and `CLAUDE.md` for usage.
 - **vampire_analysis.py** — VAMPIRE shape mode analysis: contour extraction, PCA eigenshapes, K-means clustering, Shannon entropy heterogeneity (wraps vampire-analysis package)
 - **gap_interp.py** — `interpolate_short_gaps()` + `plot_with_gaps()` — linearly fills NaN runs ≤ N frames in analysis timeseries (speed/area/etc.), draws filled samples dotted so they're never confused with measured points. Surfaced in the focused + tracking GUIs as a "Gap fill" combo (off / ≤1 / ≤2 / ≤3 / ≤5).
 - **track_quality.py** — `compute_track_quality(track, n_total_frames, analysis_result)` returns a 0-1 composite quality score from frames-present + area stability + total path length. `quality_color(label)` maps "good"/"ok"/"poor" to pale-green/amber/red RGBA. Used by the Tracking GUI to color the track table.
+- **state_analysis.py** — `annotate_state(result, cell_stack, um, dt)` — **single source of truth** for cell-state classification + per-state motility, shared by `scripts/ic295_analyze_one.py` AND `gui_focused/workers.py` so the IC295 batch and the focused GUI compute identical per-state metrics (balled / attached / `unattached`=balled+transitional / `non_balled`=attached+transitional, per-frame speed variants `*_pf`, per-state straightness, plus extended `balled_`/`attached_` display keys). Wraps `core.cell_state` + `core.motility_state`.
+- **cell_metrics_table.py** — `per_cell_row(c, ti)` + `aggregate_recording(rows, n_div)` + `write_per_cell_csv(rows, path)` — the flat per-cell CSV schema + recording-level mean/median/std aggregation, shared by `scripts/ic295_analyze_one.py` and `gui_focused/export_dialog.py` so a focused-GUI export drops straight into `scripts/ic295_compare.py`.
+- **mask_metrics.py** — `compute_label_metrics(labels, um, dt)` — fast per-cell metrics computed straight from a label stack (per-track scalars + per-frame arrays + per-frame state codes), with NO full Analyze run. Powers the "Colour masks by result" overlay in both the focused viewer and the mask editor.
 
 ## `gui/` — Shared Components
-- **mask_editor.py** — Interactive mask editor (brush/eraser/polygon/fill, multi-cell labels)
-- **mask_editor_multicell.py** — Per-cell color helpers, label utilities
+- **mask_editor.py** — Interactive mask editor (brush/eraser/polygon/fill, multi-cell labels). "Colour:" dropdown + ↻ recompute colours each cell by a metric (state / speed / circularity / % balled / …) via `gui.metric_coloring`.
+- **mask_editor_multicell.py** — Per-cell color helpers, label utilities. `render_label_overlay(..., color_lut=None)` — the optional `color_lut` ({cell_id:(r,g,b)}) drives the colour-by-result overlay.
+- **metric_coloring.py** — Colour-by-result infrastructure shared by the focused viewer + mask editor: `METRICS` registry (Cell ID / Cell state / per-track scalars / per-frame values), `MetricColorizer` (value→RGB via matplotlib colormaps; `STATE_COLORS` for the categorical state metric), and `MetricLegend` (gradient-bar / state-swatch key widget).
 - **run_log.py** — RunLogger + RunLogWidget (event logging)
 - **workers.py** — DetectWorker, RefineWorker, BatchWorker
 - **options/** — Shared parameter panels (params.py, detection_panel.py, refinement_panel.py, analysis_panel.py, presets.py, presets_widget.py, options_panel.py)
@@ -76,14 +80,14 @@ suite 8771. See `gui_focused/remote_control.py` and `CLAUDE.md` for usage.
 ## `gui_focused/` — Detection & Analysis GUI
 - **main_window.py** — FocusedMainWindow (state machine, ROI, drag-drop). Hosts `_on_test_frame()` which runs detection on the currently displayed frame with current GUI parameters, times it, and reports a density-aware extrapolation to full-recording runtime (1.5× sparse / 2.0× medium / 2.5× dense post-proc multiplier). Test-on-frame now runs the same `_on_detect` path with `min_track_length=1` and skips multi-frame stages, and emits a warning when the selected mode (single/multi) doesn't match the recording's density probe. Also hosts the remote-control handler set when `CELLSCOPE_REMOTE=<port>` is set (16 endpoints: status/log/load_recording/load_pipeline_results/load_project/clear_all/set_param/set_frame/set_view/set_mode/detect/test_frame/analyze/save_screenshot/save_project/export). closeEvent warns on unsaved results.
 - **remote_control.py** — HTTP RPC server module (stdlib `BaseHTTPRequestHandler` inside the Qt event loop). `RemoteControlServer(QObject)` dispatches commands across threads via `pyqtSignal(dict, object)` so handlers run on the GUI thread. `attach(window, handlers, port)` for the full-featured focused GUI, `attach_minimal(window, gui_type, default_port)` for the simpler GUIs (status + log only). `parse_remote_env()` reads `CELLSCOPE_REMOTE=<port>` from the environment.
-- **image_viewer.py** — ImageViewer + FrameNavigatorBar (B/C, zoom, pan)
+- **image_viewer.py** — ImageViewer + FrameNavigatorBar (B/C, zoom, pan). "Colour by:" dropdown + legend recolour cells by an analysis result (cell state / mean speed / persistence / % balled / per-frame area·circularity·speed) via `gui.metric_coloring`; metrics come from `core.mask_metrics` (no Analyze needed) and refresh when masks change.
 - **pipeline_panel.py** — 5 stage buttons + mode selector + Cancel / Undo Detect / **🔬 Test on frame** / Clear All toolbar row. `btn_test_frame` auto-gates on detect-stage availability; emits `test_frame_clicked` signal.
 - **params_panel.py** — Context-sensitive parameters (modality selector: Auto/DIC/Phase-contrast). Exposes **17 wired pipeline parameters** in 6 grouped sections: Detection (model, min_area, expected_cells, search_radius, min_track_length, ROI), Refinement steps (DeepSea, TTA, cpsam-on-Cy5 union, fallback, mirror-pad), Gap fill (toggle + SAM2 video sub-toggle gated on Gap fill, max_gap_frames), Cy5 multichannel (fusion, recovery, filter mode dropdown + 3 persistence_guard sub-spinboxes gated on Persistence guard mode), Tiling, DIC pipeline (preprocess, retry, 3 Cy5 fusion sub-thresholds). All values reach `detect_recording` end-to-end via `get_detect_params()`.
-- **analysis_view.py** — Summary/Graphs/Log tabs
+- **analysis_view.py** — Summary/Graphs/Log tabs. Multi-cell Summary now shows a recording-level aggregate block (n_cells, division rate, mean speed, speed-by-state) plus per-cell state composition + per-frame speed-by-state, using `core.cell_metrics_table`.
 - **analysis_plots.py** — 16 plot functions + GRAPH_REGISTRY (timeseries plots accept `gap_interp_max` kwarg for short-gap interpolation)
 - **vampire_plots.py** — 4 VAMPIRE plots (Shape Modes scatter, Mode Distribution histogram, Mode Over Time, Eigenshape variations); split out so analysis_plots stays under the 500-line limit
-- **export_dialog.py** — Export configuration dialog. When "Save masks" is ticked, also writes a `divisions.json` sidecar next to `masks.npz` (always present — empty `candidates` list if no divisions detected). Sidecar contains both the raw candidates from `core.division_annotator` and a compact `track_lineage` table mapping daughter-track-index → parent-track-index.
-- **workers.py** — FocusedDetectWorker, FocusedAnalyzeWorker. `FocusedAnalyzeWorker` propagates each track's `parent_id`/`division_frame`/`division_score` into the per-cell `track_info` dict so the analysis view can display lineage.
+- **export_dialog.py** — Export configuration dialog. When "Save masks" is ticked, also writes a `divisions.json` sidecar next to `masks.npz` (always present — empty `candidates` list if no divisions detected). Sidecar contains both the raw candidates from `core.division_annotator` and a compact `track_lineage` table mapping daughter-track-index → parent-track-index. With "Metrics (.json)" ticked in multi-cell mode also writes `per_cell.csv` + `recording_summary.json` (IC295 schema, via `core.cell_metrics_table`) so exports feed `scripts/ic295_compare.py` directly.
+- **workers.py** — FocusedDetectWorker, FocusedAnalyzeWorker. `FocusedAnalyzeWorker` propagates each track's `parent_id`/`division_frame`/`division_score` into the per-cell `track_info` dict so the analysis view can display lineage. State classification is **on by default** (`DEFAULTS.compute_state_classification`); `_annotate_with_state` delegates to `core.state_analysis.annotate_state` (shared with the IC295 batch).
 - **roi_selector.py** — Rectangle/ellipse/polygon ROI
 - **dialogs.py** — System info, shortcuts, about
 
@@ -170,6 +174,17 @@ suite 8771. See `gui_focused/remote_control.py` and `CLAUDE.md` for usage.
 - **compare_cpsam_dic.py** — diff two bench JSONs side by side.
 - **make_overlay_figures.py** — generate inspection overlays across
   recording types.
+- **make_single_cell_example.py** — crop ONE cell's track (+margin,
+  longest contiguous present-run) out of a recording + label stack into
+  a small, fast, single-cell example under `data/examples/`. Used to
+  rebuild `test_focused_gui.py`'s recording after the source drive
+  failed (`data/examples/single_cell_crop_wt/`).
+- **fix_dead_symlinks.py** — drive-failure cleanup: repoint dangling
+  symlinks to local copies (`_cache` / `by_condition`), materialize a
+  dead `results/` link as a real dir, or remove the rest (recording
+  each removed target to `DEAD_SYMLINK_RECOVERY.md`). `--dry-run`
+  previews. Touches only dangling symlinks — never real files or
+  `gt_masks/*.png`.
 - **test_missed_cell_recovery.py** — compare default cpsam vs TTA vs
   multi-cell pipeline on missed-cell frames.
 - **train_*.py / prepare_*.py** — model training + data prep scripts
@@ -196,7 +211,9 @@ suite 8771. See `gui_focused/remote_control.py` and `CLAUDE.md` for usage.
 - **test_focused_gui.py** — Phase A of the GUI test suite: full
   single-cell load → detect → analyze → 16 graph types → export
   flow with screenshots. 59 checks. Runs headless via
-  `QT_QPA_PLATFORM=offscreen`.
+  `QT_QPA_PLATFORM=offscreen`. Recording resolves from CLI arg →
+  `$CELLSCOPE_TEST_RECORDING` → bundled `data/examples/single_cell_crop_wt`
+  → `single_cell_phase_WT` (no longer a hard-coded path).
 - **test_comprehensive_gui.py** — Phases B–G of the GUI test suite
   (multi-cell, ROI + mask editor, batch, tracking, training,
   parameter flow). 48 checks across 5 GUIs. Pass `--phase B|C|D|E|F|G`

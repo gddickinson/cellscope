@@ -10,6 +10,112 @@ Format: **DATE — short title** with bullets describing what changed
 
 ---
 
+## 2026-06-04 — Dead-symlink sweep + test recording repoint (drive-failure cleanup)
+
+The failed GeorgeDrive left **66 dangling symlinks**. Two fixes:
+
+**Test recording.** `scripts/test_focused_gui.py` hard-coded an IC293
+cropped WT on the dead drive. Now:
+- `scripts/make_single_cell_example.py` — reusable generator that crops
+  ONE cell's track (+margin, longest contiguous present-run) out of a
+  recording + label stack. Used reviewed IC295 masks
+  (`by_condition/WT/Pos10-WT`) + cached pixels to make
+  `data/examples/single_cell_crop_wt/` (cell 1, 81 frames, 282×378,
+  present in 100% of frames, ~8.6 MB) + its `_masks.npz` + `.json`.
+- The test now resolves the recording from CLI arg → `$CELLSCOPE_TEST_
+  RECORDING` → the bundled crop → `single_cell_phase_WT`; loads it
+  channel-aware; navigates frames relative to length (was hard-coded
+  frame 50); and falls back off a dead `results/` symlink. **Full run:
+  59/59 pass** (detect 157 s, all 16 graphs, export, consistency).
+
+**All dead symlinks fixed or removed** via
+`scripts/fix_dead_symlinks.py` (`--dry-run` supported):
+- 50 repointed to local copies — IC295 source/metadata → `_cache`;
+  `gt_review/*/pipeline_results/masks.npz` → the reviewed
+  `by_condition/.../masks.npz` (the original batch2 detections died
+  with the drive, so gt_review now reflects the reviewed masks).
+- 1 materialized — `results` dead symlink → real local dir.
+- 15 removed — dead dir aliases (`data/training`, `data/ic295_inspection`,
+  `data/ignasi_new_gt`, `data/ic295_gt`, `fiji_export_test`), uncached
+  sources (Pos53_Y1, Pos69_DMSO — both had EMPTY `gt_masks/`), and the
+  3 IC293 GT-recording pointers whose pixels are gone. **No real files
+  or `gt_masks/*.png` were deleted** — only dangling symlinks. Every
+  removed link's original target is recorded in
+  `DEAD_SYMLINK_RECOVERY.md` for restoration if the drive returns.
+- Result: 0 dead symlinks (108 remain, all alive). Follow-up: re-run
+  `python scripts/audit_gt.py` to refresh `data/GT_INDEX.md`, since a
+  few GT folders lost their (dead) recording pointer.
+
+## 2026-06-04 — Colour masks by result + focused-GUI analysis parity
+
+Two requested features, built on shared modules so the GUIs and the
+IC295 batch never drift again.
+
+**1. Colour masks by result** (both focused viewer + mask editor).
+A "Colour by" dropdown recolours each cell by a measured value
+instead of its ID:
+- *Cell state* — balled (red) / attached (green) / transitional
+  (amber), per frame (the categorical metric the balled-vs-non-balled
+  review needs).
+- per-track scalars — mean speed, persistence, net displacement,
+  total distance, mean area/circularity/solidity, % time balled,
+  frames tracked (continuous matplotlib colormaps).
+- per-frame values — area / circularity / speed.
+A `MetricLegend` widget under the canvas draws the colour key
+(gradient bar + min/max, or state swatches).
+- `core/mask_metrics.py::compute_label_metrics` — fast per-cell
+  metrics straight from the label stack, so colouring works right
+  after detection / loading (NO Analyze run). Reuses
+  `cell_state.classify_track_states` (one regionprops pass → shape +
+  state) + `tracking.extract_centroids`.
+- `gui/metric_coloring.py` — `METRICS` registry, `MetricColorizer`
+  (value→RGB, `STATE_COLORS`), `MetricLegend`. Shared by both GUIs.
+- `gui/mask_editor_multicell.render_label_overlay(..., color_lut=)` —
+  optional per-cell colour override (editor path).
+- Wired into `gui_focused/image_viewer.py` (per-lab colour in
+  `_render_frame`; cache invalidated in `update_masks`) and
+  `gui/mask_editor.py` (combo + ↻ recompute + `color_lut` in
+  `_redraw`). Default "Cell ID" keeps the native palette — the metric
+  compute only runs when a metric is selected.
+
+**2. Focused GUI now performs every analysis the project uses.**
+The IC295 per-recording script computed per-state metrics the focused
+GUI didn't. Closed the gap by extracting the script's logic into
+shared core modules used by BOTH:
+- `core/state_analysis.py::annotate_state` — union of the script's
+  `_annotate_state` and the worker's `_annotate_with_state`: adds the
+  compound `unattached` / `non_balled` states, per-frame speed
+  variants (`*_pf`), and per-state straightness that the GUI lacked,
+  while keeping the extended `balled_`/`attached_` display keys.
+  `gui_focused/workers.py` + `scripts/ic295_analyze_one.py` both call
+  it → identical per-state metrics.
+- `core/cell_metrics_table.py::{per_cell_row, aggregate_recording,
+  write_per_cell_csv}` — moved out of the IC295 script. The focused
+  export (`export_dialog.py`) now also writes `per_cell.csv` +
+  `recording_summary.json` in the same schema, so a GUI export feeds
+  `ic295_compare.py` directly.
+- State classification is now **on by default**:
+  `DEFAULTS.compute_state_classification` flipped to `True` (canonical
+  source), and the focused panel's `compute_states` now reads from it
+  (was a hardcoded `False` — a rule-1 drift; also wired
+  `vampire_clusters` / `compute_vampire` to DEFAULTS).
+- `analysis_view.py` multi-cell Summary gained a recording-aggregate
+  block (cells / division rate / mean speed / speed-by-state) + per-
+  cell state composition + per-frame speed-by-state.
+
+Verified: defaults-consistency test (28 checks) passes with
+`compute_states=True`; headless smoke drove ImageViewer (all colour-by
+options) + MaskEditor (colour-by + refresh) + AnalysisView (state +
+aggregate) + ExportDialog (per_cell.csv 37 cols + recording_summary)
++ FocusedAnalyzeWorker multi with state on by default. (Full
+`test_focused_gui.py` not run — its WT recording lived on the failed
+GeorgeDrive and isn't local.)
+
+Note: `image_viewer.py` (≈900 lines) and `mask_editor.py` (≈2.4k)
+remain over the 500-line budget — pre-existing; new logic was pushed
+into the shared modules to keep additions minimal. Splitting those two
+is a separate refactor.
+
 ## 2026-06-01 — SAM2 point-and-click cell-detect tool (`gui/mask_editor_sam2_point.py`)
 
 New mask-editor tool addressing the most common review pain point:

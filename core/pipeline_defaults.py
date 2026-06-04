@@ -468,7 +468,12 @@ class PipelineDefaults:
     compute_membrane: bool = False
     compute_vampire: bool = False
     vampire_n_clusters: int = 5
-    compute_state_classification: bool = False
+    # On by default: the keratinocyte motility analysis is confounded
+    # by balled-up (rounded mitotic / dying) cells, so every GUI now
+    # stratifies motility by cell state out of the box — matching the
+    # IC295 batch (scripts/ic295_analyze_one.py runs state unless
+    # --no-state). Turn off per-run if you only need bulk metrics.
+    compute_state_classification: bool = True
 
     def as_dict(self) -> dict:
         return asdict(self)

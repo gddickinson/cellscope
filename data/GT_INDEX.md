@@ -8,16 +8,16 @@ Multichannel IC295 (DIC+Cy5), full-recording GT labelled in the current workflow
 
 | Recording | Frames | Image | Cells (min/max) | Identity preserved | Source accessible | Pipeline run | Evaluated | Issues |
 |---|---:|---|---:|---:|---:|---:|---:|---|
-| `Pos10_WT` | 10 | 2048x2048 | 3/3 | ✓ | ✓ | ✓ | ✓ | — |
-| `Pos20_KO` | 10 | 2048x2048 | 7/9 | ✓ | ✓ | ✓ | ✓ | — |
-| `Pos21_KO` | 10 | 2048x2048 | 4/8 | ✓ | ✓ | ✓ | ✓ | — |
-| `Pos30_GOF` | 10 | 2048x2048 | 6/7 | ✓ | ✓ | ✓ | ✓ | — |
-| `Pos31_GOF` | 10 | 2048x2048 | 2/5 | ✓ | ✓ | ✓ | ✓ | — |
-| `Pos39_OT` | 10 | 2048x2048 | 7/9 | ✓ | ✓ | ✓ | ✓ | — |
-| `Pos44_OT` | 10 | 2048x2048 | 4/7 | ✓ | ✓ | ✓ | ✓ | — |
-| `Pos51_Y1` | 10 | 2048x2048 | 1/2 | ✓ | ✓ | ✓ | ✓ | — |
-| `Pos68_DMSO` | 11 | 2048x2048 | 1/21 | ✓ | ✓ | ✓ | ✓ | — |
-| `Pos7_WT` | 10 | 2048x2048 | 10/11 | ✓ | ✓ | ✓ | ✓ | — |
+| `Pos10_WT` | 10 | 2048x2048 | 3/3 | ✓ | ✓ |   |   | — |
+| `Pos20_KO` | 10 | 2048x2048 | 7/9 | ✓ | ✓ |   |   | — |
+| `Pos21_KO` | 10 | 2048x2048 | 4/8 | ✓ | ✓ |   |   | — |
+| `Pos30_GOF` | 10 | 2048x2048 | 6/7 | ✓ | ✓ |   |   | — |
+| `Pos31_GOF` | 10 | 2048x2048 | 2/5 | ✓ | ✓ |   |   | — |
+| `Pos39_OT` | 10 | 2048x2048 | 7/9 | ✓ | ✓ |   |   | — |
+| `Pos44_OT` | 10 | 2048x2048 | 4/7 | ✓ | ✓ |   |   | — |
+| `Pos51_Y1` | 10 | 2048x2048 | 1/2 | ✓ | ✓ |   |   | — |
+| `Pos68_DMSO` | 11 | 2048x2048 | 1/21 | ✓ | ✓ |   |   | — |
+| `Pos7_WT` | 10 | 2048x2048 | 10/11 | ✓ | ✓ |   |   | — |
 
 _Placeholder folders awaiting labelling: `Pos53_Y1`, `Pos69_DMSO`_
 
@@ -27,9 +27,9 @@ Single-channel cropped DIC GT carried over from the piezo1 project on GeorgeDriv
 
 | Recording | Frames | Image | Cells (min/max) | Identity preserved | Source accessible | Pipeline run | Evaluated | Issues |
 |---|---:|---|---:|---:|---:|---:|---:|---|
-| `ignasi_3_cells_control_IC293_Pos3` | 97 | 1028x828 | 3/3 | ✓ | ✓ | ✓ | ✓ | — |
-| `ignasi_control` | 15 | 438x759 | 1/1 | ✓ | ✓ | ✓ | ✓ | — |
-| `ignasi_control_full` | 65 | 438x759 | 1/1 | ✓ | ✓ | ✓ | ✓ | — |
+| `ignasi_3_cells_control_IC293_Pos3` | 97 | 1028x828 | 3/3 | ✓ | ✗ |   |   | no .tif recording in folder |
+| `ignasi_control` | 15 | 438x759 | 1/1 | ✓ | ✗ |   |   | no .tif recording in folder |
+| `ignasi_control_full` | 65 | 438x759 | 1/1 | ✓ | ✗ |   |   | no .tif recording in folder |
 
 ## Totals
 
@@ -47,19 +47,6 @@ Each evaluated GT folder now contains a `<name>.cellscope` project file. Drag an
 - the fusion source stack when available — toggle **Source ⓘ** in the viewer to colour cells by detection origin
 
 Project files:
-- `data/ic295_gt_full/Pos10_WT/Pos10_WT.cellscope`
-- `data/ic295_gt_full/Pos20_KO/Pos20_KO.cellscope`
-- `data/ic295_gt_full/Pos21_KO/Pos21_KO.cellscope`
-- `data/ic295_gt_full/Pos30_GOF/Pos30_GOF.cellscope`
-- `data/ic295_gt_full/Pos31_GOF/Pos31_GOF.cellscope`
-- `data/ic295_gt_full/Pos39_OT/Pos39_OT.cellscope`
-- `data/ic295_gt_full/Pos44_OT/Pos44_OT.cellscope`
-- `data/ic295_gt_full/Pos51_Y1/Pos51_Y1.cellscope`
-- `data/ic295_gt_full/Pos68_DMSO/Pos68_DMSO.cellscope`
-- `data/ic295_gt_full/Pos7_WT/Pos7_WT.cellscope`
-- `data/legacy_gt/ignasi_3_cells_control_IC293_Pos3/ignasi_3_cells_control_IC293_Pos3.cellscope`
-- `data/legacy_gt/ignasi_control/ignasi_control.cellscope`
-- `data/legacy_gt/ignasi_control_full/ignasi_control_full.cellscope`
 
 Or run `python scripts/write_gt_project_files.py` to (re)create them all from the saved `pipeline_results/masks.npz`.
 
