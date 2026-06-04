@@ -628,6 +628,20 @@ class ParamsPanel(QWidget):
             "Cells with solidity ≤ this OR circularity ≤ "
             "attached-circ are classified ATTACHED.")
         form.addRow("  Attached solidity ≤:", self.state_attached_solid)
+
+        # --- Cell division ---
+        form.addRow(QLabel("<b>Cell division:</b>"))
+        self.compute_divisions = QCheckBox()
+        self.compute_divisions.setChecked(True)
+        self.compute_divisions.setToolTip(
+            "Detect cell-division events (pre-mitotic swelling → balled →\n"
+            "mask halves → two persisting daughters) and assign lineage\n"
+            "(parent_id / division_frame / division_score) to daughter\n"
+            "tracks. Powers the Cell Lineage Tree + Division Timeline\n"
+            "graphs and the division-rate summary. Detection pipelines\n"
+            "annotate divisions inline; this re-runs detection only when\n"
+            "masks were loaded from a file with no divisions.json sidecar.")
+        form.addRow("Detect divisions:", self.compute_divisions)
         return page
 
     def _build_help_page(self):
@@ -828,6 +842,10 @@ class ParamsPanel(QWidget):
                 "attached_solid": self.state_attached_solid.value(),
             },
         }
+
+    def get_division_params(self):
+        """Cell-division detection settings."""
+        return {"enabled": self.compute_divisions.isChecked()}
 
     def get_vampire_params(self):
         """VAMPIRE shape-mode-analysis settings.

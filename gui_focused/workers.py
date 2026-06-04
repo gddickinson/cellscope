@@ -404,7 +404,7 @@ class FocusedAnalyzeWorker(QThread):
 
     def __init__(self, recording, detect_result, mode,
                  scale_overrides=None, vampire_params=None,
-                 state_params=None):
+                 state_params=None, division_params=None):
         super().__init__()
         self.recording = recording
         self.detect_result = detect_result
@@ -412,6 +412,7 @@ class FocusedAnalyzeWorker(QThread):
         self.scale_overrides = scale_overrides or {}
         self.vampire_params = vampire_params or {}
         self.state_params = state_params or {"enabled": False}
+        self.division_params = division_params or {"enabled": True}
 
     def _annotate_with_state(self, result, masks_or_stack, um_per_px,
                               dt_min):
@@ -469,7 +470,8 @@ class FocusedAnalyzeWorker(QThread):
                 # come from a loaded masks.npz WITHOUT a divisions.json
                 # sidecar, run it here so analysis surfaces lineage.
                 # Signal: detect_result["divisions"] is absent.
-                if tracks and "divisions" not in self.detect_result:
+                if (tracks and "divisions" not in self.detect_result
+                        and self.division_params.get("enabled", True)):
                     labels = self.detect_result.get("labels")
                     if labels is not None:
                         try:

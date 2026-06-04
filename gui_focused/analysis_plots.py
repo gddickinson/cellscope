@@ -459,6 +459,9 @@ from gui_focused.vampire_plots import (  # noqa: E402
     plot_vampire_modes, plot_vampire_distribution,
     plot_vampire_timeseries, plot_vampire_eigenshapes,
 )
+from gui_focused.division_plots import (  # noqa: E402
+    plot_lineage_tree, plot_division_timeline,
+)
 
 
 GRAPH_REGISTRY = {
@@ -478,6 +481,8 @@ GRAPH_REGISTRY = {
     "Area Comparison (all cells)": (plot_area_comparison, True),
     "Trajectory Comparison (all cells)": (plot_trajectory_comparison, True),
     "Cell Summary Table": (plot_cell_summary_table, True),
+    "Cell Lineage Tree": (plot_lineage_tree, True),
+    "Division Timeline": (plot_division_timeline, True),
     "VAMPIRE Shape Modes": (plot_vampire_modes, False),
     "VAMPIRE Mode Distribution": (plot_vampire_distribution, False),
     "VAMPIRE Mode Over Time": (plot_vampire_timeseries, False),

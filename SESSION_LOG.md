@@ -10,6 +10,44 @@ Format: **DATE — short title** with bullets describing what changed
 
 ---
 
+## 2026-06-04 — Shareable image export + cell-division graphs (focused GUI)
+
+Two requested focused-GUI additions.
+
+**Shareable image export** (`gui_focused/share_export.py`; File → Export
+Shareable Image…, Ctrl+Shift+I). Produces *small* files for sharing,
+distinct from the archival full-res overlay TIFF:
+- Current frame → PNG or JPEG (quality slider); all frames → MP4 (mp4v),
+  animated GIF, or a single Montage PNG/JPEG (evenly-sampled grid).
+- Each overlay independently switchable — mask fill, contours, cell IDs,
+  tracks (trails), timestamp, scale bar — initialised from the viewer's
+  current toggles + overlay settings.
+- Max-dimension downscale (default 1024 px) + JPEG quality keep files
+  tiny: a 1024-px JPEG of a frame ≈ 37 KB, a 12-frame montage ≈ 0.7 MB.
+- Reuses `mask_editor_multicell.render_label_overlay` (mask/contour/ID)
+  + `overlays.draw_overlays` (timestamp/scale bar baked in) so the look
+  matches the viewer. Timestamp/scale-bar checkboxes auto-disable when
+  the recording lacks dt / µm-per-px.
+
+**Cell-division analysis + graphs** (`gui_focused/division_plots.py`):
+- Two new multi-cell graphs in GRAPH_REGISTRY: **Cell Lineage Tree**
+  (per-cell lifelines with parent→daughter division connectors labelled
+  by division score) and **Division Timeline** (per-event score stems +
+  cumulative-divisions step). Both derive from per-cell `track_info`
+  (parent_id / division_frame / division_score) + the area timeseries,
+  so they need no extra data and gracefully show "No divisions detected"
+  when empty.
+- New **"Detect divisions"** analysis toggle (params panel, default on) →
+  `get_division_params()` → `FocusedAnalyzeWorker(division_params=…)`,
+  which gates the `annotate_track_lineage` re-run for loaded masks.
+
+Verified headless (15 checks): both plots render with/without divisions,
+the toggle flips, and PNG/JPEG/MP4/GIF/Montage all export (JPEG < PNG,
+JPEG < 400 KB). Screenshots confirmed the lineage connector + score, the
+timeline stems + cumulative curve, and overlays baking correctly into a
+montage. `image_viewer.py`/`mask_editor.py` untouched here; new logic
+lives in the two new modules (both < 500 lines).
+
 ## 2026-06-04 — Dead-symlink sweep + test recording repoint (drive-failure cleanup)
 
 The failed GeorgeDrive left **66 dangling symlinks**. Two fixes:

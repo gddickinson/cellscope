@@ -506,6 +506,14 @@ class FocusedMainWindow(QMainWindow):
         act_screenshot_view.triggered.connect(
             self._on_save_viewer_screenshot)
         file_menu.addAction(act_screenshot_view)
+        act_share = QAction("Export Shareable Image…", self)
+        act_share.setShortcut("Ctrl+Shift+I")
+        act_share.setStatusTip(
+            "Export a small, shareable PNG / JPEG / GIF / MP4 / montage "
+            "of the current frame or whole recording, with selectable "
+            "overlays (mask, contour, IDs, tracks, timestamp, scale bar).")
+        act_share.triggered.connect(self._on_share_image)
+        file_menu.addAction(act_share)
         file_menu.addSeparator()
         act_quit = QAction("Quit", self)
         act_quit.setShortcut("Ctrl+Q")
@@ -1076,10 +1084,11 @@ class FocusedMainWindow(QMainWindow):
         scale = self.params.get_scale_overrides()
         vampire_params = self.params.get_vampire_params()
         state_params = self.params.get_state_params()
+        division_params = self.params.get_division_params()
         self._worker = FocusedAnalyzeWorker(
             self.recording, self.detect_result, self.mode,
             scale_overrides=scale, vampire_params=vampire_params,
-            state_params=state_params)
+            state_params=state_params, division_params=division_params)
         self._worker.progress.connect(self._on_progress)
         self._worker.log_event.connect(
             lambda k, m: self.logger.log(k, m))
@@ -1326,6 +1335,18 @@ class FocusedMainWindow(QMainWindow):
         self.logger.log("info", f"Saved viewer screenshot: {path}")
         self.status.showMessage(f"Saved: {os.path.basename(path)}",
                                  5000)
+
+    def _on_share_image(self):
+        """File → Export Shareable Image… — compact PNG/JPEG/GIF/MP4
+        with selectable overlays, for easily sharing results."""
+        if self.recording is None or self.viewer.frames is None:
+            QMessageBox.information(
+                self, "Export Shareable Image",
+                "Load a recording first.")
+            return
+        from gui_focused.share_export import ShareImageDialog
+        ShareImageDialog(self.viewer, self.recording,
+                         self.detect_result, self).exec_()
 
     def _save_screenshot_of(self, widget, default_suffix="screenshot"):
         rec_name = (self.recording or {}).get("name", default_suffix) \
