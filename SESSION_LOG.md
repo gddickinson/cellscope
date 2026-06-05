@@ -10,6 +10,40 @@ Format: **DATE — short title** with bullets describing what changed
 
 ---
 
+## 2026-06-05 — Gap-fill Phase 1: 12.5× faster, GT-validated no quality loss
+
+Attacked the Priority-0 bottleneck — the 4-phase track gap-fill cascade
+(`core/track_gap_fill.py`), which dominated multi-cell detection at
+~17 min/cell.
+
+**Found** (via new per-phase instrumentation): Phase 1 ran
+`cpsam.eval(full_frame, augment=True)` per gap on the whole 2048² image
+— **~76 s/gap** — to pick the single cell near an already-interpolated
+centroid. Phase 1 only accepts a cell within `search_radius` of that
+centroid, so an adaptive **crop** around it provably contains every
+acceptable candidate.
+
+**Fixed**: `_gap_crop_window` + crop-aware `_try_primary_cpsam`
+(`DEFAULTS.gap_fill_crop=True`). The chosen mask maps back to
+full-frame coords so all size/collision guards are unchanged. A
+full-frame fallback fires only when the crop misses, so recall is
+provably ≥ the old path. Per-phase timing now logs + flows to a
+`stats_out` dict (the open Priority-0 "instrument" step).
+
+**Validated against reviewed masks as GT** (`scripts/bench_gap_fill.py`:
+delete known masks from reviewed tracks, run full vs crop on the same
+gaps, score fill-rate + IoU-vs-GT + time). Pos7-WT, 20 synthetic gaps:
+- crop **6.1 s/gap vs full 75.9 s/gap = 12.5×**
+- **0** good fills (IoU≥0.5) dropped; the 1 crop-miss was a weak full
+  fill (IoU 0.38)
+- shared-fill IoU vs GT within **−0.002** of full; mask agreement 0.967
+- Verdict: crop matches full on every good fill → default ON.
+
+Phase 1 was the bulk of the ~17 min/cell, so this should cut detection
+wall-time several-fold (far past the ≥30% target) with no measurable
+quality change. Phase 2/3 ablation + SAM2-downsample remain open
+(`docs/IMPROVEMENTS.md` Priority 0). Updated the CLAUDE.md audit flag.
+
 ## 2026-06-04 — Lossless re-compress of the recording masters (−35 GB)
 
 The IC295 `.ome.tif` masters were 16-bit, 3-channel, **uncompressed**

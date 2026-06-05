@@ -324,6 +324,17 @@ Conventions to preserve when extending:
 > batching, confident-detection short-circuit, possible removal of
 > low-yield phases). Target: ≥ 30 % wall-time reduction with no F1
 > loss on the GT corpus.
+>
+> **UPDATE (2026-06-05).** Dominant cost found + fixed: Phase 1 ran
+> full-frame `cpsam(augment=True)` (~76 s/gap on 2048²) just to find
+> one cell near a known centroid. Now segments an adaptive **crop**
+> around the interpolated centroid (`DEFAULTS.gap_fill_crop=True`,
+> full-frame fallback on the rare crop-miss). GT benchmark
+> (`scripts/bench_gap_fill.py`, reviewed masks as truth): **12.5×**
+> faster (6.1 vs 76 s/gap), **0** good fills dropped, shared-fill IoU
+> Δ −0.002. Per-phase timing now instrumented (`stats_out`). Phase
+> 2/3 ablation + SAM2-downsample still open. Phase 2 is already
+> batched (one subprocess/recording).
 
 When the Hungarian tracker assigns identity, a track may have internal
 gaps (frames where detection failed). `core/track_gap_fill.fill_track_gaps`

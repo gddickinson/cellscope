@@ -46,10 +46,32 @@ already filled by earlier phases (CLAUDE.md notes "100 % fill rate
 on tested recordings (41/41 gaps)" — if Phase 1 already gets the
 bulk, Phases 2-3 may be over-engineered for typical IC295).
 
+### Result (2026-06-05) — Phase 1 crop: 12.5× with no quality loss
+
+Instrumentation pinned the cost on **Phase 1**: it ran
+`cpsam.eval(full_frame, augment=True)` per gap on the whole 2048²
+image (measured **~76 s/gap**) just to pick the one cell near an
+already-interpolated centroid. Since Phase 1 only ever *accepts* a
+cell within `search_radius` of that centroid, segmenting an adaptive
+**crop** around it is provably loss-free for recall.
+
+GT benchmark (`scripts/bench_gap_fill.py`, reviewed Pos7-WT masks as
+truth, 20 synthetic gaps): crop **6.1 s/gap vs full 75.9 s/gap = 12.5×**,
+**0** good fills (IoU≥0.5) dropped, shared-fill IoU within −0.002 of
+full, mask agreement 0.967. Shipped as `DEFAULTS.gap_fill_crop=True`
+with a full-frame fallback on the rare crop-miss (recall ≥ full path).
+Per-phase timing now logs + flows to `stats_out`.
+
+Remaining (Phase 2/3 ablation, short-circuit, SAM2 downsample) still
+open below, but the dominant cost is addressed.
+
 ### Plan (after the current IC295 batch finishes)
 
-- [ ] **S** — Instrument `track_gap_fill.fill_track_gaps` to log
-      time + gaps-resolved per phase per recording. Add to RUN_METADATA.
+- [x] **S** — Instrument `track_gap_fill.fill_track_gaps` to log
+      time + gaps-resolved per phase. `stats_out` dict + per-phase
+      log line (done 2026-06-05).
+- [x] **Phase-1 crop acceleration** — adaptive crop around the
+      interpolated centroid; 12.5× faster, GT-validated (done 2026-06-05).
 - [ ] **M** — Per-phase ablation study on 3-5 representative IC295
       recordings (sparse, medium, dense): run with each phase toggled
       off, compare F1 / IoU / ID consistency / division-catch vs the

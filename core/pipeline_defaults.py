@@ -402,6 +402,15 @@ class PipelineDefaults:
     # ~1 sec per gap frame; turn off if cpsam(augment) is enough for
     # your data.
     use_tta: bool = False             # cpsam test-time augmentation
+    # Gap-fill Phase 1 acceleration: segment only an adaptive crop
+    # around the interpolated centroid instead of the whole frame.
+    # Phase 1 only ever accepts a cell within `search_radius` of that
+    # centroid, so a crop of half-size (search_radius + cell-radius +
+    # margin) provably contains every acceptable candidate — same
+    # recall, ~(frame/crop)² less compute. Falls back to the full frame
+    # when the adaptive crop isn't smaller. Validated vs reviewed-mask
+    # GT (scripts/bench_gap_fill.py).
+    gap_fill_crop: bool = True
 
     # --- Mirror padding (auto-enabled on large detection frames) ---
     # When the detection-resolution image is large enough that the

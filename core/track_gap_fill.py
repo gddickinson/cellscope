@@ -100,8 +100,31 @@ def _pick_nearest_cell(labels, expected_centroid, search_radius,
     return best_mask
 
 
+def _gap_crop_window(centroid, search_radius, expected_area, min_area,
+                     H, W):
+    """Adaptive crop bounds (y0, y1, x0, x1) centred on the expected
+    centroid, sized to contain the ENTIRE Phase-1 acceptance region:
+    any cell whose centroid is within `search_radius`, plus that cell's
+    own radius + a margin. Because Phase 1 rejects every candidate
+    farther than `search_radius` from the centroid, no acceptable cell
+    can fall outside this window — so cropping does not change recall.
+
+    Returns None when the crop wouldn't be meaningfully smaller than the
+    full frame (then we just segment the whole frame)."""
+    cy, cx = centroid
+    cell_r = int(np.sqrt(max(float(expected_area or 0.0), float(min_area))
+                         / np.pi))
+    half = int(search_radius + 2 * cell_r + 32)
+    if 2 * half >= int(0.85 * min(H, W)):
+        return None
+    cyi, cxi = int(round(cy)), int(round(cx))
+    return (max(0, cyi - half), min(H, cyi + half),
+            max(0, cxi - half), min(W, cxi + half))
+
+
 def _try_primary_cpsam(image, expected_centroid, search_radius, min_area,
-                       cpsam_model=None, expected_area=None):
+                       cpsam_model=None, expected_area=None,
+                       use_crop=False):
     """Attempt 1: cpsam(augment=True). Returns mask or None.
 
     `cpsam_model` is an optional pre-loaded model, so we don't reload
@@ -111,10 +134,33 @@ def _try_primary_cpsam(image, expected_centroid, search_radius, min_area,
     `expected_area` (optional) constrains the chosen mask to be
     within a factor of the track's typical size — see
     `_pick_nearest_cell` docstring.
+
+    When `use_crop` is True, cpsam segments only an adaptive crop around
+    the expected centroid (`_gap_crop_window`) instead of the full
+    frame. This is the dominant Phase-1 speed-up: same recall (the crop
+    contains the whole acceptance region), at ~(frame/crop)² less
+    compute. The chosen mask is mapped back to full-frame coordinates
+    so every downstream guard (size / collision) is unchanged.
     """
     from cellpose import models
     m = cpsam_model if cpsam_model is not None else models.CellposeModel(
         gpu=True)
+    H, W = image.shape[:2]
+    win = (_gap_crop_window(expected_centroid, search_radius,
+                            expected_area, min_area, H, W)
+           if use_crop else None)
+    if win is not None:
+        y0, y1, x0, x1 = win
+        masks_i, _, _ = m.eval(image[y0:y1, x0:x1], augment=True)
+        local = _pick_nearest_cell(
+            masks_i,
+            (expected_centroid[0] - y0, expected_centroid[1] - x0),
+            search_radius, min_area, expected_area=expected_area)
+        if local is None:
+            return None
+        full = np.zeros((H, W), dtype=bool)
+        full[y0:y1, x0:x1] = local
+        return full
     masks_i, _, _ = m.eval(image, augment=True)
     return _pick_nearest_cell(masks_i, expected_centroid,
                               search_radius, min_area,
@@ -154,7 +200,8 @@ def fill_track_gaps(tracks, frames, min_area=300,
                     search_radius=100, progress_fn=None,
                     project_root=None, use_cp3_fallback=True,
                     use_sam2_video=True,
-                    use_mask_propagation=True):
+                    use_mask_propagation=True,
+                    use_crop=None, stats_out=None):
     """Fill internal gaps in tracks by searching for missing cells.
 
     Four-phase cascade:
@@ -188,9 +235,34 @@ def fill_track_gaps(tracks, frames, min_area=300,
         use_cp3_fallback: if False, skip Phase 2.
         use_sam2_video: if False, skip Phase 3 (SAM2 propagation).
         use_mask_propagation: if False, skip Phase 4 (translation).
+        use_crop: Phase-1 crop acceleration (None → DEFAULTS.gap_fill_crop).
+        stats_out: optional dict; filled with per-phase {time_s, filled}
+            for RUN_METADATA / profiling.
     """
+    import time as _time
+    from core.pipeline_defaults import DEFAULTS as _PD
+    if use_crop is None:
+        use_crop = _PD.gap_fill_crop
+
     n_frames = len(frames)
     filled = 0
+    stats = {"total_gaps": 0, "crop": bool(use_crop),
+             "phase1": {"time_s": 0.0, "filled": 0},
+             "phase2": {"time_s": 0.0, "filled": 0},
+             "phase3": {"time_s": 0.0, "filled": 0},
+             "phase4": {"time_s": 0.0, "filled": 0}}
+
+    def _finish():
+        log.info(
+            "gap-fill timing (crop=%s): p1=%.1fs(%d) p2=%.1fs(%d) "
+            "p3=%.1fs(%d) p4=%.1fs(%d) — %d/%d gaps filled",
+            use_crop, stats["phase1"]["time_s"], stats["phase1"]["filled"],
+            stats["phase2"]["time_s"], stats["phase2"]["filled"],
+            stats["phase3"]["time_s"], stats["phase3"]["filled"],
+            stats["phase4"]["time_s"], stats["phase4"]["filled"],
+            filled, stats["total_gaps"])
+        if stats_out is not None:
+            stats_out.update(stats)
 
     all_gaps = []
     for tid, track in enumerate(tracks):
@@ -198,18 +270,22 @@ def fill_track_gaps(tracks, frames, min_area=300,
         for g in gaps:
             all_gaps.append((tid, g))
     total_gaps = len(all_gaps)
+    stats["total_gaps"] = total_gaps
 
     if total_gaps == 0:
         log.info("No internal gaps to fill")
+        _finish()
         return 0
 
     log.info("Found %d internal gaps across %d tracks", total_gaps,
              len(tracks))
 
     # Phase 1: shared cpsam model, one eval per gap (fast — no reloads).
+    t_p1 = _time.time()
     from cellpose import models
     if progress_fn:
-        progress_fn(f"Gap fill phase 1: cpsam(augment=True) on "
+        progress_fn(f"Gap fill phase 1: cpsam(augment=True"
+                    f"{', crop' if use_crop else ''}) on "
                     f"{total_gaps} gaps", 0)
     cpsam_model = models.CellposeModel(gpu=True)
 
@@ -232,7 +308,21 @@ def fill_track_gaps(tracks, frames, min_area=300,
             frames[frame_idx], centroid,
             search_radius=search_radius, min_area=min_area,
             cpsam_model=cpsam_model,
-            expected_area=expected_area)
+            expected_area=expected_area,
+            use_crop=use_crop)
+        if cell_mask is None and use_crop:
+            # Crop missed — retry this one gap on the full frame so
+            # recall is never worse than the (slower) full-frame path.
+            # GT benchmark: crop matches full on every good fill, so
+            # this fires rarely; the common case stays ~12× faster.
+            cell_mask = _try_primary_cpsam(
+                frames[frame_idx], centroid,
+                search_radius=search_radius, min_area=min_area,
+                cpsam_model=cpsam_model,
+                expected_area=expected_area,
+                use_crop=False)
+            stats["phase1"]["crop_fallbacks"] = (
+                stats["phase1"].get("crop_fallbacks", 0) + 1)
         if cell_mask is not None:
             # Don't add a mask that overlaps/touches an already-tracked
             # cell in this frame — that's the cell-3+cell-4 fragment
@@ -260,16 +350,19 @@ def fill_track_gaps(tracks, frames, min_area=300,
         else:
             pending.append((tid, frame_idx, centroid, expected_area))
 
+    stats["phase1"] = {"time_s": _time.time() - t_p1, "filled": filled}
     log.info("Phase 1 filled %d/%d gaps; %d pending for Phase 2",
              filled, total_gaps, len(pending))
 
     if not pending or not use_cp3_fallback:
         if progress_fn:
             progress_fn(f"Gap fill done: {filled}/{total_gaps}", 100)
+        _finish()
         return filled
 
     # Phase 2: BATCHED CP3 subprocess. One subprocess handles all
     # remaining gap frames at once.
+    t_p2 = _time.time()
     if progress_fn:
         progress_fn(
             f"Gap fill phase 2: CP3 fallback on {len(pending)} "
@@ -315,6 +408,8 @@ def fill_track_gaps(tracks, frames, min_area=300,
         tracks[tid]["stack"][frame_idx] = m
         filled += 1
 
+    stats["phase2"] = {"time_s": _time.time() - t_p2,
+                       "filled": filled - stats["phase1"]["filled"]}
     log.info("Phase 2 brought total to %d/%d gaps filled",
              filled, total_gaps)
 
@@ -322,6 +417,8 @@ def fill_track_gaps(tracks, frames, min_area=300,
     # propagate the most recent flanking mask forward using SAM2's
     # memory attention. Cells that were lost to retraction / dimming /
     # mitosis often get tracked accurately here.
+    t_p3 = _time.time()
+    before3 = filled
     if use_sam2_video:
         try:
             from core.sam2_video import fill_track_gaps_with_sam2
@@ -340,11 +437,15 @@ def fill_track_gaps(tracks, frames, min_area=300,
         except Exception as e:
             log.warning("Phase 3 SAM2 propagation failed: %s "
                         "(falling through to Phase 4)", e)
+    stats["phase3"] = {"time_s": _time.time() - t_p3,
+                       "filled": filled - before3}
 
     # Phase 4: simple mask translation. Last resort. For any track that
     # still has gaps, carry the most recent flanking mask forward
     # (translated to the interpolated centroid) so the cell exists in
     # the stack across the gap. Less accurate than SAM2 but free.
+    t_p4 = _time.time()
+    before4 = filled
     if use_mask_propagation:
         propagated = _propagate_masks_into_gaps(
             tracks, n_frames, search_radius=search_radius)
@@ -352,9 +453,12 @@ def fill_track_gaps(tracks, frames, min_area=300,
             log.info("Phase 4 translated masks into %d gap frames",
                      propagated)
             filled += propagated
+    stats["phase4"] = {"time_s": _time.time() - t_p4,
+                       "filled": filled - before4}
 
     if progress_fn:
         progress_fn(f"Gap fill done: {filled}/{total_gaps}", 100)
+    _finish()
     return filled
 
 
