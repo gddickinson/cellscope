@@ -124,8 +124,14 @@ def _gap_crop_window(centroid, search_radius, expected_area, min_area,
 
 def _try_primary_cpsam(image, expected_centroid, search_radius, min_area,
                        cpsam_model=None, expected_area=None,
-                       use_crop=False):
-    """Attempt 1: cpsam(augment=True). Returns mask or None.
+                       use_crop=False, use_augment=True):
+    """Attempt 1: cpsam(augment=use_augment). Returns mask or None.
+
+    `use_augment` controls 4-rotation TTA. augment=True runs 4 forward
+    passes (4× cost — the dominant per-gap cost at downsampled
+    resolution where cpsam isn't pixel-bound); augment=False is ~4×
+    cheaper but may miss harder cells (validated vs reviewed GT in
+    scripts/bench_gap_fill.py).
 
     `cpsam_model` is an optional pre-loaded model, so we don't reload
     the ViT-H weights on every gap frame. Falls back to creating a
@@ -151,7 +157,7 @@ def _try_primary_cpsam(image, expected_centroid, search_radius, min_area,
            if use_crop else None)
     if win is not None:
         y0, y1, x0, x1 = win
-        masks_i, _, _ = m.eval(image[y0:y1, x0:x1], augment=True)
+        masks_i, _, _ = m.eval(image[y0:y1, x0:x1], augment=use_augment)
         local = _pick_nearest_cell(
             masks_i,
             (expected_centroid[0] - y0, expected_centroid[1] - x0),
@@ -161,7 +167,7 @@ def _try_primary_cpsam(image, expected_centroid, search_radius, min_area,
         full = np.zeros((H, W), dtype=bool)
         full[y0:y1, x0:x1] = local
         return full
-    masks_i, _, _ = m.eval(image, augment=True)
+    masks_i, _, _ = m.eval(image, augment=use_augment)
     return _pick_nearest_cell(masks_i, expected_centroid,
                               search_radius, min_area,
                               expected_area=expected_area)
@@ -201,7 +207,7 @@ def fill_track_gaps(tracks, frames, min_area=300,
                     project_root=None, use_cp3_fallback=True,
                     use_sam2_video=True,
                     use_mask_propagation=True,
-                    use_crop=None, stats_out=None):
+                    use_crop=None, use_augment=None, stats_out=None):
     """Fill internal gaps in tracks by searching for missing cells.
 
     Four-phase cascade:
@@ -243,6 +249,8 @@ def fill_track_gaps(tracks, frames, min_area=300,
     from core.pipeline_defaults import DEFAULTS as _PD
     if use_crop is None:
         use_crop = _PD.gap_fill_crop
+    if use_augment is None:
+        use_augment = _PD.gap_fill_augment
 
     n_frames = len(frames)
     filled = 0
@@ -304,23 +312,25 @@ def fill_track_gaps(tracks, frames, min_area=300,
         # real cell next door (e.g. 2500 px).
         expected_area = _track_median_area(track, n_frames)
 
-        cell_mask = _try_primary_cpsam(
-            frames[frame_idx], centroid,
-            search_radius=search_radius, min_area=min_area,
-            cpsam_model=cpsam_model,
-            expected_area=expected_area,
-            use_crop=use_crop)
-        if cell_mask is None and use_crop:
-            # Crop missed — retry this one gap on the full frame so
-            # recall is never worse than the (slower) full-frame path.
-            # GT benchmark: crop matches full on every good fill, so
-            # this fires rarely; the common case stays ~12× faster.
-            cell_mask = _try_primary_cpsam(
+        def _try(crop, aug):
+            return _try_primary_cpsam(
                 frames[frame_idx], centroid,
                 search_radius=search_radius, min_area=min_area,
-                cpsam_model=cpsam_model,
-                expected_area=expected_area,
-                use_crop=False)
+                cpsam_model=cpsam_model, expected_area=expected_area,
+                use_crop=crop, use_augment=aug)
+
+        # Fast first pass (crop, no-augment by default). On a miss, the
+        # cascade widens — augment (4× TTA, recovers harder cells), then
+        # full frame — so recall is never worse than the old
+        # always-full-frame, always-augment path; only the misses pay
+        # the extra cost. GT-validated (scripts/bench_gap_fill.py).
+        cell_mask = _try(use_crop, use_augment)
+        if cell_mask is None and not use_augment:
+            cell_mask = _try(use_crop, True)
+            stats["phase1"]["augment_fallbacks"] = (
+                stats["phase1"].get("augment_fallbacks", 0) + 1)
+        if cell_mask is None and use_crop:
+            cell_mask = _try(False, True)
             stats["phase1"]["crop_fallbacks"] = (
                 stats["phase1"].get("crop_fallbacks", 0) + 1)
         if cell_mask is not None:

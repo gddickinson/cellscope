@@ -411,6 +411,16 @@ class PipelineDefaults:
     # when the adaptive crop isn't smaller. Validated vs reviewed-mask
     # GT (scripts/bench_gap_fill.py).
     gap_fill_crop: bool = True
+    # Gap-fill Phase 1 augment: run cpsam with augment=True (4-rotation
+    # TTA = 4 forward passes) only as a FALLBACK when the fast
+    # augment=False pass misses. augment is the dominant per-gap cost at
+    # the downsampled production resolution — it's a call count, not
+    # pixels, so it cuts time even when the crop can't engage. GT
+    # validated (scripts/bench_gap_fill.py, --downsample 2): crop +
+    # no-augment matches crop + augment (0 good fills dropped, IoU
+    # Δ −0.011) at ~2.1×; the augment fallback keeps recall ≥ the
+    # always-augment path. Set True to always augment (old behaviour).
+    gap_fill_augment: bool = False
 
     # --- Mirror padding (auto-enabled on large detection frames) ---
     # When the detection-resolution image is large enough that the

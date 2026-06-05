@@ -340,10 +340,17 @@ Conventions to preserve when extending:
 > production **downsamples to 1024²** where cpsam cost is NOT
 > pixel-bound (ViT normalises to target diameter), so the measured
 > end-to-end gain is small: Pos10-WT gap-fill 1.2× (46.7→39.8 min),
-> total 1.09×. Crop stays ON (safe; *improves* Phase-1 fill rate) but
-> the real remaining lever at production res is the **number of
-> Phase-1 cpsam calls + `augment` (4×)**, not input pixels — next
-> target. Phase 2/3 ablation also open. Phase 2 already batched.
+> total 1.09×. Crop stays ON (safe; *improves* Phase-1 fill rate).
+>
+> **`augment=False` (2026-06-05).** augment is a call count (not
+> pixels), so it cuts cost even when the crop can't engage. GT
+> benchmark at production 1024²: crop+noaug vs crop+aug **2.1×**, 0
+> good fills dropped, IoU Δ −0.011. Shipped `DEFAULTS.gap_fill_augment
+> =False` — Phase 1 now cascades **no-augment → augment-on-miss →
+> full-frame-on-miss** (recall ≥ old path). Revert: `gap_fill_augment
+> =True` (GUI "always augment" / `--gap-fill-always-augment`). Phase
+> 2/3 ablation + confident-track short-circuit still open. Phase 2
+> already batched.
 
 When the Hungarian tracker assigns identity, a track may have internal
 gaps (frames where detection failed). `core/track_gap_fill.fill_track_gaps`

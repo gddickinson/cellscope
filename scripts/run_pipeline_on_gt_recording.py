@@ -100,6 +100,11 @@ def main():
                    help="Revert gap-fill Phase 1 to the older full-frame "
                    "cpsam (slower). Default crops around the interpolated "
                    "centroid (~12× faster, GT-validated no quality loss).")
+    p.add_argument("--gap-fill-always-augment", action="store_true",
+                   help="Always run gap-fill Phase 1 with cpsam augment "
+                   "(4× TTA). Default runs no-augment first + augment "
+                   "fallback on miss (~2× faster, GT-validated no quality "
+                   "loss).")
     p.add_argument("--no-save-unfiltered", action="store_true",
                    help="Skip writing masks_unfiltered.npz + "
                    "filter_decisions.json. By default, when the Cy5 "
@@ -165,6 +170,7 @@ def main():
         cy5_filter_threshold=0.15,
         use_mirror_pad=use_mirror_pad_override,
         gap_fill_crop=(False if args.no_gap_fill_crop else None),
+        gap_fill_augment=(True if args.gap_fill_always_augment else None),
         progress_fn=lambda m, p: log.info("  detect[%d%%]: %s", p, m))
 
     auto = detect["auto"]

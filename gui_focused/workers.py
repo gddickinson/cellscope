@@ -126,6 +126,7 @@ class FocusedDetectWorker(QThread):
                     use_sam2_video_gap_fill=self.params.get(
                         "use_sam2_video_gap_fill"),
                     gap_fill_crop=self.params.get("gap_fill_crop"),
+                    gap_fill_augment=self.params.get("gap_fill_augment"),
                     max_gap_frames=self.params.get("max_gap_frames"),
                     min_track_length=self.params.get(
                         "min_track_length"),
@@ -195,7 +196,8 @@ class FocusedDetectWorker(QThread):
                     use_tta=use_tta,
                     cy5_frames=cy5_frames,
                     use_cy5_fusion=use_cy5_fusion,
-                    gap_fill_crop=self.params.get("gap_fill_crop"))
+                    gap_fill_crop=self.params.get("gap_fill_crop"),
+                    gap_fill_augment=self.params.get("gap_fill_augment"))
                 if use_cy5_fusion:
                     self.log_event.emit(
                         "info",
@@ -288,7 +290,8 @@ class FocusedDetectWorker(QThread):
                     cy5_frames=cy5_frames,
                     recover_with_cy5=recover,
                     use_cy5_fusion=use_cy5_fusion,
-                    gap_fill_crop=self.params.get("gap_fill_crop"))
+                    gap_fill_crop=self.params.get("gap_fill_crop"),
+                    gap_fill_augment=self.params.get("gap_fill_augment"))
                 if recover:
                     self.log_event.emit(
                         "info",
@@ -389,6 +392,7 @@ class FocusedGapFillWorker(QThread):
                 search_radius=search_radius,
                 project_root=self.project_root,
                 use_crop=self.params.get("gap_fill_crop"),
+                use_augment=self.params.get("gap_fill_augment"),
                 progress_fn=cb,
             )
             self.log_event.emit("done", f"Filled {n_filled} gaps")

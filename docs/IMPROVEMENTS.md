@@ -71,8 +71,13 @@ Pos10-WT (4 cells, 118 gaps): gap-fill 46.7→39.8 min (1.2×), end-to-end
 fill rate 19→33, shifting work off slower SAM2), but gap-fill is still
 ~half of detect. **The real production lever is the number of Phase-1
 `cpsam(augment=True)` calls (118 here) and the 4× `augment` cost — not
-input pixels.** Next: GT-validate `augment=False` on the crop +
-confident-track short-circuit. Phase 2/3 ablation still open below.
+input pixels.** ✅ **Done (2026-06-05):** `DEFAULTS.gap_fill_augment
+=False` — GT benchmark at 1024² shows crop+noaug vs crop+aug **2.1×**,
+0 good fills dropped, IoU Δ −0.011, and Phase 1 now cascades no-augment
+→ augment-on-miss → full-frame-on-miss (recall ≥ old path). crop+noaug
+vs the original full+aug is ~18× at 1024². Still open: confident-track
+short-circuit (cut the *number* of gaps that reach Phase 1) + Phase 2/3
+ablation below.
 
 ### Plan (after the current IC295 batch finishes)
 

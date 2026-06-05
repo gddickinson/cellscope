@@ -10,6 +10,39 @@ Format: **DATE — short title** with bullets describing what changed
 
 ---
 
+## 2026-06-05 — Gap-fill Phase 1: `augment=False` (the lever that works at production res)
+
+Follow-up to the crop work. The end-to-end run showed the crop's win is
+**track-cell-size-dependent** (the adaptive window grows with
+`expected_area`: clean reviewed masks → 12×; raw production tracks →
+~1.2×). So I tested the other Phase-1 cost: `augment=True` (4-rotation
+TTA = 4 forward passes). Unlike pixels, augment is a **call count**, so
+it cuts time even when the crop can't engage.
+
+GT benchmark at **production resolution** (`scripts/bench_gap_fill.py
+--downsample 2`, reviewed Pos7-WT masks, 18 gaps):
+
+| variant | fill | mean IoU | s/gap |
+|---|---|---|---|
+| full+aug (old) | 14/18 | 0.831 | 21.5 |
+| crop+aug (was default) | 15/18 | 0.810 | 2.4 |
+| **crop+noaug (new default)** | **15/18** | **0.799** | **1.2** |
+
+`crop+noaug` vs `crop+aug`: **2.1×**, same fill rate, **0** good fills
+(IoU≥0.5) dropped, shared-fill IoU Δ **−0.011**. crop+noaug vs full+aug:
+**~18×** at 1024².
+
+Adopted as `DEFAULTS.gap_fill_augment=False` with the same safety as the
+crop: Phase 1 now tries **no-augment first → augment fallback on miss →
+full-frame+augment fallback**, so recall is provably ≥ the old
+always-augment path; only misses pay the extra cost. Threaded
+`detect_recording → detect_hybrid_{cpsam,dic}_multi → fill_track_gaps`,
+exposed as a "Gap-fill always augment" GUI checkbox + `--gap-fill-always-
+augment` runner flag (revert to old behaviour). Defaults-consistency
+green. Caveat: synthetic gaps are easier than real ones, but the augment
+fallback covers any hard-gap miss; hard-gap *fill quality* untested
+beyond the Δ −0.011 — worth an eventual real-detection GT spot-check.
+
 ## 2026-06-05 — Gap-fill Phase 1: 12.5× faster, GT-validated no quality loss
 
 Attacked the Priority-0 bottleneck — the 4-phase track gap-fill cascade

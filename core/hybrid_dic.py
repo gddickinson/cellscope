@@ -267,7 +267,8 @@ def detect_hybrid_dic_multi(frames, progress_fn=None,
                             min_track_length=None,
                             max_gap_frames=None,
                             max_hop_px=150,
-                            gap_fill_crop=None):
+                            gap_fill_crop=None,
+                            gap_fill_augment=None):
     # All defaults come from core.pipeline_defaults — single source of
     # truth shared with the GUI. Callers may override any value by
     # passing it explicitly; None means "use the canonical default".
@@ -464,6 +465,7 @@ def detect_hybrid_dic_multi(frames, progress_fn=None,
             project_root=project_root,
             use_sam2_video=_PD.use_sam2_video_gap_fill,
             use_crop=gap_fill_crop,
+            use_augment=gap_fill_augment,
             progress_fn=lambda msg, pct: progress_fn(
                 msg, int(85 + 10 * pct / 100)) if progress_fn else None)
         if n_filled:

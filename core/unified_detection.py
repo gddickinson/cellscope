@@ -48,6 +48,7 @@ def detect_recording(dic_frames, cy5_frames=None,
                       use_gap_fill=None,
                       use_sam2_video_gap_fill=None,
                       gap_fill_crop=None,
+                      gap_fill_augment=None,
                       max_gap_frames=None,
                       min_track_length=None,
                       max_hop_px=None,
@@ -187,7 +188,8 @@ def detect_recording(dic_frames, cy5_frames=None,
             use_cy5_fusion=use_cy5_fusion,
             cy5_fusion_augment=cy5_fusion_augment_cpsam,
             cy5_fusion_jaccard_thresh=cy5_fusion_jaccard_thresh,
-            gap_fill_crop=gap_fill_crop)
+            gap_fill_crop=gap_fill_crop,
+            gap_fill_augment=gap_fill_augment)
     else:
         from core.hybrid_cpsam_multi import detect_hybrid_cpsam_multi
         _emit("Detecting with raw cpsam", 10)
@@ -230,7 +232,8 @@ def detect_recording(dic_frames, cy5_frames=None,
             cy5_frames=cy5_frames,
             recover_with_cy5=False,
             use_cy5_fusion=use_cy5_fusion,
-            gap_fill_crop=gap_fill_crop)
+            gap_fill_crop=gap_fill_crop,
+            gap_fill_augment=gap_fill_augment)
 
     # ---- 7. Cy5 multi-metric filter (multichannel only) ----
     if has_cy5 and run_cy5_filter and result.get("tracks"):
