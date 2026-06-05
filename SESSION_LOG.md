@@ -39,10 +39,29 @@ gaps, score fill-rate + IoU-vs-GT + time). Pos7-WT, 20 synthetic gaps:
 - shared-fill IoU vs GT within **−0.002** of full; mask agreement 0.967
 - Verdict: crop matches full on every good fill → default ON.
 
-Phase 1 was the bulk of the ~17 min/cell, so this should cut detection
-wall-time several-fold (far past the ≥30% target) with no measurable
-quality change. Phase 2/3 ablation + SAM2-downsample remain open
-(`docs/IMPROVEMENTS.md` Priority 0). Updated the CLAUDE.md audit flag.
+**End-to-end reality check** (Pos10-WT, 4 cells, 118 gaps, full
+production pipeline): the 12.5× is real at **full 2048² resolution**,
+but production **auto-downsamples to 1024²**, where cpsam's cost is NOT
+pixel-bound (the ViT normalises to a target cell diameter), so the crop
+only gave **gap-fill 1.2× (46.7→39.8 min), end-to-end 1.09×** (81.3→74.4
+min). The crop is still safe and *improved* Phase-1 fill rate (33 vs 19
+gaps, shifting work off slower SAM2) — so it stays ON — but it is NOT
+the several-fold end-to-end win I first claimed. Gap-fill is still ~half
+of detect time, dominated by Phase 1 running `cpsam(augment=True)` on
+118 gaps. The real remaining lever at production resolution is the
+**number of Phase-1 calls / `augment` (4×)**, not input pixels — next
+target (needs the same GT validation as the crop). Phase 2/3 ablation
+also open (`docs/IMPROVEMENTS.md` Priority 0). Measured via
+`scripts/_bench_detect_e2e.py` (isolate base once, time gap fill both
+ways on identical inputs). CLAUDE.md audit flag updated.
+
+**Revert option** (default stays on the new crop path): `gap_fill_crop`
+is now a first-class pipeline kwarg threaded
+`detect_recording → detect_hybrid_{cpsam,dic}_multi → fill_track_gaps`
+(None → `DEFAULTS.gap_fill_crop=True`; `False` reverts to full-frame).
+Exposed as a "Gap-fill crop (fast)" checkbox on the focused GUI
+Detection tab (gated on Gap fill) and as `--no-gap-fill-crop` on
+`scripts/run_pipeline_on_gt_recording.py`. Defaults-consistency green.
 
 ## 2026-06-04 — Lossless re-compress of the recording masters (−35 GB)
 

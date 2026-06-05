@@ -332,9 +332,18 @@ Conventions to preserve when extending:
 > full-frame fallback on the rare crop-miss). GT benchmark
 > (`scripts/bench_gap_fill.py`, reviewed masks as truth): **12.5×**
 > faster (6.1 vs 76 s/gap), **0** good fills dropped, shared-fill IoU
-> Δ −0.002. Per-phase timing now instrumented (`stats_out`). Phase
-> 2/3 ablation + SAM2-downsample still open. Phase 2 is already
-> batched (one subprocess/recording).
+> Δ −0.002. Per-phase timing now instrumented (`stats_out`). Revert
+> via `gap_fill_crop=False` (GUI checkbox / `detect_recording` kwarg /
+> `--no-gap-fill-crop`).
+>
+> **CAVEAT (end-to-end, 2026-06-05).** The 12.5× is at full 2048² res;
+> production **downsamples to 1024²** where cpsam cost is NOT
+> pixel-bound (ViT normalises to target diameter), so the measured
+> end-to-end gain is small: Pos10-WT gap-fill 1.2× (46.7→39.8 min),
+> total 1.09×. Crop stays ON (safe; *improves* Phase-1 fill rate) but
+> the real remaining lever at production res is the **number of
+> Phase-1 cpsam calls + `augment` (4×)**, not input pixels — next
+> target. Phase 2/3 ablation also open. Phase 2 already batched.
 
 When the Hungarian tracker assigns identity, a track may have internal
 gaps (frames where detection failed). `core/track_gap_fill.fill_track_gaps`

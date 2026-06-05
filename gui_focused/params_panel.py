@@ -270,6 +270,19 @@ class ParamsPanel(QWidget):
             "retraction, de-attachment) at our 10-min/frame interval.")
         form.addRow("  Max gap frames:", self.max_gap_frames)
 
+        self.gap_fill_crop = QCheckBox()
+        self.gap_fill_crop.setChecked(_PD.gap_fill_crop)
+        self.gap_fill_crop.setEnabled(_PD.use_gap_fill)
+        self.gap_fill_crop.setToolTip(
+            "Fast gap fill (default ON). Phase 1 segments an adaptive\n"
+            "crop around the interpolated centroid instead of the whole\n"
+            "frame — ~12× faster per gap with no quality loss (validated\n"
+            "against reviewed-mask GT; full-frame fallback on a crop-miss\n"
+            "so recall is never worse). Uncheck to revert to the older,\n"
+            "slower full-frame Phase 1 behaviour.")
+        form.addRow("  Gap-fill crop (fast):", self.gap_fill_crop)
+        self.use_gap_fill.toggled.connect(self.gap_fill_crop.setEnabled)
+
         # --- DIC-pipeline-only params (cpsam_dic / hybrid_dic) ---
         dic_label = QLabel("<b>DIC pipeline (single-cell):</b>")
         form.addRow(dic_label)
@@ -784,6 +797,7 @@ class ParamsPanel(QWidget):
                 self.cy5_pg_static_shape_iou.value(),
             "use_sam2_video_gap_fill":
                 self.use_sam2_video_gap_fill.isChecked(),
+            "gap_fill_crop": self.gap_fill_crop.isChecked(),
             "max_gap_frames": self.max_gap_frames.value(),
             "use_preprocess": self.use_preprocess.isChecked(),
             "use_retry": self.use_retry.isChecked(),

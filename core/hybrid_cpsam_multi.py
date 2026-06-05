@@ -110,7 +110,8 @@ def detect_hybrid_cpsam_multi(frames, progress_fn=None,
                                expected_cells=0,
                                cy5_frames=None,
                                recover_with_cy5=False,
-                               use_cy5_fusion=False):
+                               use_cy5_fusion=False,
+                               gap_fill_crop=None):
     """Multi-cell hybrid cpsam detection + tracking.
 
     Args:
@@ -399,6 +400,7 @@ def detect_hybrid_cpsam_multi(frames, progress_fn=None,
             search_radius=max_hop_px,
             project_root=project_root,
             use_sam2_video=eff_sam2,
+            use_crop=gap_fill_crop,
             progress_fn=lambda msg, pct: progress_fn(
                 msg, int(80 + 15 * pct / 100)) if progress_fn else None)
         if n_filled:

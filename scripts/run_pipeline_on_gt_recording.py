@@ -96,6 +96,10 @@ def main():
     p.add_argument("--no-alignment", action="store_true",
                    help="Skip automatic DIC↔Cy5 alignment "
                    "correction. Default is to measure + apply.")
+    p.add_argument("--no-gap-fill-crop", action="store_true",
+                   help="Revert gap-fill Phase 1 to the older full-frame "
+                   "cpsam (slower). Default crops around the interpolated "
+                   "centroid (~12× faster, GT-validated no quality loss).")
     p.add_argument("--no-save-unfiltered", action="store_true",
                    help="Skip writing masks_unfiltered.npz + "
                    "filter_decisions.json. By default, when the Cy5 "
@@ -160,6 +164,7 @@ def main():
         cy5_filter_mode="persistence_guard",
         cy5_filter_threshold=0.15,
         use_mirror_pad=use_mirror_pad_override,
+        gap_fill_crop=(False if args.no_gap_fill_crop else None),
         progress_fn=lambda m, p: log.info("  detect[%d%%]: %s", p, m))
 
     auto = detect["auto"]

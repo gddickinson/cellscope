@@ -59,11 +59,20 @@ GT benchmark (`scripts/bench_gap_fill.py`, reviewed Pos7-WT masks as
 truth, 20 synthetic gaps): crop **6.1 s/gap vs full 75.9 s/gap = 12.5×**,
 **0** good fills (IoU≥0.5) dropped, shared-fill IoU within −0.002 of
 full, mask agreement 0.967. Shipped as `DEFAULTS.gap_fill_crop=True`
+(revert: `gap_fill_crop=False` / GUI toggle / `--no-gap-fill-crop`)
 with a full-frame fallback on the rare crop-miss (recall ≥ full path).
 Per-phase timing now logs + flows to `stats_out`.
 
-Remaining (Phase 2/3 ablation, short-circuit, SAM2 downsample) still
-open below, but the dominant cost is addressed.
+**End-to-end caveat.** That 12.5× is at full **2048²**; the pipeline
+auto-downsamples to **1024²**, where cpsam is NOT pixel-bound (the ViT
+normalises to a target cell diameter), so the real gain is small —
+Pos10-WT (4 cells, 118 gaps): gap-fill 46.7→39.8 min (1.2×), end-to-end
+81.3→74.4 min (1.09×). Crop stays on (safe, and it *raised* Phase-1
+fill rate 19→33, shifting work off slower SAM2), but gap-fill is still
+~half of detect. **The real production lever is the number of Phase-1
+`cpsam(augment=True)` calls (118 here) and the 4× `augment` cost — not
+input pixels.** Next: GT-validate `augment=False` on the crop +
+confident-track short-circuit. Phase 2/3 ablation still open below.
 
 ### Plan (after the current IC295 batch finishes)
 
