@@ -148,6 +148,13 @@ suite 8771. See `gui_focused/remote_control.py` and `CLAUDE.md` for usage.
     Mann-Whitney (Bonferroni), box+scatter plots. Outputs
     `per_recording.csv` + `per_treatment.csv` + `stats.json` +
     `plots/*.png` under `ic295_analysis/compare/`.
+  - **ic295_compare_edits.py** — "how did manual edits change the
+    numbers?" For any recording with a `masks_original.npz` beside the
+    current `masks.npz`: backs up the edited state, swaps in the
+    originals, re-runs `ic295_analyze_one.py`, saves the result as
+    `recording_summary_original.json`, then restores the edited state
+    byte-for-byte. Skips if the original masks are missing or the
+    `*_original.json` already exists. `[label]` to target one.
   - **ic295_copy_from_lab.py** — disaster recovery: copy source
     TIFFs from `/Volumes/pathaklab/...` to local `_cache/` when the
     primary drive fails. Driven by `progress.json` (detect.state ==
@@ -229,6 +236,18 @@ suite 8771. See `gui_focused/remote_control.py` and `CLAUDE.md` for usage.
   `QT_QPA_PLATFORM=offscreen`. Recording resolves from CLI arg →
   `$CELLSCOPE_TEST_RECORDING` → bundled `data/examples/single_cell_crop_wt`
   → `single_cell_phase_WT` (no longer a hard-coded path).
+- **_gui_verify.py** — fast headless test-drive of *every* GUI +
+  *every* focused-GUI option, complementing the per-pipeline depth of
+  `test_focused_gui.py`. 85 checks: all 5 GUI main windows construct;
+  the gap-fill `crop`+`augment` toggles are present, default to
+  `DEFAULTS`, gate on `use_gap_fill`, their revert flows reach
+  `get_detect_params()`, and the detect worker receives both;
+  colour-by every `metric_coloring` metric (focused viewer + mask
+  editor + legend); Analyze on loaded masks → every registered graph
+  (incl. lineage + division timeline); share-image `_export()` (PNG +
+  JPEG) via the dialog's real path. Drives loaded masks (no detection)
+  so it runs in ~1 min. The canonical multi-cell recording is
+  `ic295_analysis/by_condition/WT/Pos7-WT`.
 - **test_comprehensive_gui.py** — Phases B–G of the GUI test suite
   (multi-cell, ROI + mask editor, batch, tracking, training,
   parameter flow). 48 checks across 5 GUIs. Pass `--phase B|C|D|E|F|G`

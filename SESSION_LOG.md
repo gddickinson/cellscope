@@ -10,6 +10,45 @@ Format: **DATE — short title** with bullets describing what changed
 
 ---
 
+## 2026-06-05 — Skip-doomed-tracks short-circuit ruled unsafe + full GUI test-drive
+
+No product-behaviour change — an investigation conclusion + a
+verification sweep.
+
+**Skip-doomed-tracks gap-fill short-circuit — investigated, rejected.**
+The remaining gap-fill lever after `augment=False` was: skip the
+cascade for tracks the post-filter would drop anyway (≈ wasted cpsam
+on phantoms). Ruled out *analytically* — both survival gates count
+**present frames** (`track_postprocess.remove_empty_tracks`
+min_frames=3 and `cy5_filter.persistence_guard_filter` min_lifetime=35,
+both via `stack.any(axis=(1,2)).sum()` / equivalent), and gap-fill
+*increases* that count. So gap-fill can rescue a borderline track past
+either gate — which is precisely its documented Phase-3 job (cells that
+retract / dim). Skipping it would change which cells survive (the
+filters were calibrated *with* gap-fill on the GT corpus) → recall
+risk, no safe pre-filter proxy. See `docs/IMPROVEMENTS.md` Priority 0.
+Net: the durable gap-fill win remains `augment=False`; the real
+remaining speedup is GPU.
+
+**Full GUI test-drive — everything green.** Verified all five GUIs +
+every focused-GUI option after the recent gap-fill / colour-by /
+division / share work:
+- `scripts/_gui_verify.py` (new headless harness): **85/85** — all 5
+  GUI windows construct; gap-fill `crop`+`augment` toggles present,
+  defaulted to `DEFAULTS`, gate on `use_gap_fill`, revert flows reach
+  params, detect worker receives both; colour-by all 14 metrics
+  (viewer + editor + legend); Analyze → all 22 graphs incl. lineage +
+  division timeline; share `_export()` PNG + JPEG.
+- Live-process RPC smoke: all 5 GUIs boot + answer `/status`; focused
+  loaded a 97-frame recording + ran real single-frame detection over
+  HTTP.
+- Canonical `scripts/test_focused_gui.py`: **64/64** (real detect →
+  analyze → graphs → export). `test_defaults_consistency.py`: pass.
+
+Also committed the orphaned `scripts/ic295_compare_edits.py`
+(re-analyse pre-edit masks → `*_original.json` to quantify how manual
+edits changed downstream analysis numbers).
+
 ## 2026-06-05 — Gap-fill Phase 1: `augment=False` (the lever that works at production res)
 
 Follow-up to the crop work. The end-to-end run showed the crop's win is

@@ -75,9 +75,11 @@ input pixels.** ✅ **Done (2026-06-05):** `DEFAULTS.gap_fill_augment
 =False` — GT benchmark at 1024² shows crop+noaug vs crop+aug **2.1×**,
 0 good fills dropped, IoU Δ −0.011, and Phase 1 now cascades no-augment
 → augment-on-miss → full-frame-on-miss (recall ≥ old path). crop+noaug
-vs the original full+aug is ~18× at 1024². Still open: confident-track
-short-circuit (cut the *number* of gaps that reach Phase 1) + Phase 2/3
-ablation below.
+vs the original full+aug is ~18× at 1024². Still open: the *no-gaps*
+short-circuit (skip the cascade for tracks already detected in every
+frame) + Phase 2/3 ablation below. The related *skip-doomed-tracks*
+idea (skip gap-fill for tracks the post-filter would drop anyway) was
+investigated 2026-06-05 and **ruled unsafe** — see the bullet below.
 
 ### Plan (after the current IC295 batch finishes)
 
@@ -95,9 +97,25 @@ ablation below.
       cellpose` per gap; profile how much of Phase 2's wall time is
       env warmup vs actual work. If it's mostly warmup, batch all of
       a recording's Phase-2 gaps into a single subprocess call.
-- [ ] **S** — Confident-detection short-circuit: if a track has no
-      true gaps (every frame has a detection) AND no edge artifacts,
-      skip the cascade entirely. Cheap eligibility check, big payoff.
+- [ ] **S** — *No-gaps* short-circuit: if a track has a detection in
+      every frame (no interior gaps) AND no edge artifacts, skip the
+      cascade entirely. Trivially safe, but low marginal yield — a
+      no-gap track already does ~no Phase-1 work.
+- [x] **Skip-doomed-tracks short-circuit — REJECTED (unsafe,
+      2026-06-05).** Idea: skip gap-fill for tracks the post-filter
+      (`track_postprocess.remove_empty_tracks` min_frames=3 /
+      `cy5_filter.persistence_guard_filter` min_lifetime=35) would drop
+      anyway, to avoid wasted cpsam on phantoms. Ruled out
+      *analytically*: **both gates count *present frames*** (via
+      `stack.any(axis=(1,2)).sum()`), and gap-fill *adds* present
+      frames — so gap-fill can push a borderline track *past* either
+      gate. That is precisely gap-fill's documented Phase-3 purpose
+      (rescue cells that retract / dim), and the filters were
+      calibrated *with* gap-fill on the 13-recording GT corpus.
+      Skipping it would change which cells survive → recall risk with
+      no safe pre-filter proxy (the only gap-fill-invariant doom
+      criterion is edge position, and a pre-cascade edge test is looser
+      than the post-filter's thresholds). Don't implement.
 - [ ] **M** — Resolution audit: Phase 3 (SAM2) runs at full
       resolution; cells at downsampled resolution may be enough for
       gap interpolation. Quick A/B test.
