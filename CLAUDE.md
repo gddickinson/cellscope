@@ -270,6 +270,25 @@ curl -s -X POST http://127.0.0.1:8765/load_recording \
 curl -s -X POST http://127.0.0.1:8765/detect
 ```
 
+**Teardown — the RPC server holds the port until the process dies.**
+A surviving GUI process keeps `LISTEN`-ing on its port, so the next
+launch fails to bind, runs headless, and your `curl /status` is
+silently answered by the **stale** process (old code, maybe a stale
+recording loaded) — the smoke looks green but tested nothing. Tear down
+**per-name** (`pkill -f` uses an *extended* regex, so `\|` alternation
+matches NOTHING — one substring per call):
+
+```bash
+for s in main_focused.py main_batch.py main_editor.py \
+         main_training.py main_tracking.py; do pkill -f "$s"; done
+# verify the port is now served by a FRESH pid + fresh state:
+lsof -nP -iTCP:8765 -sTCP:LISTEN          # who owns 8765?
+curl -s http://127.0.0.1:8765/status      # focused should show recording_loaded:false
+```
+
+If a just-launched focused GUI reports a recording already loaded, you
+are hitting a zombie — kill it and relaunch.
+
 Focused GUI endpoints: `status`, `log`, `load_recording`,
 `load_pipeline_results`, `load_project`, `clear_all`, `set_param`,
 `set_frame`, `set_view`, `set_mode`, `detect`, `test_frame`, `analyze`,
