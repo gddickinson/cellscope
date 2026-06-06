@@ -162,15 +162,20 @@ It performs the full chain in fixed order:
    was `multi_metric` before 2026-05-25) — multichannel only
 7. upscale labels back to original resolution
 
-**`detect_recording` accepts 16 explicit kwargs** for fine-grained
+**`detect_recording` accepts 17 explicit kwargs** for fine-grained
 overrides (use_deepsea, use_gap_fill, use_sam2_video_gap_fill,
 max_gap_frames, min_track_length, use_tta, use_cpsam_cy5_union,
 use_fallback, use_mirror_pad, use_preprocess, use_retry,
 cy5_filter_mode, cy5_filter_threshold, cy5_pg_min_lifetime,
 cy5_pg_static_velocity_px, cy5_pg_static_shape_iou,
 cy5_fusion_jaccard_thresh, cy5_fusion_max_overlap_frac,
-cy5_fusion_augment_cpsam). All default to `None` → fall back to
-`DEFAULTS`. The focused GUI's params panel exposes all 17.
+cy5_fusion_augment_cpsam, use_bfloat16). All default to `None` → fall
+back to `DEFAULTS`. The focused GUI's params panel exposes all 18.
+`use_bfloat16` (DEFAULTS True = bf16, cellpose default) is opt-in: set
+False (`--fp32` / GUI uncheck) for fp32 — ~1.26× faster on Apple
+Silicon (MPS, no effect on CUDA), GT-validated as a per-frame wash but
+not yet F1-certified, so the default stays bf16. Affects raw-cpsam
+detection + gap-fill only (the cpsam_dic subprocess stays bf16).
 
 **Any change to detection defaults belongs in `detect_recording` or
 its dependencies (`pipeline_defaults`, `channel_alignment`,
@@ -351,6 +356,16 @@ Conventions to preserve when extending:
 > =True` (GUI "always augment" / `--gap-fill-always-augment`). Phase
 > 2/3 ablation + confident-track short-circuit still open. Phase 2
 > already batched.
+>
+> **Stringent re-validation (2026-06-06).** crop+noaug (the shipped
+> default) re-benchmarked vs the original full+aug across **4
+> recordings spanning density 2→19 cells/frame incl. the densest
+> (Pos68-DMSO)** — **ALL PASS**: 0 good fills dropped on any, shared-
+> fill IoU within ±0.02, ~16–19× Phase-1 speedup, equal-or-more gaps
+> filled. The Pos7-only result generalises. Per-phase `{time_s,
+> filled}` now persists to `RUN_METADATA.json` `extra.gap_fill_stats`
+> (unblocks the ablation); Phase 1 also reuses the detection model
+> (`fill_track_gaps(cpsam_model=...)`, GT-verified bit-identical).
 
 When the Hungarian tracker assigns identity, a track may have internal
 gaps (frames where detection failed). `core/track_gap_fill.fill_track_gaps`

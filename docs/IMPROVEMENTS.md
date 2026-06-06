@@ -88,6 +88,23 @@ investigated 2026-06-05 and **ruled unsafe** — see the bullet below.
       log line (done 2026-06-05).
 - [x] **Phase-1 crop acceleration** — adaptive crop around the
       interpolated centroid; 12.5× faster, GT-validated (done 2026-06-05).
+- [x] **Per-phase stats persisted** (2026-06-06) — `stats_out`
+      surfaced as `gap_fill_stats` in the result + written to
+      `RUN_METADATA.json` `extra.gap_fill_stats` by every detect writer.
+      The next detection run yields the ablation data for free.
+- [x] **Stringent re-validation of crop+noaug** (2026-06-06) — the
+      shipped Phase-1 default re-benchmarked vs the original full+aug
+      across 4 recordings spanning density 2→19 cells/frame incl. the
+      densest (Pos68-DMSO): **ALL PASS** — 0 good fills dropped, shared-
+      fill IoU within ±0.02, ~16–19× Phase-1 speedup, equal-or-more
+      gaps filled. The earlier Pos7-only result generalises.
+- [x] **fp32-on-MPS opt-in** (2026-06-06) — `DEFAULTS.use_bfloat16`
+      (default True=bf16=unchanged). On Apple Silicon fp32 is ~1.26×
+      faster than cellpose's bf16 default; validated as a per-frame-IoU
+      wash across 5 recordings but NOT F1-certified, so exposed opt-in
+      (GUI checkbox / `--fp32`), default unflipped. A full-pipeline F1
+      vs GT (on the NVIDIA box) gates any default change. NB: this means
+      detection is GPU-bound (MPS), not CPU-bound — see SESSION_LOG.
 - [ ] **M** — Per-phase ablation study on 3-5 representative IC295
       recordings (sparse, medium, dense): run with each phase toggled
       off, compare F1 / IoU / ID consistency / division-catch vs the
