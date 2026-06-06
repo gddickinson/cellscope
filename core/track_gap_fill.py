@@ -208,7 +208,7 @@ def fill_track_gaps(tracks, frames, min_area=300,
                     use_sam2_video=True,
                     use_mask_propagation=True,
                     use_crop=None, use_augment=None, stats_out=None,
-                    cpsam_model=None):
+                    cpsam_model=None, use_bfloat16=None):
     """Fill internal gaps in tracks by searching for missing cells.
 
     Four-phase cascade:
@@ -257,6 +257,8 @@ def fill_track_gaps(tracks, frames, min_area=300,
         use_crop = _PD.gap_fill_crop
     if use_augment is None:
         use_augment = _PD.gap_fill_augment
+    if use_bfloat16 is None:
+        use_bfloat16 = _PD.use_bfloat16
 
     n_frames = len(frames)
     filled = 0
@@ -304,7 +306,7 @@ def fill_track_gaps(tracks, frames, min_area=300,
         # No caller-supplied model — cold-load a raw cpsam (the common
         # path for the cpsam_dic / subprocess detectors).
         from cellpose import models
-        cpsam_model = models.CellposeModel(gpu=True)
+        cpsam_model = models.CellposeModel(gpu=True, use_bfloat16=use_bfloat16)
 
     pending = []   # (tid, frame_idx, expected_centroid) for Phase 2
     for idx, (tid, frame_idx) in enumerate(all_gaps):

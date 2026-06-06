@@ -112,7 +112,8 @@ def detect_hybrid_cpsam_multi(frames, progress_fn=None,
                                recover_with_cy5=False,
                                use_cy5_fusion=False,
                                gap_fill_crop=None,
-                               gap_fill_augment=None):
+                               gap_fill_augment=None,
+                               use_bfloat16=None):
     """Multi-cell hybrid cpsam detection + tracking.
 
     Args:
@@ -153,12 +154,15 @@ def detect_hybrid_cpsam_multi(frames, progress_fn=None,
 
     # Step 1: cpsam at defaults — keep instance labels.
     # Honour CPSAM_PRETRAINED if set so callers can swap the model.
+    from core.pipeline_defaults import DEFAULTS as _PD
+    eff_bf16 = use_bfloat16 if use_bfloat16 is not None else _PD.use_bfloat16
     cpsam_path = os.environ.get("CPSAM_PRETRAINED")
     if cpsam_path:
         log.info("loading cpsam from %s", cpsam_path)
-        m = models.CellposeModel(gpu=True, pretrained_model=cpsam_path)
+        m = models.CellposeModel(gpu=True, pretrained_model=cpsam_path,
+                                 use_bfloat16=eff_bf16)
     else:
-        m = models.CellposeModel(gpu=True)
+        m = models.CellposeModel(gpu=True, use_bfloat16=eff_bf16)
     raw_labels = np.zeros(frames.shape, dtype=np.int32)
     eval_kwargs = {"augment": True} if use_tta else {}
     # Resolve mirror-padding policy: enabled for large detection

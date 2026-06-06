@@ -422,6 +422,18 @@ class PipelineDefaults:
     # always-augment path. Set True to always augment (old behaviour).
     gap_fill_augment: bool = False
 
+    # cpsam weight precision. cellpose 4.x defaults to bfloat16 (16-bit).
+    # On NVIDIA/CUDA bf16 is the fast path; on Apple Silicon (MPS) it is
+    # the SLOW path — fp32 (use_bfloat16=False) is ~1.26× faster there
+    # (validated across 5 IC295 recordings, density 2→19 cells/frame,
+    # 2026-06-06). Default kept at True (bf16) = cellpose's default /
+    # current behaviour — flip to False to opt into the MPS fp32 speedup.
+    # Per-frame foreground IoU vs reviewed masks was a wash (mean Δ
+    # +0.0004; dense recordings ~identical) but NOT certified loss-free
+    # at the tracked-output level, so this stays opt-in until a
+    # full-pipeline F1 validation gates a default change.
+    use_bfloat16: bool = True
+
     # --- Mirror padding (auto-enabled on large detection frames) ---
     # When the detection-resolution image is large enough that the
     # reflection border is a small fraction of the frame

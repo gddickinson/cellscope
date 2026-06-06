@@ -10,6 +10,42 @@ Format: **DATE — short title** with bullets describing what changed
 
 ---
 
+## 2026-06-06 — fp32 opt-in toggle (MPS speedup) + stringent re-validation of gap-fill defaults
+
+**fp32-on-MPS exposed as an opt-in `DEFAULTS.use_bfloat16` flag
+(default True = bf16 = unchanged behaviour).** Earlier benchmark found
+fp32 ~1.26× faster than bf16 on the Apple GPU, but the broad 5-recording
+validation (density 2→19) showed quality was a *noisy wash* — not
+certifiable loss-free at the tracked-output level (NO-GO on flipping the
+default). So per Option 2 it's wired as opt-in: threaded `use_bfloat16`
+through `pipeline_defaults` → `detect_recording` → `hybrid_cpsam_multi`
+/ `hybrid_dic` → model creation + `fill_track_gaps` (gap-fill model);
+GUI checkbox ("cpsam bfloat16 (uncheck=fp32, faster on Mac)") + worker
+forwarding (auto + legacy + GapFillWorker + `_on_test_frame`) +
+`run_pipeline_on_gt_recording.py --fp32`. The cpsam_dic subprocess
+detection stays bf16 (different model, fp32 unvalidated there).
+Verified: default unchanged, `use_bfloat16=False` → real `torch.float32`
+net on MPS, defaults-consistency passes. A full-pipeline F1 vs GT (on
+the NVIDIA box) is the gate for any future default flip.
+
+**Stringent re-validation of the shipped gap-fill defaults
+(crop+noaug) — ALL PASS across 4 recordings incl. the densest.** The
+crop + augment=False wins were previously validated on Pos7-WT only.
+Re-ran the GT synthetic-gap benchmark (delete known masks → known
+truth) at production 1024², shipped `crop+noaug` vs original
+`full+aug`, spanning density:
+
+| recording | density (p75) | Phase-1 speedup | good fills dropped | shared-fill IoU Δ | fills |
+|---|---|---|---|---|---|
+| Pos0-WT | 2 | 18.7× | 0 | −0.003 | 7→8 |
+| Pos41-OT | 5 | 17.4× | 0 | +0.018 | 8→8 |
+| Pos20-KO | 8 | 16.2× | 0 | −0.017 | 7→8 |
+| Pos68-DMSO | 19 (densest) | 18.6× | 0 | −0.020 | 8→8 |
+
+Every recording: **0 good fills dropped**, shared-fill IoU within
+±0.02 (bar −0.03), and crop+noaug filled **equal-or-MORE** gaps
+(never fewer). The Pos7-only result generalises — no revert needed.
+
 ## 2026-06-06 — Gap-fill per-phase stats persisted + model-share; cpsam already on Apple GPU (MPS)
 
 **Discovery (corrects a wrong assumption): the pipeline is GPU-bound,

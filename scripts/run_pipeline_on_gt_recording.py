@@ -105,6 +105,12 @@ def main():
                    "(4× TTA). Default runs no-augment first + augment "
                    "fallback on miss (~2× faster, GT-validated no quality "
                    "loss).")
+    p.add_argument("--fp32", action="store_true",
+                   help="Run cpsam in fp32 instead of the bfloat16 default. "
+                   "On Apple Silicon (MPS) fp32 is ~1.26× faster (validated "
+                   "across 5 recordings); no effect on CUDA. Quality was a "
+                   "wash vs reviewed masks but not yet F1-certified, so "
+                   "opt-in.")
     p.add_argument("--no-save-unfiltered", action="store_true",
                    help="Skip writing masks_unfiltered.npz + "
                    "filter_decisions.json. By default, when the Cy5 "
@@ -171,6 +177,7 @@ def main():
         use_mirror_pad=use_mirror_pad_override,
         gap_fill_crop=(False if args.no_gap_fill_crop else None),
         gap_fill_augment=(True if args.gap_fill_always_augment else None),
+        use_bfloat16=(False if args.fp32 else None),
         progress_fn=lambda m, p: log.info("  detect[%d%%]: %s", p, m))
 
     auto = detect["auto"]

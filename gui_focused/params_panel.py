@@ -296,6 +296,19 @@ class ParamsPanel(QWidget):
         form.addRow("  Gap-fill always augment:", self.gap_fill_augment)
         self.use_gap_fill.toggled.connect(self.gap_fill_augment.setEnabled)
 
+        self.use_bfloat16 = QCheckBox()
+        self.use_bfloat16.setChecked(_PD.use_bfloat16)
+        self.use_bfloat16.setToolTip(
+            "cpsam weight precision. Checked = bfloat16 (16-bit, cellpose\n"
+            "default — current behaviour). UNCHECK for fp32: on Apple\n"
+            "Silicon (MPS) fp32 is ~1.26× FASTER than bf16 (validated\n"
+            "across 5 recordings, density 2→19 cells/frame). Quality was\n"
+            "a wash vs reviewed masks but not yet certified loss-free at\n"
+            "the tracked-output level, so this stays opt-in. No effect on\n"
+            "CUDA/NVIDIA (bf16 is the fast path there).")
+        form.addRow("cpsam bfloat16 (uncheck=fp32, faster on Mac):",
+                    self.use_bfloat16)
+
         # --- DIC-pipeline-only params (cpsam_dic / hybrid_dic) ---
         dic_label = QLabel("<b>DIC pipeline (single-cell):</b>")
         form.addRow(dic_label)
@@ -812,6 +825,7 @@ class ParamsPanel(QWidget):
                 self.use_sam2_video_gap_fill.isChecked(),
             "gap_fill_crop": self.gap_fill_crop.isChecked(),
             "gap_fill_augment": self.gap_fill_augment.isChecked(),
+            "use_bfloat16": self.use_bfloat16.isChecked(),
             "max_gap_frames": self.max_gap_frames.value(),
             "use_preprocess": self.use_preprocess.isChecked(),
             "use_retry": self.use_retry.isChecked(),

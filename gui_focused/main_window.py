@@ -964,6 +964,7 @@ class FocusedMainWindow(QMainWindow):
                 use_cpsam_cy5_union=params.get(
                     "use_cpsam_cy5_union"),
                 use_fallback=params.get("use_fallback"),
+                use_bfloat16=params.get("use_bfloat16"),
                 progress_fn=None,
             )
         except Exception as e:
