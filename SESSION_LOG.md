@@ -10,6 +10,31 @@ Format: **DATE — short title** with bullets describing what changed
 
 ---
 
+## 2026-06-06 — Live-RPC-smoke gotcha: stale GUI processes hold their ports
+
+Full GUI test-drive re-run after the fp32/gap-fill plumbing: headless
+harness **85/85**, canonical `test_focused_gui.py` **64/64**, live RPC
+smoke on all 5 GUIs green — but only after catching a teardown bug.
+
+**Gotcha:** `pkill -f "main_focused.py\|main_batch.py\|..."` does NOT
+work — `pkill -f` matches an *extended* regex where `\|` is a literal
+escaped pipe, so it matches nothing and the GUI processes survive. They
+keep `LISTEN`-ing on their RPC ports (8765–8770), so a *later* live
+smoke's fresh launches fail to bind, run headless, and the `curl
+/status` you get back is silently answered by the **old** process
+(running old code — the focused one even still had a recording loaded
+from the previous drive). The smoke looks green but tested nothing.
+
+**Correct pattern** when running the live RPC smoke:
+- Tear down per-name: `for s in main_focused.py main_batch.py
+  main_editor.py main_training.py main_tracking.py; do pkill -f "$s";
+  done` (one substring per call — these match).
+- After launch, VERIFY the port owner is a fresh PID + state is fresh:
+  `lsof -nP -iTCP:8765 -sTCP:LISTEN` and check focused `/status` shows
+  `recording_loaded: false`. If a recording is already loaded on a
+  just-launched focused GUI, you're hitting a stale process.
+- The RPC server binds on launch; a port already taken means a zombie.
+
 ## 2026-06-06 — fp32 opt-in toggle (MPS speedup) + stringent re-validation of gap-fill defaults
 
 **fp32-on-MPS exposed as an opt-in `DEFAULTS.use_bfloat16` flag
