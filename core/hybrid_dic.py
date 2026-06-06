@@ -452,6 +452,7 @@ def detect_hybrid_dic_multi(frames, progress_fn=None,
     log.info("Found %d tracks (max %d cells/frame)", len(tracks), max_cells)
 
     # Step 5b: gap fill
+    gap_fill_stats = {}
     if use_gap_fill and tracks:
         from core.track_gap_fill import fill_track_gaps
         project_root = os.path.dirname(
@@ -466,6 +467,7 @@ def detect_hybrid_dic_multi(frames, progress_fn=None,
             use_sam2_video=_PD.use_sam2_video_gap_fill,
             use_crop=gap_fill_crop,
             use_augment=gap_fill_augment,
+            stats_out=gap_fill_stats,
             progress_fn=lambda msg, pct: progress_fn(
                 msg, int(85 + 10 * pct / 100)) if progress_fn else None)
         if n_filled:
@@ -507,4 +509,5 @@ def detect_hybrid_dic_multi(frames, progress_fn=None,
         "n_cy5_fusion_added": n_cy5_fusion_added,
         "fusion_source_stack": fusion_source_stack,
         "divisions": annotate_track_lineage(tracks, tracked)[0],
+        "gap_fill_stats": gap_fill_stats,
     }

@@ -317,6 +317,8 @@ class ExportDialog(QDialog):
                     pipeline_function=pipeline_fn,
                     mode=mode,
                     rerun_command=rerun_cmd,
+                    extra={"gap_fill_stats":
+                           self.detect_result.get("gap_fill_stats")},
                     project_root=os.path.dirname(
                         os.path.dirname(
                             os.path.abspath(__file__))))

@@ -267,6 +267,7 @@ def main():
              "auto_select": sel_info,
              "channel_alignment": alignment_info,
              "px_thresholds": detect.get("px_thresholds"),
+             "gap_fill_stats": detect.get("gap_fill_stats"),
              "unified_detection_path": True}
     if has_cy5:
         extra.update({

@@ -10,6 +10,40 @@ Format: **DATE — short title** with bullets describing what changed
 
 ---
 
+## 2026-06-06 — Gap-fill per-phase stats persisted + model-share; cpsam already on Apple GPU (MPS)
+
+**Discovery (corrects a wrong assumption): the pipeline is GPU-bound,
+not CPU-bound.** On this M1 Max, `CellposeModel(gpu=True)` resolves to
+`device=mps` — cpsam has been running on the Apple GPU all along
+(cellpose 4.x `assign_device` checks CUDA, absent here, then MPS).
+Measured at production 1024²: **MPS 6.9 s/frame vs CPU 296.5 s/frame
+(~43×)**. Both conda envs report MPS available; every detection path
+uses `gpu=True`, so it's consistent (main detect, gap-fill, cpsam_dic
+subprocess, probe, CP3 fallback). Consequence: CPU-side levers (thread
+tuning, multiprocessing, eval batching) are moot. Remaining Apple-GPU
+lever to investigate = **fp16 on MPS** (needs GT validation — changes
+numerics). Bigger jump still needs a faster (NVIDIA) GPU.
+
+**Per-phase gap-fill stats now persisted.** `fill_track_gaps` already
+computed `{time_s, filled}` per phase but only logged it. Threaded
+`stats_out` up through `hybrid_cpsam_multi` / `hybrid_dic` →
+`detect_recording` (result gains `gap_fill_stats`) → into
+`RUN_METADATA.json` `extra.gap_fill_stats` for all three writers
+(`run_pipeline_on_gt_recording.py`, `ic295_detect_one.py`,
+`gui_focused/export_dialog.py`). Unblocks the per-phase ablation: the
+next detection run on any machine yields the data for free.
+
+**Model-share micro-opt.** Gap-fill Phase 1 now reuses the
+already-loaded raw cpsam model (`fill_track_gaps(cpsam_model=...)`)
+instead of cold-loading a second one — gated to a *plain* raw model
+(never a CPSAM_PRETRAINED fine-tune). GT-verified bit-identical: 4 real
+Pos7-WT fills (823/945/888/1683 px) matched fresh-model exactly.
+
+**Probe-reuse micro-opt — deferred (not bit-safe).** The auto-select
+probe runs `eval(augment=False)` with no mirror-padding while the full
+pass pads large frames, so reusing probe masks would change output on
+padded recordings. Not free; not shipped.
+
 ## 2026-06-05 — Skip-doomed-tracks short-circuit ruled unsafe + full GUI test-drive
 
 No product-behaviour change — an investigation conclusion + a

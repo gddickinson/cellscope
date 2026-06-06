@@ -205,6 +205,7 @@ def main():
             "runtime_seconds": time.time() - t0,
             "n_tracks":        n_tracks,
             "n_divisions":     n_div,
+            "gap_fill_stats":  result.get("gap_fill_stats"),
         })
 
     # .cellscope project file — drag into focused GUI to review / edit

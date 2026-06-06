@@ -207,7 +207,8 @@ def fill_track_gaps(tracks, frames, min_area=300,
                     project_root=None, use_cp3_fallback=True,
                     use_sam2_video=True,
                     use_mask_propagation=True,
-                    use_crop=None, use_augment=None, stats_out=None):
+                    use_crop=None, use_augment=None, stats_out=None,
+                    cpsam_model=None):
     """Fill internal gaps in tracks by searching for missing cells.
 
     Four-phase cascade:
@@ -244,6 +245,11 @@ def fill_track_gaps(tracks, frames, min_area=300,
         use_crop: Phase-1 crop acceleration (None → DEFAULTS.gap_fill_crop).
         stats_out: optional dict; filled with per-phase {time_s, filled}
             for RUN_METADATA / profiling.
+        cpsam_model: optional pre-loaded raw cpsam model to reuse for
+            Phase 1 (skips a second model cold-load). MUST be a plain
+            raw cpsam model identical to what this function would build
+            (`models.CellposeModel(gpu=True)`) — do NOT pass a fine-tune
+            (cpsam_dic etc.), or Phase-1 masks change. None → build one.
     """
     import time as _time
     from core.pipeline_defaults import DEFAULTS as _PD
@@ -290,12 +296,15 @@ def fill_track_gaps(tracks, frames, min_area=300,
 
     # Phase 1: shared cpsam model, one eval per gap (fast — no reloads).
     t_p1 = _time.time()
-    from cellpose import models
     if progress_fn:
         progress_fn(f"Gap fill phase 1: cpsam(augment=True"
                     f"{', crop' if use_crop else ''}) on "
                     f"{total_gaps} gaps", 0)
-    cpsam_model = models.CellposeModel(gpu=True)
+    if cpsam_model is None:
+        # No caller-supplied model — cold-load a raw cpsam (the common
+        # path for the cpsam_dic / subprocess detectors).
+        from cellpose import models
+        cpsam_model = models.CellposeModel(gpu=True)
 
     pending = []   # (tid, frame_idx, expected_centroid) for Phase 2
     for idx, (tid, frame_idx) in enumerate(all_gaps):

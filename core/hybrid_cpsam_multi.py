@@ -388,6 +388,7 @@ def detect_hybrid_cpsam_multi(frames, progress_fn=None,
     log.info("Found %d tracks (max %d cells/frame)", len(tracks), max_cells)
 
     # Step 5b: fill internal track gaps (re-detect missing cells)
+    gap_fill_stats = {}
     if use_gap_fill:
         from core.track_gap_fill import fill_track_gaps
         if progress_fn:
@@ -396,6 +397,11 @@ def detect_hybrid_cpsam_multi(frames, progress_fn=None,
         eff_sam2 = (use_sam2_video_gap_fill
                      if use_sam2_video_gap_fill is not None
                      else _PD.use_sam2_video_gap_fill)
+        # Reuse the already-loaded detection model for Phase 1 ONLY when
+        # it's plain raw cpsam (cpsam_path unset) — identical to what
+        # gap-fill would build, so output is unchanged; saves one model
+        # cold-load. A CPSAM_PRETRAINED fine-tune must NOT be reused.
+        gap_fill_model = m if not cpsam_path else None
         n_filled = fill_track_gaps(
             tracks, frames, min_area=min_area_px,
             search_radius=max_hop_px,
@@ -403,6 +409,8 @@ def detect_hybrid_cpsam_multi(frames, progress_fn=None,
             use_sam2_video=eff_sam2,
             use_crop=gap_fill_crop,
             use_augment=gap_fill_augment,
+            stats_out=gap_fill_stats,
+            cpsam_model=gap_fill_model,
             progress_fn=lambda msg, pct: progress_fn(
                 msg, int(80 + 15 * pct / 100)) if progress_fn else None)
         if n_filled:
@@ -464,6 +472,7 @@ def detect_hybrid_cpsam_multi(frames, progress_fn=None,
         "fusion_source_stack": fusion_source_stack,
         "cell_count": max_cells,
         "divisions": divisions,
+        "gap_fill_stats": gap_fill_stats,
     }
 
 
