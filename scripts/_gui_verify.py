@@ -150,6 +150,32 @@ def drive_focused(app, win):
         check("detect worker constructs", False, repr(e))
         traceback.print_exc()
 
+    # --- detection presets drive the widgets ---
+    section("B4b. detection presets (Fast/Medium/Default/Highest)")
+    try:
+        from core.detection_presets import PRESET_ORDER, PRESET_PARAMS, \
+            preset_values
+        fresh = {k: pp.get_detect_params()[k] for k in PRESET_PARAMS}
+        for name in PRESET_ORDER:
+            pp.detect_preset.setCurrentText(name)
+            pump(app, 20)
+            got = {k: pp.get_detect_params()[k] for k in PRESET_PARAMS}
+            check(f"preset '{name}' applied to widgets",
+                  got == preset_values(name),
+                  str({k: got[k] for k in PRESET_PARAMS
+                       if got[k] != preset_values(name)[k]}))
+        pp.detect_preset.setCurrentText("Fast")
+        pump(app, 20)
+        check("Fast disables gap-fill",
+              pp.get_detect_params()["use_gap_fill"] is False)
+        pp.detect_preset.setCurrentText("Default (Balanced)")
+        pump(app, 20)
+        check("Default preset == fresh defaults",
+              {k: pp.get_detect_params()[k] for k in PRESET_PARAMS} == fresh)
+    except Exception as e:
+        check("detection presets", False, repr(e))
+        traceback.print_exc()
+
     # --- analysis params + divisions toggle + mode switch ---
     section("B5. analysis params, divisions toggle, mode switch")
     dp = pp.get_division_params()

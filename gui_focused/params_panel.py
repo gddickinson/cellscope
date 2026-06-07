@@ -60,6 +60,26 @@ class ParamsPanel(QWidget):
         page = QWidget()
         form = QFormLayout(page)
 
+        # --- Detection preset (speed ↔ quality bundle) ---
+        # Created first so it sits at the top; its signal is connected at
+        # the END of this method (after every widget it drives exists).
+        from core.detection_presets import PRESET_ORDER
+        self.detect_preset = QComboBox()
+        self.detect_preset.addItems(PRESET_ORDER)
+        self.detect_preset.setCurrentText("Default (Balanced)")
+        self.detect_preset.setToolTip(
+            "One-click speed ↔ quality bundle. Sets downsample, gap-fill\n"
+            "phases, TTA, DeepSea, mirror-pad, CP3 fallback + cpsam\n"
+            "precision together:\n"
+            "  Fast    — fastest possible (skips gap-fill, 3× downsample,\n"
+            "            fp32); expect missed cells.\n"
+            "  Medium  — cheap gap-fill only (no SAM2/CP3), fp32.\n"
+            "  Default — the canonical validated pipeline.\n"
+            "  Highest — full resolution, every gap-fill phase, TTA,\n"
+            "            always-augment; slowest.\n"
+            "You can still tweak any individual option below afterward.")
+        form.addRow("Detection preset:", self.detect_preset)
+
         # --- Modality selector ---
         self.modality = QComboBox()
         self.modality.addItems(["Auto", "Phase-contrast", "DIC"])
@@ -528,7 +548,18 @@ class ParamsPanel(QWidget):
         self._multi_widgets = [self.expected_cells, self.btn_scan,
                                self.search_radius, self.min_track_len,
                                self.use_gap_fill]
+
+        # Connect the preset selector now that every widget it drives
+        # exists. (Initial value was set above WITHOUT a connection, so
+        # construction doesn't fire it.)
+        self.detect_preset.currentTextChanged.connect(
+            self._on_detect_preset)
         return page
+
+    def _on_detect_preset(self, name):
+        """Apply a speed/quality preset bundle to the detection widgets."""
+        from core.detection_presets import apply_preset_to_panel
+        apply_preset_to_panel(self, name)
 
     def _build_analysis_page(self):
         page = QWidget()

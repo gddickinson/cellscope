@@ -10,6 +10,37 @@ Format: **DATE — short title** with bullets describing what changed
 
 ---
 
+## 2026-06-07 — Detection speed↔quality presets in the focused GUI
+
+Added a **Detection preset** dropdown at the top of the focused GUI's
+params panel — a one-click bundle over the speed/quality knobs
+(downsample, gap-fill phases, TTA, DeepSea, mirror-pad, CP3 fallback,
+cpsam precision):
+
+- **Fast** — fastest possible (skips the whole gap-fill cascade, 3×
+  downsample, fp32, no TTA/DeepSea/fallback/mirror-pad); expect missed
+  cells.
+- **Medium** — cheap gap-fill only (crop+no-augment, drops SAM2 + CP3),
+  fp32; noticeably faster than Default, modest quality cost.
+- **Default (Balanced)** — the canonical validated pipeline (no
+  overrides = `DEFAULTS`).
+- **Highest Quality** — full resolution, all gap-fill phases, full-frame
+  always-augment, TTA + DeepSea + fallback + mirror-pad on; slowest.
+
+Design honours rule 1: presets live in **`core/detection_presets.py`**
+and record only *deltas* vs `DEFAULTS` (baseline filled from `_PD`);
+`apply_preset_to_panel` just drives the existing widgets — no new
+pipeline plumbing, no new `detect_recording` kwargs. Selecting a preset
+resets the full `PRESET_PARAMS` set (deterministic), and the user can
+still tweak any option afterward. (Both `params_panel.py` 917→ and
+`pipeline_defaults.py` are already >500 lines, so the preset logic went
+in a new focused module rather than growing them.)
+
+Verified: `_test_presets.py` 17/17 (each preset round-trips through
+`get_detect_params()`; Default == fresh defaults; ladder monotone),
+`_gui_verify.py` **91/91** (new B4b preset section), canonical
+`test_focused_gui.py` 64/64, defaults-consistency pass.
+
 ## 2026-06-06 — Live-RPC-smoke gotcha: stale GUI processes hold their ports
 
 Full GUI test-drive re-run after the fp32/gap-fill plumbing: headless
