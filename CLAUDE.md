@@ -372,6 +372,15 @@ Conventions to preserve when extending:
   in the adopt path, or written fresh by detection) — never a
   symlink — so user mask edits via the focused GUI don't overwrite
   the canonical drive run.
+- The rounded/spread state cut is **learned from the hand labels**
+  (`ic295_analysis/state_labels/labels.csv`) — see the "State rule"
+  note under rule 1. Validate / re-fit with
+  `scripts/ic295_eval_state_rule.py` (writes
+  `compare/state_rule_validation/`); `ic295_state_diagnostic.py` +
+  `ic295_state_features.py` give the all-mask-data views. **If you
+  change `rounded_area_um2` / `rounded_eccentricity`, re-run
+  `ic295_analyze_one` on every recording before re-comparing** — the
+  comparison reads the per-recording `frac_rounded` / per-state means.
 - The driver's per-recording subprocess isolation, lock file,
   SIGTERM handler, and atomic `progress.json` are load-bearing for
   multi-day runs. Don't simplify them away.

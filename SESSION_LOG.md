@@ -10,6 +10,47 @@ Format: **DATE — short title** with bullets describing what changed
 
 ---
 
+## 2026-06-08 — Re-analyse 29 recordings + regenerate all state diagnostics
+
+Re-ran Phase 2 (`ic295_analyze_one`) on all **29 reviewed recordings**
+with the edge filter + learned classifier, then regenerated every
+comparison/diagnostic so the whole `compare/` tree is consistent with the
+deployed rule. All 28 (+Pos60) succeeded, no failures.
+
+Cross-condition result — the rounded/spread axis is now meaningful (was
+uniformly ~0 under the old rule). `frac_rounded` omnibus Kruskal-Wallis
+**p=0.004** (recording-level); ordering **KO ≈ GOF > WT > Y1 ≈ DMSO >
+OT**, with **OT the clear outlier (~5 % rounded vs KO ~40 %)**. No
+pairwise survives Bonferroni at recording level (n=4–6/condition,
+underpowered); pooled (n=cells, pseudoreplicated) clears it for
+OT-vs-{GOF,KO,WT}. Also significant (recording-level): spread-cell
+circularity/solidity (GOF/KO rounder), spread-cell persistence (OT/Y1
+most directional), n_cells (DMSO densest). The per-frame `state_diagnostic`
+view agrees exactly (KO 39 % → OT 4 %).
+
+Results-folder updates (all under the gitignored `ic295_analysis/`):
+- `compare/` + `compare_pooled/` (stats, per_*.csv, `plots/`,
+  `histograms/`) — fresh.
+- `plots_mean_sem/` — refreshed from the new CSVs.
+- **`state_rule_validation/`** (NEW, `ic295_eval_state_rule.py --plots`)
+  — label-grounded: decision boundary (area_um2 vs ecc, hand labels
+  coloured, misclassified circled), per-feature histograms by hand label,
+  confusion matrix, per-feature AUC bar. **Deployed rule vs 279 labels:
+  acc 0.93 / rounded-recall 0.90** (old circ/solid: 0.60 / 0.14).
+- **`state_diagnostic/`** — rewritten from circ/solid to the deployed
+  **area_um2 + eccentricity** (edge frames excluded). Pooled area is
+  visually bimodal with the 960 µm² cut in the trough. Stale circ/solid
+  PNGs removed.
+- **`state_features/`** — `current_rounded` re-pointed to the deployed
+  rule; threshold lines + titles reframed off the old "circularity
+  misses" narrative. Honest nuance surfaced: ALL features Sarle
+  BC < 0.56 (continuum, not bimodal) → the cut is fitted from labels, not
+  a natural trough; rel_area separates the call median 0.17 vs 0.84.
+
+Provenance recorded in `ic295_analysis/state_labels/README.md` (local).
+Docs updated: INTERFACE (eval + diagnostic scripts), CLAUDE (state rule),
+ic295_analysis/README (classifier + validation + re-fit recipe).
+
 ## 2026-06-08 — Learn the rounded/spread rule from the hand labels
 
 Evaluated the shipped state rule (`circ ≥ 0.80 AND solid ≥ 0.92`) against

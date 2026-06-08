@@ -84,7 +84,14 @@ ic295_analysis/
     ├── per_recording.csv            # one row per recording, all metrics
     ├── per_treatment.csv            # mean / SEM / n per (condition, metric)
     ├── stats.json                   # K-W + pairwise MWU (Bonferroni)
-    └── plots/<metric>.png           # box+scatter per condition
+    ├── plots/<metric>.png           # box+scatter per condition
+    ├── plots_mean_sem/<metric>.png  # mean ± SEM + individual points
+    ├── histograms/<metric>.png      # per-metric, split by condition
+    ├── state_rule_validation/       # rounded/spread rule vs hand labels
+    ├── state_diagnostic/            # rounded cut vs ALL mask data
+    └── state_features/              # multi-feature boundary diagnostic
+# (compare_pooled/ mirrors compare/ with the CELL as the unit; its
+#  --min-valid-frames N drops cells with too few in-view frames)
 ```
 
 ## Manual editing in the focused GUI
@@ -152,3 +159,39 @@ to one row in `recording_summary.json`. Then in Phase 3:
 The default metric set lives at the top of `scripts/ic295_compare.py`;
 override with `--metrics name1,name2,...`. The `per_recording.csv`
 keeps every field, so any further analysis can use the full data.
+
+## Rounded / spread state classifier (learned from hand labels)
+
+Each cell-frame is classified `rounded` / `spread` / `unknown`. The rule
+(`core.cell_state.DEFAULT_THRESHOLDS`) was **learned from hand labels**,
+not hand-set:
+
+> **rounded iff `area_um2 ≤ 960` AND `eccentricity ≤ 0.85`**
+
+The labeller's rounded/spread split is driven by **size / footprint
+collapse**, not circularity. The old `circ ≥ 0.80 AND solid ≥ 0.92` rule
+recognised only 14 % of hand-rounded cells; the deployed rule scores
+**acc 0.93 / rounded-recall 0.90** on the 279 labels (decision-boundary
+quality — the labelled set is class-balanced, not natural prevalence).
+
+Edge-truncated cell-frames (mask cut by the image border) are voided to
+`unknown` — they're still counted + tracked, but their shape is
+unreliable so they're excluded from shape/state metrics. A cell never
+cleanly in view reports `frac_rounded = None`; drop thin cells from the
+pooled comparison with `ic295_compare_pooled.py --min-valid-frames N`.
+
+Re-validate / re-fit (e.g. after labelling more in the annotation GUI):
+
+```bash
+# score the deployed rule + emit re-fitted thresholds + validation plots
+conda run -n cellpose4 python scripts/ic295_eval_state_rule.py
+# all-mask-data view of the cut (area µm² + eccentricity distributions)
+conda run -n cellpose4 python scripts/ic295_state_diagnostic.py
+# multi-feature boundary diagnostic
+conda run -n cellpose4 python scripts/ic295_state_features.py
+```
+
+`ic295_analysis/state_labels/` holds `labels.csv` + crops + a local
+`README.md` (gitignored) recording the labelling + validation provenance.
+**Changing the thresholds means re-running Phase 2 (`ic295_analyze_one`)
+on every recording** before the comparisons are valid again.

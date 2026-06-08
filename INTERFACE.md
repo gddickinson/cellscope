@@ -168,13 +168,17 @@ suite 8771. See `gui_focused/remote_control.py` and `CLAUDE.md` for usage.
     (`compare/histograms/`) and cell (`compare_pooled/histograms/`).
     Shape metrics get the rounded threshold drawn.
   - **ic295_state_features.py** — multi-feature diagnostic for the
-    rounded/spread boundary: per cell-frame computes area, **rel_area**
-    (footprint vs the cell's own 90th-pctl area), circularity, solidity,
-    extent, eccentricity, aspect_ratio, convexity; reports each feature's
-    bimodality coefficient + how many footprint-collapse frames the
-    circularity rule MISSES. Finding (IC295): no feature is bimodal, but
-    rel_area captures ~6× more retraction events than circularity (the
-    beads/crumpled forms). Under `compare/state_features/`.
+    rounded/spread boundary: per cell-frame computes area (µm²),
+    **rel_area** (footprint vs the cell's own 90th-pctl area),
+    circularity, solidity, extent, eccentricity, aspect_ratio, convexity;
+    reports each feature's bimodality coefficient + the feature
+    distributions split by the **deployed** rounded/spread call (the
+    deployed-rule threshold lines drawn on the area + eccentricity
+    panels). Finding (IC295): **no feature is statistically bimodal** (all
+    Sarle BC < 0.56 — the classes overlap as a continuum, which is why the
+    cut is fitted from labels, not read off a trough); rel_area cleanly
+    separates the call (median 0.17 rounded vs 0.84 spread). Under
+    `compare/state_features/`.
   - **ic295_label_states.py** — `sample` / `label` / `train`. Since no
     single feature is bimodal, this learns the boundary from a few dozen
     hand-labelled examples: `sample` k-means-picks a morphologically
@@ -183,13 +187,26 @@ suite 8771. See `gui_focused/remote_control.py` and `CLAUDE.md` for usage.
     `train` fits a logistic-regression + depth-2 tree on the shape
     features and reports CV accuracy + feature weights + a rule. Under
     `ic295_analysis/state_labels/`.
-  - **ic295_state_diagnostic.py** — **confirms the rounded/spread cut**.
-    Loads every masks.npz, recomputes per-frame circularity + solidity
-    for all cell-frames, and plots their distributions (pooled + per
-    condition) with the `DEFAULT_THRESHOLDS` rounded cut drawn + a 2D
-    circ-vs-solid density with the rounded region boxed + a `summary.txt`
+  - **ic295_state_diagnostic.py** — **confirms the rounded/spread cut**
+    against ALL mask data. Loads every masks.npz, recomputes per-frame
+    **area (µm²) + eccentricity** (the deployed rule's features) for every
+    classifiable (non-edge) cell-frame, and plots their distributions
+    (pooled + per condition) with the `DEFAULT_THRESHOLDS` cuts drawn + a
+    2D area-vs-ecc density with the rounded region boxed + a `summary.txt`
     (% frames rounded, per gate, per condition). Under
-    `compare/state_diagnostic/`.
+    `compare/state_diagnostic/`. (IC295: area is visually bimodal with the
+    960 µm² cut in the trough; KO 39% rounded → OT 4%.)
+  - **ic295_eval_state_rule.py** — **scores the deployed rule against the
+    hand labels** (`state_labels/labels.csv`). Shipped-rule confusion
+    matrix, per-feature ROC-AUC + best single threshold, 5-fold CV of
+    logistic / decision-tree models, an interpretable depth-2 tree, and
+    `--um`/`--no-plots`. Emits the fitted `rounded_area_um2` +
+    `rounded_eccentricity` (re-fit as labels grow) and writes
+    label-grounded validation figures (decision boundary, per-feature
+    histograms by hand label, confusion, AUC bar) to
+    `compare/state_rule_validation/`. Current 279-label result: the
+    deployed rule scores acc 0.93 / rounded-recall 0.90 (vs the old
+    circ/solid rule's 0.60 / 0.14).
   - **ic295_compare_edits.py** — "how did manual edits change the
     numbers?" For any recording with a `masks_original.npz` beside the
     current `masks.npz`: backs up the edited state, swaps in the
