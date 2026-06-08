@@ -90,7 +90,7 @@ def compute_label_metrics(labels, um_per_px=None, dt_min=None,
         present = stack.any(axis=(1, 2))
         if not present.any():
             continue
-        sd = classify_track_states(stack, thresholds)
+        sd = classify_track_states(stack, thresholds, um_per_px=um_per_px)
         states = sd["states"]
         m = sd["metrics"]  # (N,) arrays: area(px²), circularity, solidity…
         cents = extract_centroids(stack)  # (N, 2) px, NaN where absent

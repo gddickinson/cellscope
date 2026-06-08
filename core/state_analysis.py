@@ -93,7 +93,7 @@ def annotate_state(result, cell_stack, um_per_px, dt_min, thresholds=None):
 
     stack = cell_stack.astype(bool)
     present = stack.any(axis=(1, 2))
-    sd = classify_track_states(stack, thresholds)
+    sd = classify_track_states(stack, thresholds, um_per_px=um_per_px)
     states = np.asarray(sd["states"])
     edge = np.asarray(sd.get("edge", np.zeros(len(states), dtype=bool)))
     shape = sd["metrics"]   # dict of (N,) arrays incl. area (px), circ, …

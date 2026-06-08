@@ -161,7 +161,46 @@ def main():
     tree = DecisionTreeClassifier(max_depth=2, random_state=0).fit(Mi, y)
     print("== depth-2 tree (interpretable) ==")
     _print_tree(tree, FEATURES)
+
+    # 5) emit the DEPLOYED thresholds (area_um2 + eccentricity) ----------
+    _emit_thresholds(X, y)
     return 0
+
+
+def _emit_thresholds(X, y, um=None):
+    """Fit the deployed depth-2 rule (area_um2 + eccentricity) and print the
+    DEFAULT_THRESHOLDS values — so the rule stays reproducible from labels.
+
+    `area` in the CSV is px; converted to µm² with `um` (µm/px). The IC295
+    corpus is a single scope, so a constant um is correct here; pass --um to
+    override.
+    """
+    from sklearn.tree import DecisionTreeClassifier
+    from sklearn.impute import SimpleImputer
+    if um is None:
+        um = 0.6523
+        for i, a in enumerate(sys.argv):
+            if a == "--um" and i + 1 < len(sys.argv):
+                um = float(sys.argv[i + 1])
+    area_um2 = X["area"] * um * um
+    M = np.column_stack([area_um2, X["eccentricity"]])
+    Mi = SimpleImputer(strategy="median").fit_transform(M)
+    t = DecisionTreeClassifier(max_depth=2, random_state=0).fit(Mi, y).tree_
+    # root splits on area_um2 (feature 0); follow its SMALL-area child (left,
+    # area<=thr) and read that branch's eccentricity split — the meaningful
+    # one (the large-area branch is ~all spread regardless of ecc).
+    area_thr = ecc_thr = None
+    if t.feature[0] == 0:                      # root is the area split
+        area_thr = t.threshold[0]
+        left = t.children_left[0]              # small-area branch
+        if t.children_left[left] != t.children_right[left] \
+                and t.feature[left] == 1:
+            ecc_thr = t.threshold[left]
+    print(f"\n== suggested DEFAULT_THRESHOLDS  (um/px={um}) ==")
+    print(f"  rounded_area_um2     = {area_thr:.1f}"
+          if area_thr is not None else "  (no area split)")
+    print(f"  rounded_eccentricity = {ecc_thr:.3f}"
+          if ecc_thr is not None else "  (no ecc split)")
 
 
 def _print_tree(tree, names, node=0, depth=0):

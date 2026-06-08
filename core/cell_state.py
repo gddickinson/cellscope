@@ -12,12 +12,16 @@ state itself, every per-frame metric is computed SEPARATELY over rounded
 frames and over spread frames. Only lifetime quantities — cell count,
 divisions, and % time rounded — are taken over the whole track.
 
-Binary classification rule (per cell-frame):
-    rounded  if circularity ≥ 0.80 AND solidity ≥ 0.92
+Binary classification rule (per cell-frame), learned from hand labels
+(0.90 CV; size / "footprint collapse" tracks the labeller far better than
+circularity — see scripts/ic295_eval_state_rule.py):
+    rounded  if area_um2 ≤ 960 AND eccentricity ≤ 0.85   (needs um_per_px)
     spread   if the shape is measurable but not rounded
     unknown  if shape metrics are undefined (empty / sub-min-area mask)
+             or the mask is truncated by the image border (edge_touch)
+    fallback when no scale is known: circularity ≥ 0.80 AND solidity ≥ 0.92
 
-Tunable via classify_state(thresholds=...).
+Tunable via classify_state(thresholds=..., um_per_px=...).
 """
 from __future__ import annotations
 
@@ -39,6 +43,15 @@ STATE_ATTACHED = STATE_SPREAD
 STATE_TRANSITIONAL = STATE_SPREAD
 
 DEFAULT_THRESHOLDS = {
+    # --- PRIMARY rule (learned from hand labels, 0.90 CV vs the old 0.60) ---
+    # A cell-frame is `rounded` iff its physical footprint is small AND it is
+    # not elongated: area_um2 <= rounded_area_um2 AND eccentricity <=
+    # rounded_eccentricity. Equivalent to the depth-2 decision tree fit on
+    # ic295 state_labels (see scripts/ic295_eval_state_rule.py). Uses µm² so
+    # it is robust across magnifications; needs the recording's um_per_px.
+    "rounded_area_um2": 960.0,
+    "rounded_eccentricity": 0.85,
+    # --- FALLBACK rule (no scale available) — legacy circularity/solidity ---
     "rounded_circ": 0.80,
     "rounded_solid": 0.92,
     "min_area_px": 200,
@@ -98,13 +111,19 @@ def _nan_metrics(edge=False):
     return d
 
 
-def classify_state(metrics, thresholds=None):
+def classify_state(metrics, thresholds=None, um_per_px=None):
     """Classify a single cell-frame as rounded / spread / unknown.
 
-    `metrics` is the dict returned by `shape_metrics_for_mask`.
-    Returns one of STATE_ROUNDED / STATE_SPREAD / STATE_UNKNOWN. A frame
-    is `rounded` only when both shape gates are met; any other measurable
-    shape is `spread` (the old `attached`+`transitional` merge into it).
+    `metrics` is the dict returned by `shape_metrics_for_mask`. Returns one
+    of STATE_ROUNDED / STATE_SPREAD / STATE_UNKNOWN.
+
+    PRIMARY rule (when `um_per_px` is known): `rounded` iff the physical
+    footprint is small AND the cell is not elongated —
+    `area_um2 <= rounded_area_um2 AND eccentricity <= rounded_eccentricity`.
+    This is the decision tree learned from the hand labels (0.90 CV; size /
+    "footprint collapse" tracks the labeller far better than circularity).
+    FALLBACK rule (no scale): the legacy `circ >= rounded_circ AND
+    solid >= rounded_solid` shape gate.
     """
     th = {**DEFAULT_THRESHOLDS, **(thresholds or {})}
     # Edge-truncated cell-frames have an unreliable outline — void the shape
@@ -112,6 +131,17 @@ def classify_state(metrics, thresholds=None):
     # counted + tracked elsewhere).
     if metrics.get("edge_touch"):
         return STATE_UNKNOWN
+    area = metrics.get("area", np.nan)
+    ecc = metrics.get("eccentricity", np.nan)
+    # Primary: physical size + elongation. `area` is NaN for empty / sub-
+    # min-area masks, so those fall through to `unknown` below.
+    if um_per_px and np.isfinite(area) and np.isfinite(ecc):
+        area_um2 = float(area) * float(um_per_px) ** 2
+        if (area_um2 <= th["rounded_area_um2"]
+                and ecc <= th["rounded_eccentricity"]):
+            return STATE_ROUNDED
+        return STATE_SPREAD
+    # Fallback: legacy circularity / solidity gate (no scale available).
     circ = metrics.get("circularity", np.nan)
     solid = metrics.get("solidity", np.nan)
     if np.isnan(circ) or np.isnan(solid):
@@ -121,8 +151,12 @@ def classify_state(metrics, thresholds=None):
     return STATE_SPREAD
 
 
-def classify_track_states(track_stack, thresholds=None):
+def classify_track_states(track_stack, thresholds=None, um_per_px=None):
     """Classify each frame of a track stack.
+
+    `um_per_px` enables the primary physical-size state rule (see
+    `classify_state`); without it the legacy circularity/solidity gate is
+    used. Pass the recording's pixel size whenever it is known.
 
     Returns dict with:
         states:   length-T list of state labels
@@ -142,7 +176,7 @@ def classify_track_states(track_stack, thresholds=None):
         for k in keys:
             metrics[k][i] = d[k]
         edge[i] = bool(d.get("edge_touch", False))
-        states[i] = classify_state(d, thresholds)
+        states[i] = classify_state(d, thresholds, um_per_px=um_per_px)
     return {"states": states, "metrics": metrics, "edge": edge}
 
 

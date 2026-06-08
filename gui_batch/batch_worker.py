@@ -56,12 +56,16 @@ class BatchAnalysisWorker(QThread):
 
         um = float(rec.get("um_per_px", 1.0)) or 1.0
         dt = float(rec.get("time_interval_min", 1.0)) or 1.0
+        # Real scale (or None) for the physical state rule — never the 1.0
+        # fallback, which would make area_um2 == area_px and misclassify.
+        um_state = float(rec["um_per_px"]) if rec.get("um_per_px") else None
         rows = []
         for tid, track in enumerate(tracks):
             stack = track.get("stack")
             if stack is None:
                 continue
-            sd = classify_track_states(stack.astype(bool), thresholds)
+            sd = classify_track_states(stack.astype(bool), thresholds,
+                                       um_per_px=um_state)
             states = sd["states"]
             cents = extract_centroids(stack.astype(bool))
             row = {"track_id": tid + 1,
