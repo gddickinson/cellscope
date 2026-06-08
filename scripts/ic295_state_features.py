@@ -42,7 +42,9 @@ OUT_DIR = os.path.join(COMPARE_DIR, "state_features")
 FEATURES = ["area", "rel_area", "circularity", "solidity", "extent",
             "eccentricity", "aspect_ratio", "convexity"]
 # shape features whose rounded threshold (high = rounded) is worth drawing
-_THR_KEY = {"circularity": "rounded_circ", "solidity": "rounded_solid"}
+# draw the DEPLOYED rule's threshold lines on the area (µm²) + eccentricity
+# panels (data["area"] is stored in µm² by collect()).
+_THR_KEY = {"area": "rounded_area_um2", "eccentricity": "rounded_eccentricity"}
 
 
 def _frame_feats(mask, min_area):
@@ -92,7 +94,7 @@ def collect(um_per_px_default=0.6523):
     """Per cell-frame feature rows over all recordings."""
     from core.cell_state import DEFAULT_THRESHOLDS as TH
     min_area = TH["min_area_px"]
-    tc, ts = TH["rounded_circ"], TH["rounded_solid"]
+    ta, te = TH["rounded_area_um2"], TH["rounded_eccentricity"]
     rows = {f: [] for f in FEATURES}
     rows["condition"] = []
     rows["current_rounded"] = []
@@ -134,8 +136,12 @@ def collect(um_per_px_default=0.6523):
                 rows["aspect_ratio"].append(d["aspect_ratio"])
                 rows["convexity"].append(d["convexity"])
                 rows["condition"].append(cond)
+                # DEPLOYED rule: small footprint + not elongated, and not
+                # edge-truncated (those are unclassifiable).
                 rows["current_rounded"].append(
-                    d["circularity"] >= tc and d["solidity"] >= ts)
+                    (not d.get("edge_touch", False))
+                    and (d["area"] * um2 <= ta)
+                    and (d["eccentricity"] <= te))
         print(f"  [{i+1}/{len(paths)}] {label} ({cond})", flush=True)
     return {k: np.asarray(v) for k, v in rows.items()}
 
@@ -186,13 +192,11 @@ def _rel_area_by_state(data, out_path):
             label=f"current ROUNDED (n={int(cur.sum())})", density=True)
     ax.hist(ra[~cur], bins=bins, color="#2980b9", alpha=0.6,
             label=f"current SPREAD (n={int((~cur).sum())})", density=True)
-    ax.axvline(0.4, color="k", lw=1.5, ls=":",
-               label="candidate rel-area cut 0.40")
     ax.set_xlabel("relative area  (frame area / cell 90th-pctl area)")
     ax.set_ylabel("density")
-    ax.set_title("Footprint collapse vs the current circularity call.\n"
-                 "Blue mass left of the cut = retractions the circularity "
-                 "rule MISSES (beads / crumpled).")
+    ax.set_title("Relative footprint, split by the DEPLOYED rounded/spread "
+                 "call.\nThe rule cuts on absolute area (µm²) + elongation; "
+                 "rel_area shown for context (scale-invariant view).")
     ax.legend(); ax.grid(alpha=0.3)
     fig.tight_layout(); fig.savefig(out_path, dpi=130); plt.close(fig)
 
@@ -205,13 +209,13 @@ def _2d(data, out_path):
     cur = data["current_rounded"]
     fig, ax = plt.subplots(figsize=(7, 5.5))
     ax.scatter(ra[~cur], circ[~cur], s=4, c="#2980b9", alpha=0.25,
-               label="current spread")
+               label="deployed spread")
     ax.scatter(ra[cur], circ[cur], s=6, c="#c0392b", alpha=0.5,
-               label="current rounded")
-    ax.axvline(0.4, color="k", ls=":")
-    ax.axhline(0.8, color="#c00", ls="--")
+               label="deployed rounded")
     ax.set_xlabel("relative area"); ax.set_ylabel("circularity")
-    ax.set_title("relative area vs circularity (one dot per cell-frame)")
+    ax.set_title("relative area vs circularity, coloured by the deployed "
+                 "call\n(one dot per cell-frame; the deployed rule itself "
+                 "uses area µm² + eccentricity)")
     ax.legend(); ax.grid(alpha=0.3)
     fig.tight_layout(); fig.savefig(out_path, dpi=130); plt.close(fig)
 
@@ -224,16 +228,13 @@ def _summary(data, out_path):
         lines.append(f"{f:14s} {bc:11.3f} "
                      f"{'YES' if (bc and bc > 0.555) else 'no':>10s}")
     ra = data["rel_area"]; cur = data["current_rounded"]
-    miss = int(((ra < 0.4) & (~cur)).sum())
-    tot_small = int((ra < 0.4).sum())
     lines += ["",
-              f"frames with rel_area < 0.40 (collapsed footprint): "
-              f"{tot_small} ({100*tot_small/len(ra):.1f}%)",
-              f"  ...currently called ROUNDED: {int(((ra<0.4)&cur).sum())}",
-              f"  ...currently called SPREAD (MISSED retractions): {miss} "
-              f"({100*miss/max(tot_small,1):.0f}% of collapsed frames)",
-              f"current rounded (circ-based) total: {int(cur.sum())} "
-              f"({100*cur.mean():.1f}%)"]
+              f"deployed rounded frames: {int(cur.sum())} "
+              f"({100*cur.mean():.1f}% of classifiable frames)",
+              f"  median rel_area | rounded: "
+              f"{(float(np.median(ra[cur])) if cur.any() else float('nan')):.2f}",
+              f"  median rel_area | spread:  "
+              f"{(float(np.median(ra[~cur])) if (~cur).any() else float('nan')):.2f}"]
     txt = "\n".join(lines)
     with open(out_path, "w") as fh:
         fh.write(txt + "\n")

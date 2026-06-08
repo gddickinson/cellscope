@@ -26,6 +26,7 @@ from core.cell_state import DEFAULT_THRESHOLDS  # noqa: E402
 FEATURES = ["circularity", "solidity", "rel_area", "area", "extent",
             "eccentricity", "aspect_ratio", "convexity"]
 DEFAULT_CSV = os.path.join("ic295_analysis", "state_labels", "labels.csv")
+DEFAULT_UM = 0.6523                  # IC295 scope (single magnification)
 
 
 def _load(path):
@@ -87,7 +88,12 @@ def _auc(x, y):
 
 
 def main():
-    path = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_CSV
+    argv = sys.argv[1:]
+    pos = [a for a in argv if not a.startswith("--")]
+    path = pos[0] if pos else DEFAULT_CSV
+    um = DEFAULT_UM
+    if "--um" in argv:
+        um = float(argv[argv.index("--um") + 1])
     rows = _load(path)
     if not rows:
         print(f"No r/s labels in {path}"); return 1
@@ -163,7 +169,17 @@ def main():
     _print_tree(tree, FEATURES)
 
     # 5) emit the DEPLOYED thresholds (area_um2 + eccentricity) ----------
-    _emit_thresholds(X, y)
+    _emit_thresholds(X, y, um)
+
+    # 6) validation figures (unless --no-plots) --------------------------
+    if "--no-plots" not in argv:
+        try:
+            from scripts.ic295_common import COMPARE_DIR
+            out_dir = os.path.join(COMPARE_DIR, "state_rule_validation")
+        except Exception:
+            out_dir = os.path.join("ic295_analysis", "compare",
+                                   "state_rule_validation")
+        _plots(X, y, um, out_dir)
     return 0
 
 
@@ -201,6 +217,107 @@ def _emit_thresholds(X, y, um=None):
           if area_thr is not None else "  (no area split)")
     print(f"  rounded_eccentricity = {ecc_thr:.3f}"
           if ecc_thr is not None else "  (no ecc split)")
+
+
+def _plots(X, y, um, out_dir):
+    """Label-grounded validation figures for the deployed rule
+    (area_um2 ≤ rounded_area_um2 AND eccentricity ≤ rounded_eccentricity)."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from matplotlib.patches import Rectangle
+
+    os.makedirs(out_dir, exist_ok=True)
+    Ta = DEFAULT_THRESHOLDS["rounded_area_um2"]
+    Te = DEFAULT_THRESHOLDS["rounded_eccentricity"]
+    area_um2 = X["area"] * um * um
+    ecc = X["eccentricity"]
+    pred = ((area_um2 <= Ta) & (ecc <= Te)).astype(int)
+    rcol = "#c0392b"; scol = "#2980b9"      # rounded / spread (hand label)
+    rnd, spr = (y == 1), (y == 0)
+
+    # ---- Figure 1: decision boundary + per-feature dists + confusion ----
+    fig, axs = plt.subplots(2, 2, figsize=(12, 9))
+    ax = axs[0, 0]
+    xmax = float(np.nanpercentile(area_um2, 99.5))
+    ax.add_patch(Rectangle((0, 0), Ta, Te, facecolor="#c0392b", alpha=0.08,
+                           zorder=0))
+    ax.scatter(area_um2[spr], ecc[spr], s=12, c=scol, alpha=0.5,
+               label="hand: spread")
+    ax.scatter(area_um2[rnd], ecc[rnd], s=12, c=rcol, alpha=0.6,
+               label="hand: rounded")
+    wrong = pred != y
+    ax.scatter(area_um2[wrong], ecc[wrong], s=46, facecolors="none",
+               edgecolors="k", lw=1.1, label=f"misclassified (n={int(wrong.sum())})")
+    ax.axvline(Ta, color="k", ls="--", lw=1.3)
+    ax.axhline(Te, color="k", ls="--", lw=1.3)
+    ax.set_xlim(0, xmax); ax.set_ylim(0, 1.02)
+    ax.set_xlabel("area  (µm²)"); ax.set_ylabel("eccentricity")
+    ax.set_title(f"Decision boundary — shaded = rounded\n"
+                 f"(area ≤ {Ta:.0f} µm²  AND  ecc ≤ {Te})")
+    ax.legend(fontsize=8, loc="upper right"); ax.grid(alpha=0.25)
+
+    ax = axs[0, 1]
+    bins = np.linspace(0, xmax, 45)
+    ax.hist(area_um2[spr], bins=bins, color=scol, alpha=0.6, density=True,
+            label="spread")
+    ax.hist(area_um2[rnd], bins=bins, color=rcol, alpha=0.6, density=True,
+            label="rounded")
+    ax.axvline(Ta, color="k", ls="--", lw=1.5, label=f"cut = {Ta:.0f} µm²")
+    ax.set_xlabel("area  (µm²)"); ax.set_ylabel("density")
+    ax.set_title("Footprint: hand-rounded vs hand-spread")
+    ax.legend(fontsize=8); ax.grid(alpha=0.25)
+
+    ax = axs[1, 0]
+    eb = np.linspace(0, 1, 40)
+    ax.hist(ecc[spr], bins=eb, color=scol, alpha=0.6, density=True,
+            label="spread")
+    ax.hist(ecc[rnd], bins=eb, color=rcol, alpha=0.6, density=True,
+            label="rounded")
+    ax.axvline(Te, color="k", ls="--", lw=1.5, label=f"cut = {Te}")
+    ax.set_xlabel("eccentricity"); ax.set_ylabel("density")
+    ax.set_title("Elongation: hand-rounded vs hand-spread")
+    ax.legend(fontsize=8); ax.grid(alpha=0.25)
+
+    ax = axs[1, 1]
+    cm = np.array([[int((spr & (pred == 0)).sum()), int((spr & (pred == 1)).sum())],
+                   [int((rnd & (pred == 0)).sum()), int((rnd & (pred == 1)).sum())]])
+    ax.imshow(cm, cmap="Blues")
+    for (r, c), v in np.ndenumerate(cm):
+        ax.text(c, r, str(v), ha="center", va="center", fontsize=16,
+                color="white" if v > cm.max() / 2 else "black")
+    ax.set_xticks([0, 1]); ax.set_xticklabels(["pred spread", "pred rounded"])
+    ax.set_yticks([0, 1]); ax.set_yticklabels(["hand spread", "hand rounded"])
+    acc = (pred == y).mean()
+    rec = cm[1, 1] / max(cm[1].sum(), 1)
+    ax.set_title(f"Confusion (acc {acc:.2f}, rounded-recall {rec:.2f})")
+    fig.suptitle(f"Rounded/spread rule vs {len(y)} hand labels "
+                 f"({int(rnd.sum())} rounded, {int(spr.sum())} spread)",
+                 fontsize=13)
+    fig.tight_layout(rect=[0, 0, 1, 0.97])
+    fig.savefig(os.path.join(out_dir, "decision_boundary.png"), dpi=130)
+    plt.close(fig)
+
+    # ---- Figure 2: per-feature separability (AUC) ----
+    aucs = sorted(((_auc(X[f], y), f) for f in FEATURES), reverse=True)
+    fig, ax = plt.subplots(figsize=(7, 4.5))
+    names = [f for _, f in aucs]; vals = [a for a, _ in aucs]
+    bars = ax.barh(range(len(names)), vals, color="#4c72b0")
+    for i, f in enumerate(names):
+        if f in ("area", "eccentricity"):
+            bars[i].set_color("#c0392b")
+    ax.set_yticks(range(len(names))); ax.set_yticklabels(names)
+    ax.invert_yaxis(); ax.set_xlim(0.5, 1.0)
+    ax.axvline(0.5, color="grey", lw=1)
+    ax.set_xlabel("AUC vs hand label  (0.5 = chance)")
+    ax.set_title("Single-feature agreement with the labeller\n"
+                 "(red = features used by the deployed rule)")
+    ax.grid(alpha=0.25, axis="x")
+    fig.tight_layout()
+    fig.savefig(os.path.join(out_dir, "feature_auc.png"), dpi=130)
+    plt.close(fig)
+    print(f"\nWrote validation plots → {out_dir}/"
+          f"  (decision_boundary.png, feature_auc.png)")
 
 
 def _print_tree(tree, names, node=0, depth=0):
