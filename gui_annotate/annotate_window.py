@@ -144,6 +144,12 @@ class AnnotateWindow(QMainWindow):
             if flt in _NAME_TO_CODE and lab != _NAME_TO_CODE[flt]:
                 continue
             self.view.append(i)
+        # Order by recording so consecutive crops reuse the loaded TIFF
+        # (avoids a multi-second reload on every keypress).
+        self.view.sort(key=lambda i: (
+            self.store.rows[i].get("condition", ""),
+            self.store.rows[i].get("label_dir", ""),
+            int(self.store.rows[i].get("frame", 0) or 0)))
         self._fill_table()
         self.cur = 0 if self.view else -1
         self._show()
@@ -195,6 +201,23 @@ class AnnotateWindow(QMainWindow):
         self.table.selectRow(self.cur)
         self.table.blockSignals(False)
         self.canvas.draw_idle()
+        self._prefetch_ahead()
+
+    def _prefetch_ahead(self):
+        """Warm the next crop's recording + the next 1-2 DISTINCT upcoming
+        recordings on background threads, so advancing is instant."""
+        if self.renderer is None:
+            return
+        seen = set()
+        for k in range(self.cur + 1, min(self.cur + 18, len(self.view))):
+            r = self.store.rows[self.view[k]]
+            key = (r.get("condition"), r.get("label_dir"))
+            if key in seen:
+                continue
+            seen.add(key)
+            self.renderer.prefetch(r)
+            if len(seen) >= 3:
+                break
 
     def _on_scroll(self, ev):
         if ev.inaxes is not self.ax or ev.xdata is None:
@@ -213,16 +236,33 @@ class AnnotateWindow(QMainWindow):
             return
         self.store.set_label(self.view[self.cur], code)
         if self.store.path:
-            self.store.save()                       # auto-save
+            self.store.save()                       # auto-save (cheap)
         self._update_progress()
         if self.filter_label.currentText() == "Unlabelled":
-            pos = self.cur
-            self._rebuild_view()                    # labelled row leaves view
-            self.cur = min(pos, len(self.view) - 1)
+            # labelled row leaves this view — drop just that row (no full
+            # rebuild), keep position so we land on the next crop.
+            self.view.pop(self.cur)
+            self.table.removeRow(self.cur)
+            if self.cur >= len(self.view):
+                self.cur = len(self.view) - 1
             self._show()
         else:
-            self._fill_table()
+            self._recolour_row(self.cur)            # update one row, not all
             self._step(1)
+
+    def _recolour_row(self, table_row):
+        if not (0 <= table_row < len(self.view)):
+            return
+        r = self.store.rows[self.view[table_row]]
+        col = _LABEL_COLOR.get(r.get("label", ""), _LABEL_COLOR[""])
+        self.table.blockSignals(True)
+        if self.table.item(table_row, 5):
+            self.table.item(table_row, 5).setText(r.get("label", ""))
+        for c in range(self.table.columnCount()):
+            it = self.table.item(table_row, c)
+            if it:
+                it.setBackground(col)
+        self.table.blockSignals(False)
 
     def _step(self, d):
         if not self.view:

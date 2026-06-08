@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import os
 import csv
+import threading
 from collections import Counter
 
 import numpy as np
@@ -93,32 +94,55 @@ class CropRenderer:
     label set spanning many recordings doesn't exhaust memory.
     """
 
-    def __init__(self, recordings_root, margin=18, max_cache=3):
+    def __init__(self, recordings_root, margin=18, max_cache=4):
         self.root = recordings_root
         self.margin = margin
         self.max_cache = max_cache
         self._cache = {}     # mp -> (frames, labels)
-        self._order = []
+        self._order = []     # LRU, no duplicates
+        self._lock = threading.Lock()
+        self._loading = set()
 
     def _masks_path(self, row):
         return os.path.join(self.root, row["condition"], row["label_dir"],
                             "pipeline_results", "masks.npz")
 
-    def _load(self, mp):
-        if mp in self._cache:
-            return self._cache[mp]
+    def _read(self, mp):
         from core.io import load_recording
         d = os.path.dirname(os.path.dirname(mp))
         tif = next((os.path.join(d, f) for f in os.listdir(d)
                     if f.endswith(".ome.tif")), None)
         frames = (load_recording(tif, dic_channel=1, fluo_channel=0)["frames"]
                   if tif else None)
-        labels = np.load(mp)["labels"]
-        self._cache[mp] = (frames, labels)
-        self._order.append(mp)
-        while len(self._order) > self.max_cache:
-            self._cache.pop(self._order.pop(0), None)
-        return frames, labels
+        return frames, np.load(mp)["labels"]
+
+    def _load(self, mp):
+        """Thread-safe LRU load. The slow file read happens OUTSIDE the
+        lock so a background prefetch never blocks the UI thread."""
+        with self._lock:
+            if mp in self._cache:
+                self._order.remove(mp); self._order.append(mp)
+                return self._cache[mp]
+        data = self._read(mp)
+        with self._lock:
+            if mp not in self._cache:
+                self._cache[mp] = data
+                self._order.append(mp)
+                while len(self._order) > self.max_cache:
+                    self._cache.pop(self._order.pop(0), None)
+            self._loading.discard(mp)
+            return self._cache.get(mp, data)
+
+    def prefetch(self, row):
+        """Warm the cache for `row`'s recording on a background thread."""
+        if row is None:
+            return
+        mp = self._masks_path(row)
+        with self._lock:
+            if mp in self._cache or mp in self._loading:
+                return
+            self._loading.add(mp)
+        threading.Thread(target=self._load, args=(mp,), daemon=True).start()
 
     def fixed_size(self, rows):
         """One uniform window size big enough for the largest cell,
