@@ -199,9 +199,17 @@ def cmd_label(args):
     if not os.path.exists(CSV_PATH):
         print("Run `sample` first."); return 1
     rows = list(csv.DictReader(open(CSV_PATH)))
+    fieldnames = list(rows[0].keys())
     try:
         import matplotlib
-        matplotlib.use("MacOSX") if sys.platform == "darwin" else None
+        if sys.platform == "darwin":
+            matplotlib.use("MacOSX")
+        import matplotlib as mpl
+        # Disable matplotlib's built-in key shortcuts (e.g. 's' = save
+        # figure → the save dialog you hit) so our r/s/u keys just advance.
+        for _k in list(mpl.rcParams):
+            if _k.startswith("keymap."):
+                mpl.rcParams[_k] = []
         import matplotlib.pyplot as plt
         import matplotlib.image as mpimg
     except Exception:
@@ -212,6 +220,12 @@ def cmd_label(args):
     todo = [r for r in rows if not r["label"]]
     if not todo:
         print("all rows already labelled."); return 0
+
+    def _persist():
+        with open(CSV_PATH, "w", newline="") as f:
+            w = csv.DictWriter(f, fieldnames=fieldnames)
+            w.writeheader(); w.writerows(rows)
+
     fig, ax = plt.subplots(figsize=(4, 4))
 
     def show():
@@ -226,22 +240,19 @@ def cmd_label(args):
         ax.axis("off"); fig.canvas.draw_idle()
 
     def on_key(ev):
-        r = todo[state["i"]]
-        if ev.key in ("r", "s", "u"):
-            r["label"] = ev.key
-            state["i"] += 1
-        elif ev.key == "q":
+        if ev.key == "q":
             plt.close(fig); return
+        if ev.key in ("r", "s", "u"):
+            todo[state["i"]]["label"] = ev.key
+            _persist()                 # auto-save after every keypress
+            state["i"] += 1
         if state["i"] >= len(todo):
             plt.close(fig); return
         show()
 
     fig.canvas.mpl_connect("key_press_event", on_key)
     show(); plt.show()
-    # persist
-    with open(CSV_PATH, "w", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
-        w.writeheader(); w.writerows(rows)
+    _persist()
     done = sum(1 for r in rows if r["label"] in ("r", "s"))
     print(f"saved — {done} labelled. Run `train`.")
     return 0
