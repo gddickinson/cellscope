@@ -160,6 +160,20 @@ suite 8771. See `gui_focused/remote_control.py` and `CLAUDE.md` for usage.
     helpers; only the replication unit differs. ⚠️ pseudoreplication
     (cells within a recording aren't independent) — for side-by-side
     comparison only. Outputs under `ic295_analysis/compare_pooled/`.
+    `--min-valid-frames N` drops cells with too few in-view frames.
+  - **ic295_compare_arms.py** — **design-aware comparison (the correct
+    primary for hypothesis testing).** The conditions are TWO independent
+    experiments each with its own control: GENETIC (control WT → GOF, KO)
+    and DRUG (vehicle DMSO → YODA1/Y1, OT), plus the VEHICLE check WT vs
+    DMSO. Each arm gets its OWN Kruskal-Wallis + pairwise Mann-Whitney,
+    **Bonferroni-corrected within the arm** (not the flat all-15-pairwise,
+    which tests meaningless cross-arm contrasts like GOF vs OT and
+    over-corrects). Reads the `per_recording.csv` / `per_cell_pooled.csv`
+    that `ic295_compare`/`_pooled` wrote. Outputs `stats_arms.json` +
+    `plots_arms/<metric>.png` (genetic | drug panels, control highlighted,
+    test-vs-control stars, vehicle p in title) in both compare dirs.
+    `--level recording|pooled|both`. Key finding: the VEHICLE effect (WT
+    vs DMSO) is itself significant, so drug effects must be read vs DMSO.
   - **ic295_plot_mean_sem.py** — bar (mean) + SEM error bars + individual
     points per condition, for every metric, at both levels (points =
     recordings or cells). Writes `plots_mean_sem/` in each compare dir.

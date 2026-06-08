@@ -10,6 +10,39 @@ Format: **DATE — short title** with bullets describing what changed
 
 ---
 
+## 2026-06-08 — Arm-aware comparison (respect the experimental design)
+
+The conditions are TWO independent experiments each with its own control,
+not one 6-way comparison: GENETIC (control WT → GOF, KO) and DRUG (vehicle
+DMSO → YODA1/Y1, OT), plus the VEHICLE check WT vs DMSO. The flat
+`ic295_compare` (6-way KW + all-15-pairwise-Bonferroni) tests meaningless
+cross-arm contrasts (GOF vs OT) and over-corrects.
+
+`scripts/ic295_compare_arms.py` (new): per-arm KW + pairwise MWU
+**Bonferroni-corrected within the arm**; vehicle = single MWU. Reuses the
+`ic295_compare`/`_pooled` stats helpers, reads their `per_recording.csv` /
+`per_cell_pooled.csv`. Writes `stats_arms.json` + `plots_arms/<metric>.png`
+(genetic | drug panels, control highlighted, test-vs-control stars,
+vehicle p in title) in both compare dirs. `--level recording|pooled|both`.
+
+Results (recording-level, n=4–6/arm-condition; pooled corroborates with
+more power):
+- **VEHICLE effect (WT vs DMSO) is significant** — frac_rounded p=0.019,
+  spread circularity p=0.019, spread solidity p=0.010, n_cells p=0.031.
+  ⇒ drug effects must be read vs DMSO, not WT. WT/DMSO are separate
+  recordings so this could be vehicle OR batch/seeding — flagged.
+- GENETIC: spread-eccentricity omnibus p=0.049 (KO vs WT 0.052 borderline;
+  pooled KO vs WT 0.026) — KO spread cells more compact. GOF n.s.
+- DRUG: n_cells omnibus p=0.018, rounded-circularity omnibus p=0.045;
+  pooled sharpens it — Y1 & OT both vs DMSO on rounded circularity
+  (p=0.006 / 0.009), Y1 on rounded area (0.040).
+- The flat analysis' dramatic "OT lowest frac_rounded" is, vs its proper
+  control DMSO, only a non-significant downward trend (recording level) —
+  it looked dramatic only because the flat test compared it across arms.
+
+Docs: INTERFACE (script entry), ic295_analysis/README (design table +
+"read drug effects vs DMSO" warning), CLAUDE (arm-structured convention).
+
 ## 2026-06-08 — Re-analyse 29 recordings + regenerate all state diagnostics
 
 Re-ran Phase 2 (`ic295_analyze_one`) on all **29 reviewed recordings**

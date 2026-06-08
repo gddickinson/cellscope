@@ -381,6 +381,16 @@ Conventions to preserve when extending:
   change `rounded_area_um2` / `rounded_eccentricity`, re-run
   `ic295_analyze_one` on every recording before re-comparing** — the
   comparison reads the per-recording `frac_rounded` / per-state means.
+- **Experimental design — comparisons are arm-structured, not flat.**
+  Two independent experiments, each with its own control: GENETIC
+  (control **WT** → GOF, KO) and DRUG (vehicle **DMSO** → YODA1/Y1, OT),
+  plus the VEHICLE check WT vs DMSO. Cross-arm contrasts (e.g. GOF vs
+  OT) are meaningless. `scripts/ic295_compare_arms.py` is the
+  design-correct primary (per-arm KW + within-arm Bonferroni); the flat
+  `ic295_compare.py` all-pairwise output is exploratory only — don't
+  quote its cross-arm pairwise p-values. The vehicle effect (WT vs
+  DMSO) is significant on this corpus, so **drug effects are read vs
+  DMSO, not WT**.
 - The driver's per-recording subprocess isolation, lock file,
   SIGTERM handler, and atomic `progress.json` are load-bearing for
   multi-day runs. Don't simplify them away.

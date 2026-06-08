@@ -142,6 +142,39 @@ processes in one run. Pass `--label <label>` to run a specific one.
   the division signature scan + per-cell `analyze_recording`).
 - Treatment comparison (Phase 3): seconds total across all recordings.
 
+## Experimental design — which comparisons are valid
+
+The six conditions are **two independent experiments**, each with its own
+control, plus a vehicle check:
+
+| arm | control | tests | question |
+|---|---|---|---|
+| **genetic** | **WT** | GOF, KO | effect of the genetic perturbation |
+| **drug** | **DMSO** (vehicle) | YODA1 (Y1), OT | effect of the drug |
+| **vehicle** | — | WT vs DMSO | does the vehicle alone shift cells? |
+
+**Cross-arm contrasts are meaningless** (e.g. GOF vs OT — different
+controls, different experiments). Use **`scripts/ic295_compare_arms.py`**
+(the design-correct primary): each arm gets its own Kruskal-Wallis +
+pairwise Mann-Whitney, **Bonferroni-corrected within the arm**; the
+vehicle is a single MWU. `ic295_compare.py` (flat 6-way + all-pairwise)
+is kept only as an exploratory all-conditions view — its all-15-pairwise
+Bonferroni over-corrects and mixes arms, so don't read its pairwise
+p-values as the result.
+
+```bash
+conda run -n cellpose4 python scripts/ic295_compare.py          # collect CSVs
+conda run -n cellpose4 python scripts/ic295_compare_pooled.py    # (for pooled)
+conda run -n cellpose4 python scripts/ic295_compare_arms.py      # the real test
+# → compare{,_pooled}/stats_arms.json + plots_arms/<metric>.png
+```
+
+⚠️ **The vehicle effect (WT vs DMSO) is significant** on this corpus
+(frac_rounded, spread circularity/solidity) — so **read drug effects vs
+DMSO, not WT**. (WT and DMSO are separate recordings, so this may be a
+true vehicle effect or a batch/seeding difference; either way the drug
+arm's control is DMSO.)
+
 ## Treatment comparison details
 
 Each recording counts as one experimental replicate. Per-cell metrics
