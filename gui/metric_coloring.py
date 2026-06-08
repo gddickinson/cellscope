@@ -36,8 +36,10 @@ STATE_COLORS = {
     0: (130, 130, 130),   # unknown
     1: (60, 180, 75),     # spread  — green
     2: (230, 50, 50),     # rounded — red
+    3: (240, 160, 30),    # edge-truncated — amber (excluded from shape)
 }
-_CODE_TO_LABEL = {0: "unknown", 1: "spread", 2: "rounded"}
+_CODE_TO_LABEL = {0: "unknown", 1: "spread", 2: "rounded",
+                  3: "edge (excluded)"}
 
 # Default colour-by option (matches the GUIs' native ID palette).
 ID_METRIC = "Cell ID"
@@ -213,7 +215,7 @@ class MetricColorizer:
     def state_entries(self):
         """[(label, (r,g,b)), …] in the order spread→rounded→unknown.
         Driven by STATE_COLORS so it tracks the state model automatically."""
-        order = [1, 2, 0]  # spread, rounded, unknown
+        order = [1, 2, 3, 0]  # spread, rounded, edge, unknown
         return [(_CODE_TO_LABEL[c], STATE_COLORS[c])
                 for c in order if c in STATE_COLORS]
 

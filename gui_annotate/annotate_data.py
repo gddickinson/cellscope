@@ -155,8 +155,10 @@ class CropRenderer:
                            96, 420))
 
     def render(self, row, size):
-        """Return (window_img, valid_mask, contour_mask) for one row,
-        or (None, None, None) if it can't be drawn."""
+        """Return (window_img, valid_mask, contour_mask, edge_touch) for one
+        row, or (None, None, None, False) if it can't be drawn. `edge_touch`
+        is measured on the FULL-FRAME mask (before the window crop), so it
+        reflects the IMAGE border, not the crop border."""
         try:
             frames, labels = self._load(self._masks_path(row))
             fi = int(row["frame"])
@@ -164,13 +166,16 @@ class CropRenderer:
             rr = np.any(m, axis=1)
             cc = np.any(m, axis=0)
             if not rr.any():
-                return None, None, None
+                return None, None, None, False
+            from core.edge_filter import mask_touches_edge
+            from core.cell_state import DEFAULT_THRESHOLDS
+            edge = mask_touches_edge(m, DEFAULT_THRESHOLDS["edge_margin_px"])
             r0, r1 = np.where(rr)[0][[0, -1]]
             c0, c1 = np.where(cc)[0][[0, -1]]
             cy, cx = (r0 + r1) // 2, (c0 + c1) // 2
             base = frames[fi] if frames is not None else m.astype(np.uint16)
             imgw, valid = fixed_window(base, cy, cx, size)
             mw, _ = fixed_window(m.astype(np.uint8), cy, cx, size)
-            return imgw, valid, mw
+            return imgw, valid, mw, edge
         except Exception:
-            return None, None, None
+            return None, None, None, False

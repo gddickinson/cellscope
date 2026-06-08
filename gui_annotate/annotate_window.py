@@ -177,15 +177,24 @@ class AnnotateWindow(QMainWindow):
             self.info.setText("—"); self.canvas.draw_idle(); return
         r = self.store.rows[self.view[self.cur]]
         imgw = valid = mw = None
+        edge = False
         if self.renderer is not None:
-            imgw, valid, mw = self.renderer.render(r, self.size)
+            imgw, valid, mw, edge = self.renderer.render(r, self.size)
         if imgw is not None:
             vals = imgw[valid]
             lo, hi = (np.percentile(vals, [2, 98]) if vals.size else (0, 1))
             self.ax.imshow(imgw, cmap="gray", vmin=lo, vmax=max(hi, lo + 1))
             from skimage import measure
+            # amber outline + banner when the cell is cut by the image edge:
+            # its shape/state is excluded from analysis (your label is still
+            # kept — see CLAUDE.md edge policy).
+            ccol = "#f0a01e" if edge else "#ff3030"
             for ct in measure.find_contours(mw.astype(float), 0.5):
-                self.ax.plot(ct[:, 1], ct[:, 0], "-", color="#ff3030", lw=1.4)
+                self.ax.plot(ct[:, 1], ct[:, 0], "-", color=ccol, lw=1.4)
+            if edge:
+                self.ax.set_title("⚠ edge-truncated — shape excluded "
+                                  "from analysis", color="#c8801a",
+                                  fontsize=9)
             self.ax.set_xlim(0, self.size); self.ax.set_ylim(self.size, 0)
         else:
             self.ax.text(0.5, 0.5, "(recordings not found — can't render)",

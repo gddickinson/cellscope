@@ -110,6 +110,10 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--metrics", default=None,
                     help="comma-separated per-cell metric names")
+    ap.add_argument("--min-valid-frames", type=int, default=0,
+                    help="drop cells with fewer than N in-view (non-edge) "
+                         "classifiable frames — their shape means rest on "
+                         "too little data. 0 = keep all cells.")
     ap.add_argument("--no-plots", action="store_true")
     args = ap.parse_args()
 
@@ -117,6 +121,22 @@ def main():
     if not cells:
         print(f"No per_cell.csv under {RECORDINGS_ROOT}. Run analyze first.")
         return 1
+
+    if args.min_valid_frames > 0:
+        n0 = len(cells)
+        kept = [r for r in cells
+                if (_to_float(r.get("n_frames_classified")) or 0)
+                >= args.min_valid_frames]
+        dropped = n0 - len(kept)
+        miss = sum(1 for r in cells if r.get("n_frames_classified") in
+                   (None, ""))
+        print(f"--min-valid-frames {args.min_valid_frames}: kept "
+              f"{len(kept)}/{n0} cells, dropped {dropped}"
+              + (f" ({miss} lacked the column — re-run analyze)"
+                 if miss else ""))
+        cells = kept
+        if not cells:
+            print("All cells dropped by the filter."); return 1
 
     cnt = {}
     for r in cells:

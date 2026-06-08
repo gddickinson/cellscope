@@ -293,7 +293,8 @@ def _montage(thumbs, name="montage.png"):
 
 def _write_csv(picks, start_idx=0, append=False):
     cols = (["idx", "label", "condition", "label_dir", "cid", "frame",
-             "rel_area"] + [f for f in FEATURES if f != "rel_area"])
+             "rel_area"] + [f for f in FEATURES if f != "rel_area"]
+            + ["edge_touch"])
     mode = "a" if append else "w"
     with open(CSV_PATH, mode, newline="") as f:
         w = csv.DictWriter(f, fieldnames=cols, extrasaction="ignore")

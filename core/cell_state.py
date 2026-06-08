@@ -42,6 +42,11 @@ DEFAULT_THRESHOLDS = {
     "rounded_circ": 0.80,
     "rounded_solid": 0.92,
     "min_area_px": 200,
+    # Cells whose mask reaches within this many px of the image border are
+    # truncated by the field of view; their shape metrics are unreliable so
+    # they are classified `unknown` and excluded from SHAPE/STATE analysis
+    # (but still counted + tracked). 0 = literal border contact.
+    "edge_margin_px": 0,
 }
 
 
@@ -58,12 +63,17 @@ def shape_metrics_for_mask(mask_bool):
     # otherwise deflate circularity / solidity (see core.mask_cleanup).
     from core.mask_cleanup import clean_cell_mask
     mask_bool = clean_cell_mask(mask_bool)
+    # Edge-truncation flag — measured on the cleaned FULL-FRAME mask, so a
+    # speck that touched the border but got removed doesn't falsely flag an
+    # interior cell. Carried in the result so classify_state can void it.
+    from core.edge_filter import mask_touches_edge
+    edge = mask_touches_edge(mask_bool, DEFAULT_THRESHOLDS["edge_margin_px"])
     props = measure.regionprops(mask_bool.astype(np.uint8))
     if not props:
-        return _nan_metrics()
+        return _nan_metrics(edge)
     p = props[0]
     if p.area < DEFAULT_THRESHOLDS["min_area_px"]:
-        return _nan_metrics()
+        return _nan_metrics(edge)
     area = float(p.area)
     perimeter = float(p.perimeter)
     circ = (4 * np.pi * area / perimeter ** 2) if perimeter > 0 else np.nan
@@ -76,13 +86,16 @@ def shape_metrics_for_mask(mask_bool):
         "solidity": float(p.solidity),
         "eccentricity": float(p.eccentricity),
         "aspect_ratio": float(aspect),
+        "edge_touch": edge,
     }
 
 
-def _nan_metrics():
-    return {k: float("nan") for k in
-            ("area", "perimeter", "circularity", "solidity",
-             "eccentricity", "aspect_ratio")}
+def _nan_metrics(edge=False):
+    d = {k: float("nan") for k in
+         ("area", "perimeter", "circularity", "solidity",
+          "eccentricity", "aspect_ratio")}
+    d["edge_touch"] = bool(edge)
+    return d
 
 
 def classify_state(metrics, thresholds=None):
@@ -94,6 +107,11 @@ def classify_state(metrics, thresholds=None):
     shape is `spread` (the old `attached`+`transitional` merge into it).
     """
     th = {**DEFAULT_THRESHOLDS, **(thresholds or {})}
+    # Edge-truncated cell-frames have an unreliable outline — void the shape
+    # state so they drop out of every per-state aggregation (they are still
+    # counted + tracked elsewhere).
+    if metrics.get("edge_touch"):
+        return STATE_UNKNOWN
     circ = metrics.get("circularity", np.nan)
     solid = metrics.get("solidity", np.nan)
     if np.isnan(circ) or np.isnan(solid):
@@ -109,19 +127,23 @@ def classify_track_states(track_stack, thresholds=None):
     Returns dict with:
         states:   length-T list of state labels
         metrics:  dict of length-T arrays (area, circularity, ...)
+        edge:     length-T bool array — True where the mask is truncated by
+                  the image border (those frames are state `unknown`).
     """
     n = track_stack.shape[0]
     keys = ("area", "perimeter", "circularity", "solidity",
             "eccentricity", "aspect_ratio")
     metrics = {k: np.full(n, np.nan, dtype=np.float32) for k in keys}
     states = [STATE_UNKNOWN] * n
+    edge = np.zeros(n, dtype=bool)
     for i in range(n):
         m = track_stack[i].astype(bool)
         d = shape_metrics_for_mask(m)
         for k in keys:
             metrics[k][i] = d[k]
+        edge[i] = bool(d.get("edge_touch", False))
         states[i] = classify_state(d, thresholds)
-    return {"states": states, "metrics": metrics}
+    return {"states": states, "metrics": metrics, "edge": edge}
 
 
 def state_segments(states):

@@ -56,6 +56,13 @@ def _frame_feats(mask, min_area):
         return None
     r0, r1 = np.where(rows)[0][[0, -1]]
     c0, c1 = np.where(cols)[0][[0, -1]]
+    # Edge-truncation flag — tested in FULL-FRAME coords (mask.shape) BEFORE
+    # the bbox crop below, which would otherwise touch its own border.
+    from core.edge_filter import bbox_touches_edge
+    from core.cell_state import DEFAULT_THRESHOLDS
+    edge = bbox_touches_edge(int(r0), int(r1), int(c0), int(c1),
+                             mask.shape[0], mask.shape[1],
+                             DEFAULT_THRESHOLDS["edge_margin_px"])
     from core.mask_cleanup import clean_cell_mask
     mask = clean_cell_mask(mask[r0:r1 + 1, c0:c1 + 1])  # fill holes + despeck
     props = measure.regionprops(mask.astype(np.uint8))
@@ -77,7 +84,8 @@ def _frame_feats(mask, min_area):
     return {"area": area, "circularity": float(circ),
             "solidity": float(p.solidity), "extent": float(p.extent),
             "eccentricity": float(p.eccentricity),
-            "aspect_ratio": float(aspect), "convexity": float(convexity)}
+            "aspect_ratio": float(aspect), "convexity": float(convexity),
+            "edge_touch": bool(edge)}
 
 
 def collect(um_per_px_default=0.6523):

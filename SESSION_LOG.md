@@ -10,6 +10,55 @@ Format: **DATE — short title** with bullets describing what changed
 
 ---
 
+## 2026-06-08 — Exclude edge-truncated cells from shape / state
+
+Cells cut by the image border are only partially visible, so their
+outline — and every shape metric + the rounded/spread state derived
+from it — is unreliable. They must NOT pollute shape/state analysis,
+but they DO still exist: keep them in cell counts and in their tracks
+(the centroid still anchors identity).
+
+Mechanism — one flag, one chokepoint, automatic propagation:
+- `core/edge_filter.py` (new): `mask_touches_edge(mask, margin=0)` +
+  `bbox_touches_edge(...)`. Must be given a FULL-FRAME mask (a bbox
+  crop touches its own border). Verified every active analysis path
+  measures `labels == cid` (full-frame), so `mask.shape` IS the frame.
+- `core/cell_state.py`: `shape_metrics_for_mask` sets
+  `metrics["edge_touch"]`; `classify_state` voids edge frames to
+  `unknown`; `classify_track_states` returns a per-frame `edge` array.
+  New `DEFAULT_THRESHOLDS["edge_margin_px"] = 0` (literal border).
+- Because every per-state aggregation keys off state, edge→`unknown`
+  makes shape means, `frac_rounded`/`frac_spread`, and per-state speed
+  exclude edge frames with NO change to the aggregation maths.
+- `core/state_analysis.py`: new per-cell `n_frames_edge`,
+  `n_frames_classified`, `frac_in_view`; `frac_rounded/spread = None`
+  when a cell is never cleanly in view (so it can't bias means);
+  motion steps touching an edge frame (either end) dropped — a
+  truncated centroid is biased inward → inflated displacement.
+- `core/mask_metrics.py` + `gui/metric_coloring.py`: edge frames get
+  overlay state code **3** (amber "edge (excluded)"); legend is
+  data-driven so it picks it up. `cell_metrics_table.per_cell_row`
+  surfaces the 3 new fields.
+- Labelling: `_frame_feats` (ic295_state_features) emits `edge_touch`
+  before its bbox crop; new label CSVs carry an `edge_touch` column.
+  Existing hand labels are KEPT verbatim — user is confident in the
+  spread/rounded call even on cropped/mis-outlined cells, so the
+  filter gates only AUTO-computed shape/state, never the labels.
+- `scripts/ic295_compare_pooled.py`: `--min-valid-frames N` drops
+  cells with too few in-view classifiable frames (reports the count
+  dropped — no silent cap); histograms inherit via per_cell_pooled.csv.
+- Annotation GUI: amber outline + "⚠ edge-truncated — shape excluded"
+  banner on edge crops.
+
+Validated: `mask_touches_edge` unit tests; synthetic
+`classify_track_states`/`annotate_state` (edge→unknown, fully-truncated
+→None); real Pos60-DMSO — **n_cells 9 unchanged**, 5/9 cells have edge
+frames, the known truncated cell 10 now `frac_in_view=0.19` (shape
+excluded). `test_focused_gui.py` 64/64 pass (code-3 colour safe).
+
+Re-run `ic295_analyze_one` to refresh per_cell.csv with the new
+columns + edge exclusion before re-comparing.
+
 ## 2026-06-08 — Binary cell state (rounded / spread) + per-state metrics
 
 Reworked cell-state analysis to fix a real confound: a whole-track

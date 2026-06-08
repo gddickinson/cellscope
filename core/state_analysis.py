@@ -19,7 +19,11 @@ adding the keys below.
 
 Lifetime (state-independent):
   state_per_frame
-  frac_rounded, frac_spread
+  frac_rounded, frac_spread          over classifiable frames; None if the
+                                     cell is never cleanly in view
+  n_frames_edge                      frames truncated by the image border
+  n_frames_classified                frames usable for shape/state
+  frac_in_view                       non-edge / present frames
 
 Per-state (one value per state, computed only over that state's frames):
   mean_speed_{rounded,spread}        µm/min, per-frame step speeds
@@ -88,12 +92,32 @@ def annotate_state(result, cell_stack, um_per_px, dt_min, thresholds=None):
     dt = float(dt_min) if dt_min else 1.0
 
     stack = cell_stack.astype(bool)
+    present = stack.any(axis=(1, 2))
     sd = classify_track_states(stack, thresholds)
     states = np.asarray(sd["states"])
+    edge = np.asarray(sd.get("edge", np.zeros(len(states), dtype=bool)))
     shape = sd["metrics"]   # dict of (N,) arrays incl. area (px), circ, …
     result["state_per_frame"] = states.tolist()
-    result["frac_rounded"] = float(state_fraction(states, STATE_ROUNDED))
-    result["frac_spread"] = float(state_fraction(states, STATE_SPREAD))
+
+    # Edge-truncated frames are state `unknown`, so they already drop out of
+    # every per-state mean / fraction below. Record how truncated the cell
+    # is so downstream comparisons can skip cells that are rarely in view.
+    n_present = int(present.sum())
+    n_edge = int(edge.sum())
+    n_classified = int(np.count_nonzero(
+        (states == STATE_ROUNDED) | (states == STATE_SPREAD)))
+    result["n_frames_edge"] = n_edge
+    result["n_frames_classified"] = n_classified
+    result["frac_in_view"] = (
+        (n_present - n_edge) / n_present if n_present else None)
+    # Fractions over CLASSIFIABLE frames only; None when a cell is never
+    # cleanly in view, so a fully-truncated cell can't bias recording means.
+    if n_classified:
+        result["frac_rounded"] = float(state_fraction(states, STATE_ROUNDED))
+        result["frac_spread"] = float(state_fraction(states, STATE_SPREAD))
+    else:
+        result["frac_rounded"] = None
+        result["frac_spread"] = None
 
     cents = extract_centroids(stack)
 
@@ -103,14 +127,21 @@ def annotate_state(result, cell_stack, um_per_px, dt_min, thresholds=None):
     if len(cents) > 1:
         step = np.linalg.norm(np.diff(cents, axis=0), axis=1) * um / dt
         step_state = states[:-1]
+        # Drop any step touching an edge-truncated frame — a half-out-of-
+        # frame centroid is biased inward, so the displacement into/out of
+        # an edge frame is inflated. (Start-on-edge steps are already
+        # excluded via state `unknown`; this also drops end-on-edge steps.)
+        step_ok = ~(edge[:-1] | edge[1:])
     else:
         step = np.array([])
         step_state = np.array([])
+        step_ok = np.array([], dtype=bool)
 
     for target, prefix in ((STATE_ROUNDED, "rounded"),
                            (STATE_SPREAD, "spread")):
         # --- motility ---
-        sm = (step[step_state == target] if len(step) else np.array([]))
+        sm = (step[(step_state == target) & step_ok]
+              if len(step) else np.array([]))
         sm = sm[np.isfinite(sm)]
         sm = sm[sm <= _PF_SPEED_CAP]
         result[f"mean_speed_{prefix}"] = (

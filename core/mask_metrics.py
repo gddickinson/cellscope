@@ -31,6 +31,9 @@ import numpy as np
 # Per-frame state → compact int code (kept tiny for per-frame storage).
 # Binary model, ordered by roundedness: spread → rounded.
 STATE_CODE = {"unknown": 0, "spread": 1, "rounded": 2}
+# Edge-truncated frames carry the `unknown` state string but get their own
+# overlay code so the GUI can paint them distinctly (excluded from shape).
+STATE_CODE_EDGE = 3
 
 # The per-track scalars surfaced for colouring. Order is the order the
 # colour-by dropdown presents them (see gui/metric_coloring.py).
@@ -102,8 +105,12 @@ def compute_label_metrics(labels, um_per_px=None, dt_min=None,
         with np.errstate(invalid="ignore"):
             speed[:-1] = step * (um / dt)
 
-        out["states"][cid] = np.array(
+        codes = np.array(
             [STATE_CODE.get(s, 0) for s in states], dtype=np.int8)
+        edge = sd.get("edge")
+        if edge is not None:
+            codes[np.asarray(edge, dtype=bool)] = STATE_CODE_EDGE
+        out["states"][cid] = codes
         out["per_frame"][cid] = {
             "area": area_um2,
             "circularity": m["circularity"].astype(np.float32),

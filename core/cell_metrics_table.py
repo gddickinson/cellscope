@@ -47,6 +47,10 @@ def per_cell_row(c, ti):
         "mean_boundary_confidence": c.get("mean_boundary_confidence"),
         "frac_rounded":             c.get("frac_rounded"),
         "frac_spread":              c.get("frac_spread"),
+        # edge-truncation bookkeeping (cell still counted + tracked)
+        "n_frames_edge":            c.get("n_frames_edge"),
+        "n_frames_classified":      c.get("n_frames_classified"),
+        "frac_in_view":             c.get("frac_in_view"),
     }
     # --- per-state metrics (rounded + spread, each over its own frames) ---
     for st in ("rounded", "spread"):

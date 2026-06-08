@@ -243,6 +243,39 @@ Important physical defaults:
 For a hypothetical 0.4 µm/px microscope, the converter gives
 `min_area_px=531, cell_diameter_px=75` — automatically scaled.
 
+## Edge-truncated cells — excluded from shape/state, kept for counts
+
+A cell whose mask reaches the image border is only partially in view,
+so its outline and every shape metric (area, circularity, solidity, …)
+and the rounded/spread state derived from them are unreliable. Such a
+cell-frame is **excluded from SHAPE + STATE analysis but still counted
+and still tracked** (its centroid anchors identity).
+
+- `core/edge_filter.py::mask_touches_edge(mask, margin)` is the single
+  primitive. **Only ever call it on a FULL-FRAME mask** — a bbox crop
+  touches its own border, so every cell would read as edge. Use
+  `bbox_touches_edge(...)` when you already cropped but kept the
+  full-frame bbox + frame size.
+- The chokepoint is `core/cell_state.py::shape_metrics_for_mask`
+  (sets `edge_touch`) → `classify_state` voids the frame to `unknown`.
+  Because every per-state aggregation keys off state, this makes shape
+  means / `frac_rounded` / per-state speed exclude edge frames with no
+  extra filtering. **Don't add a parallel edge check elsewhere** —
+  route new shape code through `shape_metrics_for_mask`.
+- Margin lives in `core/cell_state.py::DEFAULT_THRESHOLDS["edge_margin_px"]`
+  (rule 1; default 0 = literal border contact). It flows into
+  RUN_METADATA's defaults-diff automatically (rule 2).
+- Per-cell bookkeeping (in `state_analysis.annotate_state` →
+  `per_cell.csv`): `n_frames_edge`, `n_frames_classified`,
+  `frac_in_view`. A cell never cleanly in view gets
+  `frac_rounded/spread = None` (so it can't bias means). Drop such
+  cells from pooled comparisons with `ic295_compare_pooled.py
+  --min-valid-frames N`.
+- GUI overlay state code **3** = edge (amber, `gui/metric_coloring.py`).
+- **Hand labels are exempt.** The annotation GUI flags edge crops
+  (amber) but never discards a user's spread/rounded label — the
+  filter gates only AUTO-computed shape/state.
+
 ## Remote control RPC
 
 Every CellScope GUI exposes an HTTP RPC server when launched with
