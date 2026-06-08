@@ -23,60 +23,51 @@ import numpy as np
 def per_cell_row(c, ti):
     """Flatten one cell's analysis result into a CSV-friendly row.
 
-    The state-aware columns (state_frac_*, mean_speed_*, persistence_*,
-    straightness_*, *_pf) are populated by core.state_analysis; they are
-    None when state classification was skipped.
+    Binary-state schema (see core.state_analysis). Two kinds of column:
+      * LIFETIME (state-independent) — frames_tracked, division*, and
+        frac_rounded / frac_spread (% time in each state). Safe to
+        compare directly.
+      * PER-STATE — every motility / shape metric, computed SEPARATELY
+        over the cell's rounded frames and its spread frames, so a
+        comparison is not confounded by time-in-state. None when that
+        state never occurred for the cell.
+
+    Deliberately omits whole-track state-MIXED averages (overall mean
+    speed / area / circularity …): they blend the two states and must
+    not be compared across conditions.
     """
-    ss = c.get("shape_summary", {}) or {}
-    es = c.get("edge_summary", {}) or {}
-    area = ss.get("area_um2") or {}
-    return {
+    row = {
+        # --- identity / lifetime (state-independent) ---
         "cell_id":                  c.get("cell_id"),
         "first_frame":              ti.get("first_frame"),
         "frames_tracked":           ti.get("frames_tracked"),
         "parent_id":                ti.get("parent_id"),
         "division_frame":           ti.get("division_frame"),
         "division_score":           ti.get("division_score"),
-        "mean_speed":               c.get("mean_speed"),
-        "total_distance":           c.get("total_distance"),
-        "net_displacement":         c.get("net_displacement"),
-        "persistence":              c.get("persistence"),
-        "mean_area_um2":            area.get("mean"),
-        "median_area_um2":          area.get("median"),
-        "mean_circularity":         (ss.get("circularity") or {}).get("mean"),
-        "mean_solidity":            (ss.get("solidity") or {}).get("mean"),
-        "mean_aspect_ratio":        (ss.get("aspect_ratio") or {}).get("mean"),
-        "mean_eccentricity":        (ss.get("eccentricity") or {}).get("mean"),
-        "mean_protrusion_velocity": es.get("mean_protrusion_velocity"),
-        "mean_retraction_velocity": es.get("mean_retraction_velocity"),
         "mean_boundary_confidence": c.get("mean_boundary_confidence"),
-        "state_frac_balled":        c.get("state_frac_balled"),
-        "state_frac_attached":      c.get("state_frac_attached"),
-        "mean_speed_balled":        c.get("mean_speed_balled"),
-        "mean_speed_attached":      c.get("mean_speed_attached"),
-        "mean_speed_unattached":    c.get("mean_speed_unattached"),
-        "mean_speed_non_balled":    c.get("mean_speed_non_balled"),
-        "persistence_attached":     c.get("persistence_attached"),
-        "persistence_balled":       c.get("persistence_balled"),
-        "persistence_unattached":   c.get("persistence_unattached"),
-        "persistence_non_balled":   c.get("persistence_non_balled"),
-        "straightness_attached":    c.get("straightness_attached"),
-        "straightness_balled":      c.get("straightness_balled"),
-        "straightness_unattached":  c.get("straightness_unattached"),
-        "straightness_non_balled":  c.get("straightness_non_balled"),
-        # Per-frame speeds (no contiguous-segment requirement —
-        # catches the brief balled events that segment metrics miss)
-        "mean_speed_balled_pf":     c.get("mean_speed_balled_pf"),
-        "mean_speed_non_balled_pf": c.get("mean_speed_non_balled_pf"),
-        "n_frames_balled_pf":       c.get("n_frames_balled_pf"),
-        "n_frames_non_balled_pf":   c.get("n_frames_non_balled_pf"),
+        "frac_rounded":             c.get("frac_rounded"),
+        "frac_spread":              c.get("frac_spread"),
     }
+    # --- per-state metrics (rounded + spread, each over its own frames) ---
+    for st in ("rounded", "spread"):
+        row[f"mean_speed_{st}"]      = c.get(f"mean_speed_{st}")
+        row[f"n_speed_samples_{st}"] = c.get(f"n_speed_samples_{st}")
+        row[f"persistence_{st}"]     = c.get(f"persistence_{st}")
+        row[f"straightness_{st}"]    = c.get(f"straightness_{st}")
+        row[f"mean_area_um2_{st}"]   = c.get(f"mean_area_um2_{st}")
+        row[f"mean_circularity_{st}"] = c.get(f"mean_circularity_{st}")
+        row[f"mean_solidity_{st}"]   = c.get(f"mean_solidity_{st}")
+        row[f"mean_aspect_ratio_{st}"] = c.get(f"mean_aspect_ratio_{st}")
+        row[f"mean_eccentricity_{st}"] = c.get(f"mean_eccentricity_{st}")
+    return row
 
 
-# Per-cell identity columns that are NOT reduced across cells (they're
-# bookkeeping, not measurements).
+# Per-cell identity / bookkeeping columns that are NOT reduced across
+# cells (they're not measurements). frac_rounded / frac_spread and the
+# per-state metrics ARE reduced (→ <col>_mean/_median/_std/_n).
 _ID_COLS = ("cell_id", "first_frame", "frames_tracked",
-            "parent_id", "division_frame", "division_score")
+            "parent_id", "division_frame", "division_score",
+            "n_speed_samples_rounded", "n_speed_samples_spread")
 
 
 def aggregate_recording(rows, n_divisions):

@@ -172,30 +172,18 @@ class BatchWindow(QMainWindow):
             "persistence) by state to remove the dividing-cell\n"
             "composition confound.")
         form.addRow("State classification:", self.compute_states)
-        self.state_balled_circ = QDoubleSpinBox()
-        self.state_balled_circ.setRange(0.5, 1.0)
-        self.state_balled_circ.setSingleStep(0.05)
-        self.state_balled_circ.setDecimals(2)
-        self.state_balled_circ.setValue(_STATE_TH["balled_circ"])
-        form.addRow("  Balled circ ≥:", self.state_balled_circ)
-        self.state_balled_solid = QDoubleSpinBox()
-        self.state_balled_solid.setRange(0.5, 1.0)
-        self.state_balled_solid.setSingleStep(0.02)
-        self.state_balled_solid.setDecimals(2)
-        self.state_balled_solid.setValue(_STATE_TH["balled_solid"])
-        form.addRow("  Balled solid ≥:", self.state_balled_solid)
-        self.state_attached_circ = QDoubleSpinBox()
-        self.state_attached_circ.setRange(0.0, 1.0)
-        self.state_attached_circ.setSingleStep(0.05)
-        self.state_attached_circ.setDecimals(2)
-        self.state_attached_circ.setValue(_STATE_TH["attached_circ"])
-        form.addRow("  Attached circ ≤:", self.state_attached_circ)
-        self.state_attached_solid = QDoubleSpinBox()
-        self.state_attached_solid.setRange(0.0, 1.0)
-        self.state_attached_solid.setSingleStep(0.02)
-        self.state_attached_solid.setDecimals(2)
-        self.state_attached_solid.setValue(_STATE_TH["attached_solid"])
-        form.addRow("  Attached solid ≤:", self.state_attached_solid)
+        self.state_rounded_circ = QDoubleSpinBox()
+        self.state_rounded_circ.setRange(0.5, 1.0)
+        self.state_rounded_circ.setSingleStep(0.05)
+        self.state_rounded_circ.setDecimals(2)
+        self.state_rounded_circ.setValue(_STATE_TH["rounded_circ"])
+        form.addRow("  Rounded circ ≥:", self.state_rounded_circ)
+        self.state_rounded_solid = QDoubleSpinBox()
+        self.state_rounded_solid.setRange(0.5, 1.0)
+        self.state_rounded_solid.setSingleStep(0.02)
+        self.state_rounded_solid.setDecimals(2)
+        self.state_rounded_solid.setValue(_STATE_TH["rounded_solid"])
+        form.addRow("  Rounded solid ≥:", self.state_rounded_solid)
         form.addRow("  Filter threshold:", self.cy5_filter_threshold)
         self.vampire_clusters = QSpinBox()
         self.vampire_clusters.setRange(2, 15)
@@ -292,10 +280,8 @@ class BatchWindow(QMainWindow):
             "cy5_filter_threshold": self.cy5_filter_threshold.value(),
             "compute_states": self.compute_states.isChecked(),
             "state_thresholds": {
-                "balled_circ": self.state_balled_circ.value(),
-                "balled_solid": self.state_balled_solid.value(),
-                "attached_circ": self.state_attached_circ.value(),
-                "attached_solid": self.state_attached_solid.value(),
+                "rounded_circ": self.state_rounded_circ.value(),
+                "rounded_solid": self.state_rounded_solid.value(),
             },
             "vampire": {
                 "enabled": self.use_vampire.isChecked(),

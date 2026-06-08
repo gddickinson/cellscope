@@ -5,7 +5,7 @@ mask editor (`gui/mask_editor.py`). Both normally colour each cell by its
 ID (the categorical palette in `gui.mask_editor_multicell.cell_color`).
 This module lets them instead colour each cell by a measured value:
 
-  - a per-TRACK scalar  (mean speed, persistence, % time balled, …) →
+  - a per-TRACK scalar  (mean speed, persistence, % time rounded, …) →
     the cell keeps one colour across the whole recording, from a
     continuous matplotlib colormap; or
   - a per-FRAME value   (cell state, area, speed at this frame) →
@@ -30,16 +30,14 @@ from core.mask_metrics import STATE_CODE
 # Neutral grey for cells with no measurable value (absent in frame, NaN).
 GRAY = (128, 128, 128)
 
-# Cell-state palette (RGB). Greenish = spread/attached, amber =
-# transitional, red = rounded/balled, grey = unknown/too-small.
+# Cell-state palette (RGB). Binary model: green = spread (adherent),
+# red = rounded (balled-up), grey = unknown/too-small.
 STATE_COLORS = {
     0: (130, 130, 130),   # unknown
-    1: (60, 180, 75),     # attached  — green
-    2: (255, 200, 40),    # transitional — amber
-    3: (230, 50, 50),     # balled    — red
+    1: (60, 180, 75),     # spread  — green
+    2: (230, 50, 50),     # rounded — red
 }
-_CODE_TO_LABEL = {0: "unknown", 1: "attached",
-                  2: "transitional", 3: "balled"}
+_CODE_TO_LABEL = {0: "unknown", 1: "spread", 2: "rounded"}
 
 # Default colour-by option (matches the GUIs' native ID palette).
 ID_METRIC = "Cell ID"
@@ -65,7 +63,7 @@ class MetricSpec:
 # then per-track scalars, then per-frame values.
 METRICS = [
     MetricSpec(ID_METRIC, "id"),
-    MetricSpec("Cell state (balled / attached)", "state"),
+    MetricSpec("Cell state (rounded / spread)", "state"),
     MetricSpec("Mean speed", "track", "mean_speed", "viridis",
                unit="µm/min"),
     MetricSpec("Persistence", "track", "persistence", "plasma",
@@ -79,7 +77,7 @@ METRICS = [
                "coolwarm", vmin=0.0, vmax=1.0),
     MetricSpec("Mean solidity", "track", "mean_solidity", "coolwarm",
                vmin=0.0, vmax=1.0),
-    MetricSpec("% time balled", "track", "state_frac_balled", "magma",
+    MetricSpec("% time rounded", "track", "frac_rounded", "magma",
                vmin=0.0, vmax=1.0),
     MetricSpec("Frames tracked", "track", "frames_tracked", "viridis"),
     MetricSpec("Area — per frame", "frame", "area", "cividis", unit="µm²"),
@@ -213,8 +211,11 @@ class MetricColorizer:
         return "state" if self.spec.kind == "state" else "gradient"
 
     def state_entries(self):
-        """[(label, (r,g,b)), …] in the order attached→balled."""
-        return [(_CODE_TO_LABEL[c], STATE_COLORS[c]) for c in (1, 2, 3, 0)]
+        """[(label, (r,g,b)), …] in the order spread→rounded→unknown.
+        Driven by STATE_COLORS so it tracks the state model automatically."""
+        order = [1, 2, 0]  # spread, rounded, unknown
+        return [(_CODE_TO_LABEL[c], STATE_COLORS[c])
+                for c in order if c in STATE_COLORS]
 
     def gradient_label(self):
         u = f" ({self.spec.unit})" if self.spec.unit else ""

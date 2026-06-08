@@ -66,12 +66,13 @@ suite 8771. See `gui_focused/remote_control.py` and `CLAUDE.md` for usage.
 - **vampire_analysis.py** — VAMPIRE shape mode analysis: contour extraction, PCA eigenshapes, K-means clustering, Shannon entropy heterogeneity (wraps vampire-analysis package)
 - **gap_interp.py** — `interpolate_short_gaps()` + `plot_with_gaps()` — linearly fills NaN runs ≤ N frames in analysis timeseries (speed/area/etc.), draws filled samples dotted so they're never confused with measured points. Surfaced in the focused + tracking GUIs as a "Gap fill" combo (off / ≤1 / ≤2 / ≤3 / ≤5).
 - **track_quality.py** — `compute_track_quality(track, n_total_frames, analysis_result)` returns a 0-1 composite quality score from frames-present + area stability + total path length. `quality_color(label)` maps "good"/"ok"/"poor" to pale-green/amber/red RGBA. Used by the Tracking GUI to color the track table.
-- **state_analysis.py** — `annotate_state(result, cell_stack, um, dt)` — **single source of truth** for cell-state classification + per-state motility, shared by `scripts/ic295_analyze_one.py` AND `gui_focused/workers.py` so the IC295 batch and the focused GUI compute identical per-state metrics (balled / attached / `unattached`=balled+transitional / `non_balled`=attached+transitional, per-frame speed variants `*_pf`, per-state straightness, plus extended `balled_`/`attached_` display keys). Wraps `core.cell_state` + `core.motility_state`.
-- **cell_metrics_table.py** — `per_cell_row(c, ti)` + `aggregate_recording(rows, n_div)` + `write_per_cell_csv(rows, path)` — the flat per-cell CSV schema + recording-level mean/median/std aggregation, shared by `scripts/ic295_analyze_one.py` and `gui_focused/export_dialog.py` so a focused-GUI export drops straight into `scripts/ic295_compare.py`.
+- **cell_state.py** — **binary** cell-frame classification: `rounded` (circ ≥ `rounded_circ` AND solid ≥ `rounded_solid`) / `spread` (any other measurable shape) / `unknown`. `DEFAULT_THRESHOLDS` (canonical, read by both GUIs' threshold panels) holds `rounded_circ`/`rounded_solid`/`min_area_px`. Deprecated `STATE_BALLED`/`STATE_ATTACHED`/`STATE_TRANSITIONAL` aliases (→ rounded/spread/spread) keep legacy standalone state scripts importing. Helpers: `classify_track_states`, `state_segments`, `state_fraction`, `per_state_means`.
+- **state_analysis.py** — `annotate_state(result, cell_stack, um, dt)` — **single source of truth** for cell-state metrics, shared by `scripts/ic295_analyze_one.py` AND `gui_focused/workers.py`. Fixes the time-in-state confound: every per-frame metric is computed SEPARATELY over the cell's rounded frames and its spread frames — `mean_speed_{rounded,spread}`, `persistence_*`, `straightness_*`, `mean_area_um2_*`, `mean_circularity_*`, `mean_solidity_*`, `mean_aspect_ratio_*`, `mean_eccentricity_*` — plus the lifetime `frac_rounded`/`frac_spread`. Wraps `core.cell_state` + `core.motility_state`.
+- **cell_metrics_table.py** — `per_cell_row(c, ti)` + `aggregate_recording(rows, n_div)` + `write_per_cell_csv(rows, path)` — the flat per-cell CSV schema (lifetime cols: `frac_rounded`/`frac_spread`/`frames_tracked`/division*; + the per-state rounded/spread metrics — the state-MIXED whole-track averages are intentionally excluded) + recording-level mean/median/std aggregation, shared by `scripts/ic295_analyze_one.py` and `gui_focused/export_dialog.py` so a focused-GUI export drops straight into `scripts/ic295_compare.py`.
 - **mask_metrics.py** — `compute_label_metrics(labels, um, dt)` — fast per-cell metrics computed straight from a label stack (per-track scalars + per-frame arrays + per-frame state codes), with NO full Analyze run. Powers the "Colour masks by result" overlay in both the focused viewer and the mask editor.
 
 ## `gui/` — Shared Components
-- **mask_editor.py** — Interactive mask editor (brush/eraser/polygon/fill, multi-cell labels). "Colour:" dropdown + ↻ recompute colours each cell by a metric (state / speed / circularity / % balled / …) via `gui.metric_coloring`.
+- **mask_editor.py** — Interactive mask editor (brush/eraser/polygon/fill, multi-cell labels). "Colour:" dropdown + ↻ recompute colours each cell by a metric (state / speed / circularity / % rounded / …) via `gui.metric_coloring`.
 - **mask_editor_multicell.py** — Per-cell color helpers, label utilities. `render_label_overlay(..., color_lut=None)` — the optional `color_lut` ({cell_id:(r,g,b)}) drives the colour-by-result overlay.
 - **metric_coloring.py** — Colour-by-result infrastructure shared by the focused viewer + mask editor: `METRICS` registry (Cell ID / Cell state / per-track scalars / per-frame values), `MetricColorizer` (value→RGB via matplotlib colormaps; `STATE_COLORS` for the categorical state metric), and `MetricLegend` (gradient-bar / state-swatch key widget).
 - **run_log.py** — RunLogger + RunLogWidget (event logging)
@@ -81,7 +82,7 @@ suite 8771. See `gui_focused/remote_control.py` and `CLAUDE.md` for usage.
 ## `gui_focused/` — Detection & Analysis GUI
 - **main_window.py** — FocusedMainWindow (state machine, ROI, drag-drop). Hosts `_on_test_frame()` which runs detection on the currently displayed frame with current GUI parameters, times it, and reports a density-aware extrapolation to full-recording runtime (1.5× sparse / 2.0× medium / 2.5× dense post-proc multiplier). Test-on-frame now runs the same `_on_detect` path with `min_track_length=1` and skips multi-frame stages, and emits a warning when the selected mode (single/multi) doesn't match the recording's density probe. Also hosts the remote-control handler set when `CELLSCOPE_REMOTE=<port>` is set (16 endpoints: status/log/load_recording/load_pipeline_results/load_project/clear_all/set_param/set_frame/set_view/set_mode/detect/test_frame/analyze/save_screenshot/save_project/export). closeEvent warns on unsaved results.
 - **remote_control.py** — HTTP RPC server module (stdlib `BaseHTTPRequestHandler` inside the Qt event loop). `RemoteControlServer(QObject)` dispatches commands across threads via `pyqtSignal(dict, object)` so handlers run on the GUI thread. `attach(window, handlers, port)` for the full-featured focused GUI, `attach_minimal(window, gui_type, default_port)` for the simpler GUIs (status + log only). `parse_remote_env()` reads `CELLSCOPE_REMOTE=<port>` from the environment.
-- **image_viewer.py** — ImageViewer + FrameNavigatorBar (B/C, zoom, pan). "Colour by:" dropdown + legend recolour cells by an analysis result (cell state / mean speed / persistence / % balled / per-frame area·circularity·speed) via `gui.metric_coloring`; metrics come from `core.mask_metrics` (no Analyze needed) and refresh when masks change.
+- **image_viewer.py** — ImageViewer + FrameNavigatorBar (B/C, zoom, pan). "Colour by:" dropdown + legend recolour cells by an analysis result (cell state / mean speed / persistence / % rounded / per-frame area·circularity·speed) via `gui.metric_coloring`; metrics come from `core.mask_metrics` (no Analyze needed) and refresh when masks change.
 - **pipeline_panel.py** — 5 stage buttons + mode selector + Cancel / Undo Detect / **🔬 Test on frame** / Clear All toolbar row. `btn_test_frame` auto-gates on detect-stage availability; emits `test_frame_clicked` signal.
 - **params_panel.py** — Context-sensitive parameters (modality selector: Auto/DIC/Phase-contrast). A top-of-page **Detection preset** dropdown (Fast / Medium / Default (Balanced) / Highest Quality) one-click-sets the speed↔quality knobs via `core.detection_presets`. Exposes **19 wired pipeline parameters** in 6 grouped sections: Detection (model, min_area, expected_cells, search_radius, min_track_length, ROI), Refinement steps (DeepSea, TTA, cpsam-on-Cy5 union, fallback, mirror-pad), Gap fill (toggle + SAM2 video sub-toggle + **Gap-fill crop (fast)** + **Gap-fill always augment** revert toggles, all gated on Gap fill, max_gap_frames), Cy5 multichannel (fusion, recovery, filter mode dropdown + 3 persistence_guard sub-spinboxes gated on Persistence guard mode), Tiling, DIC pipeline (preprocess, retry, 3 Cy5 fusion sub-thresholds). All values reach `detect_recording` end-to-end via `get_detect_params()`.
 - **analysis_view.py** — Summary/Graphs/Log tabs. Multi-cell Summary now shows a recording-level aggregate block (n_cells, division rate, mean speed, speed-by-state) plus per-cell state composition + per-frame speed-by-state, using `core.cell_metrics_table`.
@@ -144,11 +145,33 @@ suite 8771. See `gui_focused/remote_control.py` and `CLAUDE.md` for usage.
   - **ic295_status.py** — read-only state reporter (safe while batch
     runs): per-condition state counts + ETA + currently-running +
     `--failed` tails.
-  - **ic295_compare.py** — Phase 3. For each metric: per-condition
+  - **ic295_compare.py** — Phase 3. **Each recording = one experiment**
+    (n = recordings/condition). For each metric: per-condition
     mean/SEM/n, Kruskal-Wallis across conditions + pairwise
-    Mann-Whitney (Bonferroni), box+scatter plots. Outputs
-    `per_recording.csv` + `per_treatment.csv` + `stats.json` +
-    `plots/*.png` under `ic295_analysis/compare/`.
+    Mann-Whitney (Bonferroni), box+scatter plots. Metric set is binary-
+    state: lifetime (n_cells, n_divisions, division_rate, frac_rounded)
+    + per-state rounded + per-state spread — never a state-mixed
+    average. Outputs `per_recording.csv` + `per_treatment.csv` +
+    `stats.json` + `plots/*.png` under `ic295_analysis/compare/`.
+  - **ic295_compare_pooled.py** — cell-POOLED mirror of `ic295_compare`
+    (each CELL = one sample, n = cells/condition). Reuses the same stats
+    helpers; only the replication unit differs. ⚠️ pseudoreplication
+    (cells within a recording aren't independent) — for side-by-side
+    comparison only. Outputs under `ic295_analysis/compare_pooled/`.
+  - **ic295_plot_mean_sem.py** — bar (mean) + SEM error bars + individual
+    points per condition, for every metric, at both levels (points =
+    recordings or cells). Writes `plots_mean_sem/` in each compare dir.
+  - **ic295_histograms.py** — per-metric histograms split by condition
+    (overlaid step, shared bins), at both levels — recording
+    (`compare/histograms/`) and cell (`compare_pooled/histograms/`).
+    Shape metrics get the rounded threshold drawn.
+  - **ic295_state_diagnostic.py** — **confirms the rounded/spread cut**.
+    Loads every masks.npz, recomputes per-frame circularity + solidity
+    for all cell-frames, and plots their distributions (pooled + per
+    condition) with the `DEFAULT_THRESHOLDS` rounded cut drawn + a 2D
+    circ-vs-solid density with the rounded region boxed + a `summary.txt`
+    (% frames rounded, per gate, per condition). Under
+    `compare/state_diagnostic/`.
   - **ic295_compare_edits.py** — "how did manual edits change the
     numbers?" For any recording with a `masks_original.npz` beside the
     current `masks.npz`: backs up the edited state, swaps in the

@@ -35,29 +35,25 @@ from scripts.ic295_common import (  # noqa: E402
 
 import numpy as np
 
-# Metrics to ship in plots / pairwise post-hoc by default. The CSVs
-# include EVERY field from recording_summary.json (so nothing is lost),
-# but plots/stats focus on the biology-relevant scalars.
+# Metrics for plots / pairwise post-hoc. Binary-state schema: only
+# LIFETIME metrics (count, divisions, % time rounded) and PER-STATE
+# metrics (computed separately over each cell's rounded vs spread
+# frames) are compared — NEVER a state-mixed whole-track average, which
+# would conflate behaviour-within-a-state with time-spent-in-that-state.
+# The CSVs still carry every recording_summary.json field.
+_PER_STATE = [
+    "mean_speed", "persistence", "straightness", "mean_area_um2",
+    "mean_circularity", "mean_solidity", "mean_aspect_ratio",
+    "mean_eccentricity",
+]
 DEFAULT_METRICS = [
-    "mean_speed_mean",            # avg cell speed in this recording
-    "median_speed_mean",
-    "persistence_mean",
-    "total_distance_mean",
-    "net_displacement_mean",
-    "mean_area_um2_mean",
-    "mean_circularity_mean",
-    "mean_solidity_mean",
-    "mean_aspect_ratio_mean",
-    "mean_protrusion_velocity_mean",
-    "mean_retraction_velocity_mean",
-    "state_frac_balled_mean",
-    "state_frac_attached_mean",
-    "mean_speed_balled_mean",
-    "mean_speed_attached_mean",
-    "division_rate",
+    # --- lifetime (state-independent) ---
     "n_cells",
     "n_divisions",
-]
+    "division_rate",
+    "frac_rounded_mean",          # % time rounded (now a first-class metric)
+] + [f"{m}_rounded_mean" for m in _PER_STATE] \
+  + [f"{m}_spread_mean" for m in _PER_STATE]
 
 
 def _collect_summaries():

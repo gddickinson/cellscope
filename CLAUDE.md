@@ -235,7 +235,7 @@ Important physical defaults:
 
 | Default | Value | Why |
 |---|---|---|
-| `min_area_um2` | 85 µm² | catches balled keratinocytes (~80-150 µm²) |
+| `min_area_um2` | 85 µm² | catches rounded keratinocytes (~80-150 µm²) |
 | `expected_cell_diameter_um` | 30 µm | typical spread keratinocyte; passed to cellpose for cross-scope robustness |
 | `max_hop_um_per_min` | 15 µm/min | upper bound on keratinocyte motion |
 | `search_radius_um` | 100 µm | tracker gap-fill window |

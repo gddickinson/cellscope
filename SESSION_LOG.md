@@ -10,6 +10,64 @@ Format: **DATE — short title** with bullets describing what changed
 
 ---
 
+## 2026-06-08 — Binary cell state (rounded / spread) + per-state metrics
+
+Reworked cell-state analysis to fix a real confound: a whole-track
+average (e.g. overall mean speed) is a TIME-WEIGHTED blend of the two
+states, so a condition that merely spends more time rounded looked
+slower/rounder even if its cells behaved identically within each state.
+
+**State model — 3+compounds → binary.** `core/cell_state.py` now
+classifies each cell-frame `rounded` / `spread` / `unknown`. Strict
+rounded definition kept (circ ≥ 0.80 AND solid ≥ 0.92); the old
+`attached` + `transitional` merge into `spread`. Dropped the compound
+cohorts (`unattached`, `non_balled`). `DEFAULT_THRESHOLDS` →
+`rounded_circ` / `rounded_solid` (the `attached_*` knobs are gone).
+Deprecated `STATE_BALLED`/`STATE_ATTACHED`/`STATE_TRANSITIONAL` aliases
+kept so the ~9 legacy standalone state scripts still import.
+
+**Every per-frame metric is now state-stratified.** `state_analysis.py`
+emits, for rounded AND spread each: `mean_speed`, `persistence`,
+`straightness`, `mean_area_um2`, `mean_circularity`, `mean_solidity`,
+`mean_aspect_ratio`, `mean_eccentricity`. `cell_metrics_table.py`'s
+`per_cell_row` = lifetime (state-independent: `frac_rounded`,
+`frac_spread`, `frames_tracked`, division*) + the per-state columns;
+the state-MIXED whole-track averages are deliberately dropped from the
+comparison-facing table.
+
+**Comparisons** (`ic295_compare.py` + pooled) now test ONLY lifetime
+metrics (n_cells, n_divisions, division_rate, % time rounded) and
+per-state metrics — never a state-mixed average. Example from Pos7-WT:
+one cell moves 6.4 µm/min while rounded vs 1.3 µm/min spread (5×), yet
+is spread 99% of the time — a whole-track mean (~1.4) hid that entirely.
+
+**Terminology + GUI.** `balled→rounded`, `attached/unballed→spread`
+everywhere user-facing: colour-by ("Cell state (rounded / spread)",
+"% time rounded"), 2-colour state palette (green spread / red rounded),
+params + batch threshold panels (rounded circ/solid only). Fixed
+`division_annotator` (pre-mitotic rounding gate counted balled OR
+transitional = via aliases = every frame; now counts STATE_ROUNDED) —
+affects future detections only (analysis uses cached divisions.json).
+
+Decisions confirmed with the user: terms **rounded / spread**; boundary
+**keep the strict rounded definition** (transitional → spread).
+
+Re-analyzed all 29 recordings → re-ran both comparisons + mean±SEM
+plots on the binary schema.
+
+**Histograms + threshold confirmation.** Added `ic295_histograms.py`
+(per-metric histograms split by condition, recording + cell levels) and
+`ic295_state_diagnostic.py` (loads every masks.npz, per-frame circ +
+solid distributions with the rounded cut drawn + a 2D circ-vs-solid
+density). Finding: only **2.9% of cell-frames are rounded**, and the cut
+is driven almost entirely by **circularity** (2.9% pass circ≥0.80 vs 28%
+pass solid≥0.92 — solidity is nearly redundant in that corner). The
+circ-vs-solid space is a **continuous spread→rounded ridge with no
+bimodal valley**, so 0.80 is a defensible *conservative operational*
+threshold isolating the clearly-rounded (mitotic/dying) tail, not a
+natural cluster boundary — lowering circ toward ~0.70 would capture more
+partial-rounding if desired.
+
 ## 2026-06-07 — Detection speed↔quality presets in the focused GUI
 
 Added a **Detection preset** dropdown at the top of the focused GUI's

@@ -7,10 +7,15 @@ immediately after detection or after loading a `masks.npz`, with NO full
 `Analyze` run required.
 
 Reuses `core.cell_state.classify_track_states` (per-frame shape metrics
-+ balled/attached/transitional state in a single regionprops pass) and
++ rounded/spread state in a single regionprops pass) and
 `core.tracking.extract_centroids` (centroid-based motion). The heavier,
 authoritative analysis lives in `core.pipeline.analyze_recording`; this
 is the fast subset needed for interactive recolouring.
+
+NB: the per-track scalars here (mean_speed, mean_area, …) are
+WHOLE-TRACK — they exist purely to colour cells for visual inspection,
+not for statistical comparison. The state-stratified, comparison-grade
+metrics live in `core.state_analysis` / the per_cell.csv schema.
 
 `compute_label_metrics(labels, um_per_px, dt_min)` returns:
     per_track:  {cell_id: {metric_key: float}}      # one value per cell
@@ -24,8 +29,8 @@ from __future__ import annotations
 import numpy as np
 
 # Per-frame state → compact int code (kept tiny for per-frame storage).
-# Mirrors the ordering attached → transitional → balled by "roundedness".
-STATE_CODE = {"unknown": 0, "attached": 1, "transitional": 2, "balled": 3}
+# Binary model, ordered by roundedness: spread → rounded.
+STATE_CODE = {"unknown": 0, "spread": 1, "rounded": 2}
 
 # The per-track scalars surfaced for colouring. Order is the order the
 # colour-by dropdown presents them (see gui/metric_coloring.py).
@@ -33,7 +38,7 @@ PER_TRACK_KEYS = (
     "mean_speed", "total_distance", "net_displacement", "persistence",
     "mean_area", "mean_circularity", "mean_solidity",
     "mean_aspect_ratio", "mean_eccentricity", "frames_tracked",
-    "state_frac_balled", "state_frac_attached",
+    "frac_rounded",
 )
 PER_FRAME_KEYS = ("area", "circularity", "solidity", "speed")
 
@@ -74,8 +79,7 @@ def compute_label_metrics(labels, um_per_px=None, dt_min=None,
         return out
 
     from core.cell_state import (
-        classify_track_states, state_fraction,
-        STATE_BALLED, STATE_ATTACHED)
+        classify_track_states, state_fraction, STATE_ROUNDED)
     from core.tracking import extract_centroids
 
     for cid in ids:
@@ -108,12 +112,12 @@ def compute_label_metrics(labels, um_per_px=None, dt_min=None,
         }
         out["per_track"][cid] = _track_scalars(
             cents, step, speed, m, area_um2, present, um, has_scale,
-            states, state_fraction, STATE_BALLED, STATE_ATTACHED)
+            states, state_fraction, STATE_ROUNDED)
     return out
 
 
 def _track_scalars(cents, step, speed, m, area_um2, present, um, has_scale,
-                   states, state_fraction, balled, attached):
+                   states, state_fraction, rounded):
     """Reduce one cell's per-frame data to the per-track scalar dict."""
     valid = ~np.isnan(cents[:, 0])
     cv = cents[valid]
@@ -144,6 +148,5 @@ def _track_scalars(cents, step, speed, m, area_um2, present, um, has_scale,
         "mean_aspect_ratio":  _nanmean(m["aspect_ratio"]),
         "mean_eccentricity":  _nanmean(m["eccentricity"]),
         "frames_tracked":     float(int(present.sum())),
-        "state_frac_balled":   float(state_fraction(states, balled)),
-        "state_frac_attached": float(state_fraction(states, attached)),
+        "frac_rounded":       float(state_fraction(states, rounded)),
     }

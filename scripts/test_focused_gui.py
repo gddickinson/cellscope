@@ -252,7 +252,7 @@ def main():
     check("colour_by_legend_visible",
           not w.viewer.metric_legend.isHidden())
     # Categorical cell-state metric
-    w.viewer.color_combo.setCurrentText("Cell state (balled / attached)")
+    w.viewer.color_combo.setCurrentText("Cell state (rounded / spread)")
     app.processEvents()
     screenshot(w, "07b_colour_cell_state")
     check("colour_by_state_active",

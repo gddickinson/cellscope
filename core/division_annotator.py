@@ -35,7 +35,7 @@ from skimage import measure
 
 from core.cell_state import (
     shape_metrics_for_mask, classify_state,
-    STATE_BALLED, STATE_TRANSITIONAL,
+    STATE_ROUNDED,
 )
 
 
@@ -342,8 +342,7 @@ def find_candidates(labels, um_per_px=1.0, include_rejected=False):
             post_states = [t["state"][fp]
                            for fp in present[i:i + POST_STATE_WINDOW + 1]]
             peri_states = pre_states + post_states
-            balled = sum(1 for s in peri_states
-                         if s in (STATE_BALLED, STATE_TRANSITIONAL))
+            balled = sum(1 for s in peri_states if s == STATE_ROUNDED)
             pre_balled_frac = balled / max(len(peri_states), 1)
 
             min_sub = SUBSTANTIAL_FRAC * peak_area

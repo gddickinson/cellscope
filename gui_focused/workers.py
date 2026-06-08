@@ -433,9 +433,9 @@ class FocusedAnalyzeWorker(QThread):
 
         Delegates to core.state_analysis.annotate_state — the SAME
         function scripts/ic295_analyze_one.py uses — so the focused GUI
-        and the IC295 batch compute identical per-state metrics (balled /
-        attached / unattached / non_balled, per-frame speed variants,
-        straightness, plus the extended balled_/attached_ display keys)."""
+        and the IC295 batch compute identical per-state metrics (binary
+        rounded / spread: per-state speed, persistence, straightness,
+        area, circularity, solidity, aspect ratio, eccentricity)."""
         from core.state_analysis import annotate_state
         annotate_state(result, masks_or_stack, um_per_px, dt_min,
                        thresholds=self.state_params.get("thresholds"))
@@ -468,10 +468,10 @@ class FocusedAnalyzeWorker(QThread):
                                                 um_per_px, dt_min)
                     self.log_event.emit(
                         "info",
-                        f"State: balled "
-                        f"{100*result['state_frac_balled']:.0f}%, "
-                        f"attached "
-                        f"{100*result['state_frac_attached']:.0f}%")
+                        f"State: rounded "
+                        f"{100*result['frac_rounded']:.0f}%, "
+                        f"spread "
+                        f"{100*result['frac_spread']:.0f}%")
                 self.log_event.emit("done",
                                     f"Analysis done in {time.time()-t0:.1f}s")
                 self.finished.emit(result)

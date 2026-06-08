@@ -280,9 +280,8 @@ class ImageViewer(QWidget):
         self.color_combo.addItems(metric_names())
         self.color_combo.setToolTip(
             "Colour each cell by a measured value instead of its ID:\n"
-            "  Cell state — balled (red) / attached (green) /\n"
-            "      transitional (amber), per frame.\n"
-            "  Mean speed, persistence, area, % time balled, … —\n"
+            "  Cell state — rounded (red) / spread (green), per frame.\n"
+            "  Mean speed, persistence, area, % time rounded, … —\n"
             "      one colour per cell from a continuous colormap.\n"
             "  '— per frame' options recolour each frame.\n\n"
             "Computed straight from the masks, so it works right after\n"

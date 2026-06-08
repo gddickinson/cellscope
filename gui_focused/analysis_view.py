@@ -165,7 +165,7 @@ class AnalysisView(QWidget):
         if bc is not None:
             lines.append(f"\nBoundary confidence: {bc:.3f}")
         # Cell-state classification (when enabled — on by default).
-        if r.get("state_frac_balled") is not None:
+        if r.get("frac_rounded") is not None:
             lines += self._format_cell_state(r)
         self.summary_text.setPlainText("\n".join(lines))
 
@@ -177,16 +177,16 @@ class AnalysisView(QWidget):
         return "—"
 
     def _format_cell_state(self, r):
-        """State composition + per-frame speed-by-state lines for a cell."""
-        fb = r.get("state_frac_balled") or 0.0
-        fa = r.get("state_frac_attached") or 0.0
-        out = [f"  State: balled {100*fb:.0f}% / attached {100*fa:.0f}%"]
-        nb = r.get("mean_speed_non_balled_pf")
-        bb = r.get("mean_speed_balled_pf")
-        if nb is not None or bb is not None:
+        """State composition + per-state speed lines for a cell."""
+        fr = r.get("frac_rounded") or 0.0
+        fs = r.get("frac_spread") or 0.0
+        out = [f"  State: rounded {100*fr:.0f}% / spread {100*fs:.0f}%"]
+        sr = r.get("mean_speed_rounded")
+        ss = r.get("mean_speed_spread")
+        if sr is not None or ss is not None:
             out.append(
-                f"  Speed by state (per-frame): non-balled "
-                f"{self._num(nb, 3)} / balled {self._num(bb, 3)} µm/min")
+                f"  Speed by state: rounded {self._num(sr, 3)} / "
+                f"spread {self._num(ss, 3)} µm/min")
         return out
 
     def _format_recording_aggregate(self, agg):
@@ -200,20 +200,21 @@ class AnalysisView(QWidget):
             f"  Cells: {agg.get('n_cells', '?')}   "
             f"Divisions: {agg.get('n_divisions', 0)}   "
             f"Division rate: {self._num(agg.get('division_rate'), 2)}")
-        ms = g("mean_speed_mean")
-        if ms is not None:
+        sr = g("mean_speed_rounded_mean")
+        ss = g("mean_speed_spread_mean")
+        if sr is not None or ss is not None:
             out.append(
-                f"  Mean speed: {ms:.3f} µm/min   "
-                f"Persistence: {self._num(g('persistence_mean'), 3)}")
-        nb = g("mean_speed_non_balled_pf_mean")
-        bb = g("mean_speed_balled_pf_mean")
-        if nb is not None or bb is not None:
+                f"  Speed by state: rounded {self._num(sr, 3)} / "
+                f"spread {self._num(ss, 3)} µm/min")
+        pr = g("persistence_rounded_mean")
+        ps = g("persistence_spread_mean")
+        if pr is not None or ps is not None:
             out.append(
-                f"  Speed by state (per-frame): non-balled "
-                f"{self._num(nb, 3)} / balled {self._num(bb, 3)} µm/min")
-        fb = g("state_frac_balled_mean")
-        if fb is not None:
-            out.append(f"  Mean % time balled: {100*fb:.0f}%")
+                f"  Persistence by state: rounded {self._num(pr, 3)} / "
+                f"spread {self._num(ps, 3)}")
+        fr = g("frac_rounded_mean")
+        if fr is not None:
+            out.append(f"  Mean % time rounded: {100*fr:.0f}%")
         return out
 
     def _populate_summary_multi(self, results):
@@ -260,7 +261,7 @@ class AnalysisView(QWidget):
             if "area_um2" in ss:
                 lines.append(f"  Area: {ss['area_um2'].get('mean', 0):.0f} um^2")
             lines.append(f"  Persistence: {r.get('persistence', 0):.3f}")
-            if r.get("state_frac_balled") is not None:
+            if r.get("frac_rounded") is not None:
                 lines += self._format_cell_state(r)
             lines.append("")
         self.summary_text.setPlainText("\n".join(lines))

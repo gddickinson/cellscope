@@ -48,7 +48,7 @@ class BatchAnalysisWorker(QThread):
         import csv as _csv
         from core.cell_state import (
             classify_track_states, state_fraction,
-            STATE_BALLED, STATE_ATTACHED, STATE_TRANSITIONAL)
+            STATE_ROUNDED, STATE_SPREAD)
         from core.motility_state import (
             state_speeds, state_msd, state_persistence,
             state_total_displacement)
@@ -67,12 +67,10 @@ class BatchAnalysisWorker(QThread):
             row = {"track_id": tid + 1,
                     "lifetime_frames": int(sum(1 for s in states
                                                   if s != "unknown")),
-                    "frac_balled": state_fraction(states, STATE_BALLED),
-                    "frac_attached": state_fraction(states, STATE_ATTACHED),
-                    "frac_transitional": state_fraction(
-                        states, STATE_TRANSITIONAL)}
-            for state, prefix in ((STATE_BALLED, "balled"),
-                                    (STATE_ATTACHED, "attached")):
+                    "frac_rounded": state_fraction(states, STATE_ROUNDED),
+                    "frac_spread": state_fraction(states, STATE_SPREAD)}
+            for state, prefix in ((STATE_ROUNDED, "rounded"),
+                                    (STATE_SPREAD, "spread")):
                 sp = state_speeds(cents, states, state, um, dt)
                 msd = state_msd(cents, states, state, um, max_lag=20)
                 per = state_persistence(cents, states, state, um)
@@ -100,14 +98,14 @@ class BatchAnalysisWorker(QThread):
                 w.writerow(r)
         # Aggregate: mean across cells in this recording
         return {
-            "frac_balled": float(np.mean(
-                [r["frac_balled"] for r in rows])),
-            "frac_attached": float(np.mean(
-                [r["frac_attached"] for r in rows])),
-            "balled_speed": float(np.nanmean(
-                [r["balled_mean_speed_um_per_min"] for r in rows])),
-            "attached_speed": float(np.nanmean(
-                [r["attached_mean_speed_um_per_min"] for r in rows])),
+            "frac_rounded": float(np.mean(
+                [r["frac_rounded"] for r in rows])),
+            "frac_spread": float(np.mean(
+                [r["frac_spread"] for r in rows])),
+            "rounded_speed": float(np.nanmean(
+                [r["rounded_mean_speed_um_per_min"] for r in rows])),
+            "spread_speed": float(np.nanmean(
+                [r["spread_mean_speed_um_per_min"] for r in rows])),
         }
 
     def _annotate_tracks_with_cy5(self, tracks, cy5_frames):

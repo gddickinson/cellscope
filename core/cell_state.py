@@ -1,18 +1,21 @@
-"""Classify each cell-frame as balled-up (rounded) vs attached (spread).
+"""Classify each cell-frame as ROUNDED (balled-up) vs SPREAD (adherent).
 
-Mitotic / pre-mitotic cells detach from the substrate and round up:
-high circularity, high solidity, near-1 aspect ratio. Adherent
+Mitotic / pre-mitotic / dying cells detach from the substrate and round
+up: high circularity, high solidity, near-1 aspect ratio. Adherent
 spread cells are irregular: protrusions, lower circularity/solidity.
 
-Confounds the migration analysis: a recording with more dividing
-cells will show inflated "speed" because balled-up cells move
-differently (often faster, more random) from spread cells. Stratify
-motility analysis by state to isolate true migration changes.
+Why a binary split + per-state metrics: a whole-track average (e.g.
+"mean speed" over all frames) is a TIME-WEIGHTED blend of the two states,
+so a condition that simply spends more time rounded looks slower/rounder
+even if its cells behave identically within each state. To measure the
+state itself, every per-frame metric is computed SEPARATELY over rounded
+frames and over spread frames. Only lifetime quantities — cell count,
+divisions, and % time rounded — are taken over the whole track.
 
-Classification rule (per cell-frame):
-    balled       if circularity ≥ 0.80 AND solidity ≥ 0.92
-    attached     if circularity ≤ 0.55 OR  solidity ≤ 0.85
-    transitional otherwise (or when shape metrics undefined)
+Binary classification rule (per cell-frame):
+    rounded  if circularity ≥ 0.80 AND solidity ≥ 0.92
+    spread   if the shape is measurable but not rounded
+    unknown  if shape metrics are undefined (empty / sub-min-area mask)
 
 Tunable via classify_state(thresholds=...).
 """
@@ -22,16 +25,22 @@ import numpy as np
 from skimage import measure
 
 
-STATE_BALLED = "balled"
-STATE_ATTACHED = "attached"
-STATE_TRANSITIONAL = "transitional"
+STATE_ROUNDED = "rounded"
+STATE_SPREAD = "spread"
 STATE_UNKNOWN = "unknown"
 
+# --- Deprecated 3-state aliases ---------------------------------------
+# Kept so older standalone state scripts (analyze_state_motility.py,
+# compare_state_datasets.py, …) still import without error. They now
+# resolve to the binary model: balled→rounded, attached/transitional→
+# spread. DO NOT use in new code — use STATE_ROUNDED / STATE_SPREAD.
+STATE_BALLED = STATE_ROUNDED
+STATE_ATTACHED = STATE_SPREAD
+STATE_TRANSITIONAL = STATE_SPREAD
+
 DEFAULT_THRESHOLDS = {
-    "balled_circ": 0.80,
-    "balled_solid": 0.92,
-    "attached_circ": 0.55,
-    "attached_solid": 0.85,
+    "rounded_circ": 0.80,
+    "rounded_solid": 0.92,
     "min_area_px": 200,
 }
 
@@ -73,22 +82,21 @@ def _nan_metrics():
 
 
 def classify_state(metrics, thresholds=None):
-    """Classify a single cell-frame as balled / attached / transitional.
+    """Classify a single cell-frame as rounded / spread / unknown.
 
     `metrics` is the dict returned by `shape_metrics_for_mask`.
-    Returns one of STATE_BALLED / STATE_ATTACHED / STATE_TRANSITIONAL
-    / STATE_UNKNOWN.
+    Returns one of STATE_ROUNDED / STATE_SPREAD / STATE_UNKNOWN. A frame
+    is `rounded` only when both shape gates are met; any other measurable
+    shape is `spread` (the old `attached`+`transitional` merge into it).
     """
     th = {**DEFAULT_THRESHOLDS, **(thresholds or {})}
     circ = metrics.get("circularity", np.nan)
     solid = metrics.get("solidity", np.nan)
     if np.isnan(circ) or np.isnan(solid):
         return STATE_UNKNOWN
-    if circ >= th["balled_circ"] and solid >= th["balled_solid"]:
-        return STATE_BALLED
-    if circ <= th["attached_circ"] or solid <= th["attached_solid"]:
-        return STATE_ATTACHED
-    return STATE_TRANSITIONAL
+    if circ >= th["rounded_circ"] and solid >= th["rounded_solid"]:
+        return STATE_ROUNDED
+    return STATE_SPREAD
 
 
 def classify_track_states(track_stack, thresholds=None):

@@ -48,14 +48,10 @@ expect("min_track_len.value", p.min_track_len.value(),
        DEFAULTS.min_track_length)
 expect("cy5_filter_threshold.value", p.cy5_filter_threshold.value(),
        DEFAULTS.cy5_filter_threshold)
-expect("state_balled_circ", p.state_balled_circ.value(),
-       STH["balled_circ"])
-expect("state_balled_solid", p.state_balled_solid.value(),
-       STH["balled_solid"])
-expect("state_attached_circ", p.state_attached_circ.value(),
-       STH["attached_circ"])
-expect("state_attached_solid", p.state_attached_solid.value(),
-       STH["attached_solid"])
+expect("state_rounded_circ", p.state_rounded_circ.value(),
+       STH["rounded_circ"])
+expect("state_rounded_solid", p.state_rounded_solid.value(),
+       STH["rounded_solid"])
 
 print()
 print("=== gui_batch/batch_window.py ===")
@@ -74,14 +70,10 @@ expect("vampire_clusters.value", b.vampire_clusters.value(),
        DEFAULTS.vampire_n_clusters)
 expect("compute_states.isChecked", b.compute_states.isChecked(),
        DEFAULTS.compute_state_classification)
-expect("state_balled_circ", b.state_balled_circ.value(),
-       STH["balled_circ"])
-expect("state_balled_solid", b.state_balled_solid.value(),
-       STH["balled_solid"])
-expect("state_attached_circ", b.state_attached_circ.value(),
-       STH["attached_circ"])
-expect("state_attached_solid", b.state_attached_solid.value(),
-       STH["attached_solid"])
+expect("state_rounded_circ", b.state_rounded_circ.value(),
+       STH["rounded_circ"])
+expect("state_rounded_solid", b.state_rounded_solid.value(),
+       STH["rounded_solid"])
 
 print()
 print("=== Worker module imports (verify _PD wired) ===")

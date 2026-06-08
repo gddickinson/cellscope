@@ -639,65 +639,46 @@ class ParamsPanel(QWidget):
         self.vampire_clusters.setToolTip("Number of shape mode clusters")
         form.addRow("Shape mode clusters:", self.vampire_clusters)
 
-        # --- Cell state classification (balled vs attached) ---
+        # --- Cell state classification (rounded vs spread) ---
         form.addRow(QLabel("<b>Cell state classification:</b>"))
         self.compute_states = QCheckBox()
         self.compute_states.setChecked(_PD.compute_state_classification)
         self.compute_states.setToolTip(
-            "Classify each cell-frame as balled (rounded, mitotic /\n"
-            "pre-mitotic) or attached (spread, adherent), based on\n"
-            "circularity + solidity. Required to stratify motility\n"
-            "by state — without it, recordings with more dividing\n"
-            "cells appear to migrate faster as a composition\n"
-            "artefact.\n\n"
-            "Outputs (CSV at export): per-cell state composition\n"
-            "(% time balled / attached) plus per-state speed,\n"
-            "directional persistence, MSD, total displacement.")
+            "Classify each cell-frame as ROUNDED (balled-up, mitotic /\n"
+            "pre-mitotic) or SPREAD (adherent), from circularity +\n"
+            "solidity. Required to stratify every motility / shape\n"
+            "metric by state — without it, a recording that simply\n"
+            "spends more time rounded appears slower/rounder as a\n"
+            "composition artefact.\n\n"
+            "Outputs (CSV at export): % time rounded plus per-state\n"
+            "(rounded vs spread) speed, persistence, area, circularity,\n"
+            "solidity, aspect ratio, eccentricity.")
         form.addRow("Classify states:", self.compute_states)
 
         # State thresholds — canonical source is
-        # core.cell_state.DEFAULT_THRESHOLDS. Pull from there so the
-        # focused GUI, batch GUI, and core/cell_state.classify_*
-        # functions stay in lockstep.
+        # core.cell_state.DEFAULT_THRESHOLDS. Binary model: a frame is
+        # ROUNDED when circularity ≥ AND solidity ≥ the two thresholds;
+        # everything else with a measurable shape is SPREAD.
         from core.cell_state import DEFAULT_THRESHOLDS as _STH
-        self.state_balled_circ = QDoubleSpinBox()
-        self.state_balled_circ.setRange(0.5, 1.0)
-        self.state_balled_circ.setSingleStep(0.05)
-        self.state_balled_circ.setDecimals(2)
-        self.state_balled_circ.setValue(_STH["balled_circ"])
-        self.state_balled_circ.setToolTip(
-            "Cells with circularity ≥ this AND solidity ≥ "
-            "balled-solidity threshold are classified BALLED.\n"
-            "Default validated on IC295 (cleanly separates "
-            "rounded mitotic cells from spread cells).")
-        form.addRow("  Balled circularity ≥:", self.state_balled_circ)
-        self.state_balled_solid = QDoubleSpinBox()
-        self.state_balled_solid.setRange(0.5, 1.0)
-        self.state_balled_solid.setSingleStep(0.02)
-        self.state_balled_solid.setDecimals(2)
-        self.state_balled_solid.setValue(_STH["balled_solid"])
-        self.state_balled_solid.setToolTip(
-            "Cells with solidity ≥ this AND circularity ≥ "
-            "balled-circ are classified BALLED.")
-        form.addRow("  Balled solidity ≥:", self.state_balled_solid)
-        self.state_attached_circ = QDoubleSpinBox()
-        self.state_attached_circ.setRange(0.0, 1.0)
-        self.state_attached_circ.setSingleStep(0.05)
-        self.state_attached_circ.setDecimals(2)
-        self.state_attached_circ.setValue(_STH["attached_circ"])
-        self.state_attached_circ.setToolTip(
-            "Cells with circularity ≤ this OR solidity ≤ "
-            "attached-solidity are classified ATTACHED.")
-        form.addRow("  Attached circularity ≤:", self.state_attached_circ)
-        self.state_attached_solid = QDoubleSpinBox()
-        self.state_attached_solid.setRange(0.0, 1.0)
-        self.state_attached_solid.setSingleStep(0.02)
-        self.state_attached_solid.setDecimals(2)
-        self.state_attached_solid.setValue(_STH["attached_solid"])
-        self.state_attached_solid.setToolTip(
-            "Cells with solidity ≤ this OR circularity ≤ "
-            "attached-circ are classified ATTACHED.")
-        form.addRow("  Attached solidity ≤:", self.state_attached_solid)
+        self.state_rounded_circ = QDoubleSpinBox()
+        self.state_rounded_circ.setRange(0.5, 1.0)
+        self.state_rounded_circ.setSingleStep(0.05)
+        self.state_rounded_circ.setDecimals(2)
+        self.state_rounded_circ.setValue(_STH["rounded_circ"])
+        self.state_rounded_circ.setToolTip(
+            "Cells with circularity ≥ this AND solidity ≥ the rounded-\n"
+            "solidity threshold are classified ROUNDED; all other\n"
+            "measurable shapes are SPREAD. Default validated on IC295.")
+        form.addRow("  Rounded circularity ≥:", self.state_rounded_circ)
+        self.state_rounded_solid = QDoubleSpinBox()
+        self.state_rounded_solid.setRange(0.5, 1.0)
+        self.state_rounded_solid.setSingleStep(0.02)
+        self.state_rounded_solid.setDecimals(2)
+        self.state_rounded_solid.setValue(_STH["rounded_solid"])
+        self.state_rounded_solid.setToolTip(
+            "Cells with solidity ≥ this AND circularity ≥ the rounded-\n"
+            "circularity threshold are classified ROUNDED.")
+        form.addRow("  Rounded solidity ≥:", self.state_rounded_solid)
 
         # --- Cell division ---
         form.addRow(QLabel("<b>Cell division:</b>"))
@@ -909,10 +890,8 @@ class ParamsPanel(QWidget):
         return {
             "enabled": True,
             "thresholds": {
-                "balled_circ": self.state_balled_circ.value(),
-                "balled_solid": self.state_balled_solid.value(),
-                "attached_circ": self.state_attached_circ.value(),
-                "attached_solid": self.state_attached_solid.value(),
+                "rounded_circ": self.state_rounded_circ.value(),
+                "rounded_solid": self.state_rounded_solid.value(),
             },
         }
 

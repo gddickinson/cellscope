@@ -398,16 +398,16 @@ class ExportDialog(QDialog):
         # heterogeneity entropy. Previously dropped entirely.
         if "vampire" in r and r["vampire"]:
             out["vampire"] = _to_jsonable(r["vampire"])
-        # Cell-state classification (balled vs attached) — fractions
-        # plus per-state motility (speed, persistence, MSD, …).
-        for k in ["state_frac_balled", "state_frac_attached",
-                   "state_frac_transitional"]:
+        # Cell-state classification (rounded vs spread) — % time in
+        # each state plus the per-state motility / shape metrics
+        # (mean_speed_rounded, persistence_spread, mean_area_um2_rounded,
+        # …) and the rounded_/spread_ display aliases.
+        for k in ["frac_rounded", "frac_spread"]:
             if k in r:
                 out[k] = _to_jsonable(r[k])
-        # Per-state motility keys are prefixed `balled_…` and
-        # `attached_…` — copy them all.
         for k, v in r.items():
-            if k.startswith(("balled_", "attached_")):
+            if (k.endswith(("_rounded", "_spread"))
+                    or k.startswith(("rounded_", "spread_"))):
                 out[k] = _to_jsonable(v)
         return out
 

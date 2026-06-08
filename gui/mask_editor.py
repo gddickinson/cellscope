@@ -687,9 +687,8 @@ class MaskEditor(QMainWindow):
         self.color_combo.addItems(metric_names())
         self.color_combo.setToolTip(
             "Colour each cell by a measured value instead of its ID:\n"
-            "  Cell state — balled (red) / attached (green) /\n"
-            "      transitional (amber), per frame.\n"
-            "  Mean speed, persistence, % time balled, area, … —\n"
+            "  Cell state — rounded (red) / spread (green), per frame.\n"
+            "  Mean speed, persistence, % time rounded, area, … —\n"
             "      one colour per cell from a continuous colormap.\n"
             "Computed from the masks (no Analyze needed). After editing,\n"
             "click ↻ to recompute. The bar below is the colour key.")
