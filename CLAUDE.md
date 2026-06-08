@@ -28,6 +28,20 @@ thresholds come from **`core/cell_state.py::DEFAULT_THRESHOLDS`** —
 both GUIs that expose them (`gui_focused/params_panel.py`,
 `gui_batch/batch_window.py`) read from there.
 
+> **State rule (learned, 2026-06-08).** `rounded` is now decided by a
+> rule fit to the hand labels: `area_um2 ≤ rounded_area_um2` (960) AND
+> `eccentricity ≤ rounded_eccentricity` (0.85) — size/footprint, not
+> circularity (0.90 CV vs the old circ/solid rule's 0.60; see
+> `scripts/ic295_eval_state_rule.py`). It needs the recording's
+> `um_per_px`, so `classify_state` / `classify_track_states` take a
+> `um_per_px=` arg (threaded from `state_analysis`, `mask_metrics`,
+> `gui_batch/batch_worker`). With no scale they fall back to the legacy
+> `rounded_circ`/`rounded_solid` gate. The GUI threshold panels still
+> expose the fallback circ/solid widgets — **TODO: surface
+> `rounded_area_um2` + `rounded_eccentricity` there too** (analysis
+> already uses them from `DEFAULT_THRESHOLDS`). Re-fit the thresholds
+> from new labels with `ic295_eval_state_rule.py` (prints the values).
+
 - `core/pipeline_defaults.py::DEFAULTS` is the canonical source for
   detection / tracking / refinement / Cy5 / VAMPIRE defaults.
 - All widget initial values (every `setValue` / `setChecked` on a

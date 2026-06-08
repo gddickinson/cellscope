@@ -10,6 +10,46 @@ Format: **DATE — short title** with bullets describing what changed
 
 ---
 
+## 2026-06-08 — Learn the rounded/spread rule from the hand labels
+
+Evaluated the shipped state rule (`circ ≥ 0.80 AND solid ≥ 0.92`) against
+the 279 hand labels (`scripts/ic295_eval_state_rule.py`, new): **acc
+0.60, rounded-recall 0.14** — it recognised only 18 of 130 hand-rounded
+cells. The labeller's rounded/spread split is driven by SIZE / footprint
+collapse, NOT circularity:
+
+- single-feature agreement: area AUC 0.90 (rel_area 0.78) > circularity
+  0.88 (best circ threshold ~0.68, not 0.80) > solidity 0.76; aspect
+  ratio useless (0.51).
+- scale-invariant shape alone caps at ~0.80 CV; **physical area_um2 +
+  eccentricity (depth-2 tree) reaches 0.90 CV** — size is necessary.
+- 24/279 labelled frames are edge-truncated and ALL 24 are hand-`spread`
+  (truncated cells read large/elongated); the edge filter voids them
+  from the AUTO pipeline (labels kept).
+
+Deployed (4017f92) as two interpretable, scope-robust thresholds (no
+pickled model / sklearn at inference):
+
+    rounded iff area_um2 ≤ 960 AND eccentricity ≤ 0.85
+
+- `DEFAULT_THRESHOLDS` gains `rounded_area_um2` (960) +
+  `rounded_eccentricity` (0.85). `classify_state` / `classify_track_
+  states` take `um_per_px`; physical rule when scale is known, else the
+  legacy circ/solid gate (unchanged with no scale).
+- `um_per_px` threaded through `annotate_state`, `mask_metrics`,
+  `gui_batch/batch_worker` (real scale or None, never the 1.0 sentinel).
+  `division_annotator` stays on the legacy fallback (its per-frame call
+  passes no scale; detection-time division sidecars unchanged).
+- `ic295_eval_state_rule.py` emits the fitted thresholds (re-fit as more
+  labels land). GUI panels still show the fallback circ/solid widgets —
+  TODO surface area/ecc.
+
+Validated: deployed rule on the labels acc 0.928 / precision 0.944 /
+**recall 0.900** (was 0.14); real Pos60-DMSO per-cell `frac_rounded` now
+0.0–1.0 (mean 0.18) vs the old all-zeros; `test_focused_gui` 64/64.
+**Re-analysing all 29 reviewed recordings** with edge + this classifier
+(`_runs/reanalyze_edge_clf.log`) before re-running the comparisons.
+
 ## 2026-06-08 — Exclude edge-truncated cells from shape / state
 
 Cells cut by the image border are only partially visible, so their
