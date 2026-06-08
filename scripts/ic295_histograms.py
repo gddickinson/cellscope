@@ -75,20 +75,66 @@ def _threshold_for(metric):
     return None
 
 
-def _hist(metric, by_cond, out_path, density, unit_label):
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
+def _shared_bins(by_cond, density):
     pooled = np.concatenate(
         [np.asarray(by_cond[c]) for c in CONDITIONS if by_cond[c]]
         or [np.array([])])
     if pooled.size < 2:
-        return False
+        return None
     lo, hi = float(np.min(pooled)), float(np.max(pooled))
     if hi <= lo:
         hi = lo + 1e-6
     nb = 12 if not density else 30
-    bins = np.linspace(lo, hi, nb + 1)
+    return np.linspace(lo, hi, nb + 1)
+
+
+def _hist_facet(metric, by_cond, out_path, density, unit_label):
+    """One panel per condition (shared x-bins + shared y) — easy to
+    compare distributions side by side."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    bins = _shared_bins(by_cond, density)
+    if bins is None:
+        return False
+    conds = [c for c in CONDITIONS if by_cond.get(c)]
+    thr = _threshold_for(metric)
+    ncols = min(3, len(conds))
+    nrows = int(np.ceil(len(conds) / ncols))
+    fig, axes = plt.subplots(nrows, ncols, figsize=(3.6 * ncols, 2.8 * nrows),
+                             sharex=True, sharey=True, squeeze=False)
+    for i, c in enumerate(conds):
+        ax = axes[i // ncols][i % ncols]
+        v = np.asarray(by_cond[c])
+        ax.hist(v, bins=bins, density=density, color=_COND_COLORS.get(c),
+                edgecolor="#333", linewidth=0.5, alpha=0.9)
+        if thr is not None:
+            ax.axvline(thr, color="#c00", lw=1.8, ls="--")
+        ax.set_title(f"{c}  (n={v.size})", fontsize=10)
+        ax.grid(alpha=0.3)
+    for j in range(len(conds), nrows * ncols):   # hide unused panels
+        axes[j // ncols][j % ncols].axis("off")
+    fig.supxlabel(metric)
+    fig.supylabel("density" if density else "count")
+    ttl = f"{metric} — {unit_label}, by condition"
+    if thr is not None:
+        ttl += f"   (rounded thr = {thr})"
+    fig.suptitle(ttl, fontsize=12)
+    fig.tight_layout()
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    fig.savefig(out_path, dpi=130)
+    plt.close(fig)
+    return True
+
+
+def _hist_overlay(metric, by_cond, out_path, density, unit_label):
+    """All conditions overlaid as step histograms (compact)."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    bins = _shared_bins(by_cond, density)
+    if bins is None:
+        return False
     fig, ax = plt.subplots(figsize=(7.5, 4.5))
     for c in CONDITIONS:
         v = np.asarray(by_cond[c])
@@ -112,7 +158,8 @@ def _hist(metric, by_cond, out_path, density, unit_label):
     return True
 
 
-def run_level(level):
+def run_level(level, overlay=False):
+    plot_fn = _hist_overlay if overlay else _hist_facet
     if level == "recording":
         path = os.path.join(COMPARE_DIR, "per_recording.csv")
         metrics = DEFAULT_METRICS
@@ -129,10 +176,11 @@ def run_level(level):
     data = _load(path, metrics)
     n = 0
     for m in metrics:
-        if _hist(m, data[m], os.path.join(out_dir, f"{m}.png"),
-                 density, unit):
+        if plot_fn(m, data[m], os.path.join(out_dir, f"{m}.png"),
+                   density, unit):
             n += 1
-    print(f"  [{level}] wrote {n} histograms → {out_dir}/")
+    style = "overlay" if overlay else "faceted (one panel/condition)"
+    print(f"  [{level}] wrote {n} {style} histograms → {out_dir}/")
     return n
 
 
@@ -140,10 +188,13 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--level", choices=["recording", "cell", "both"],
                     default="both")
+    ap.add_argument("--overlay", action="store_true",
+                    help="overlay conditions on one axis instead of "
+                    "one panel per condition (default = faceted)")
     args = ap.parse_args()
     levels = (["recording", "cell"] if args.level == "both"
               else [args.level])
-    total = sum(run_level(l) for l in levels)
+    total = sum(run_level(l, overlay=args.overlay) for l in levels)
     print(f"\nDone — {total} histograms.")
     return 0
 
