@@ -52,6 +52,13 @@ APPS = [
         "script": "main_training.py",
         "env": "cellpose4",
     },
+    {
+        "title": "Annotation / Labelling",
+        "desc": "Hand-label cell-frames into classes (rounded/spread, …) "
+                "for training; review + edit existing labels",
+        "script": "main_annotate.py",
+        "env": "cellpose4",
+    },
 ]
 
 MAX_INSTANCES = 1

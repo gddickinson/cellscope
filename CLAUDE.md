@@ -260,6 +260,7 @@ Default port assignments (one per GUI so they can run concurrently):
 | `main_training.py` | 8769 | `attach_minimal()` |
 | `main_tracking.py` | 8770 | `attach_minimal()` |
 | `main_suite.py` | 8771 | tkinter, daemon-thread server |
+| `main_annotate.py` | 8772 | `attach_minimal()` |
 
 ```bash
 CELLSCOPE_REMOTE=8765 python main_focused.py &

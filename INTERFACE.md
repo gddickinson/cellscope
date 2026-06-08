@@ -7,6 +7,7 @@
 - **main_tracking.py** — Tracking & Comparison GUI
 - **main_editor.py** — Mask Editor GUI
 - **main_training.py** — Model Training GUI
+- **main_annotate.py** — Annotation / Labelling GUI — hand-label cell-frames into classes (rounded/spread, …) for training; review + edit existing labels. `gui_annotate/annotate_window.py` (table of cell-frames + zoomable DIC-crop viewer with r/s/u keys, auto-advance + auto-save) + `gui_annotate/annotate_data.py` (`LabelStore` CSV round-trip + `CropRenderer` with LRU recording cache). Reads/writes the IC295 state_labels CSV so labels feed `scripts/ic295_label_states.py train`. RPC port 8772.
 
 ## Remote control (all GUIs)
 Every GUI launched with `CELLSCOPE_REMOTE=<port>` exposes an HTTP RPC

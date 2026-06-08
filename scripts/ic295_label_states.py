@@ -336,6 +336,14 @@ def cmd_label(args):
             w = csv.DictWriter(f, fieldnames=fieldnames)
             w.writeheader(); w.writerows(rows)
 
+    # ONE fixed window for every crop (uniform scale, big enough for the
+    # largest cell) — estimated from the recorded px areas, no mask load.
+    # Small cells render small (their true scale); use scroll to zoom in.
+    _areas = [float(r["area"]) for r in rows
+              if r.get("area") not in (None, "", "nan")]
+    fixed_size = (int(np.clip(2.4 * np.sqrt(max(_areas)) + 2 * MARGIN, 96, 420))
+                  if _areas else 256)
+
     fig, ax = plt.subplots(figsize=(5.5, 5.5))
 
     def show():
@@ -350,7 +358,7 @@ def cmd_label(args):
             r0, r1 = np.where(rr)[0][[0, -1]]
             c0, c1 = np.where(cc)[0][[0, -1]]
             cy, cx = (r0 + r1) // 2, (c0 + c1) // 2
-            size = int(max(r1 - r0, c1 - c0) + 4 * MARGIN)
+            size = fixed_size
             base = (frames[int(r["frame"])] if frames is not None
                     else m.astype(np.uint16))
             imgw, valid = _fixed_window(base, cy, cx, size)
