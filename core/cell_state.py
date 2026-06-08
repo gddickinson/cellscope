@@ -54,6 +54,10 @@ def shape_metrics_for_mask(mask_bool):
     """
     if not mask_bool.any():
         return _nan_metrics()
+    # Fill small holes + drop rogue specks before measuring shape — both
+    # otherwise deflate circularity / solidity (see core.mask_cleanup).
+    from core.mask_cleanup import clean_cell_mask
+    mask_bool = clean_cell_mask(mask_bool)
     props = measure.regionprops(mask_bool.astype(np.uint8))
     if not props:
         return _nan_metrics()

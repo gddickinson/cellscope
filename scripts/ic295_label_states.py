@@ -259,6 +259,41 @@ def cmd_label(args):
 
 
 # ---------- train ----------
+def _recompute_clean(rows):
+    """Re-derive each labelled row's features from its mask using the
+    current (cleaned) _frame_feats — so a fit reflects the hole-fill /
+    despeck fix. Groups by cell to load each masks.npz once."""
+    import collections
+    from core.cell_state import DEFAULT_THRESHOLDS as TH
+    min_area = TH["min_area_px"]
+    groups = collections.defaultdict(list)
+    for r in rows:
+        groups[(r["condition"], r["label_dir"], int(r["cid"]))].append(r)
+    for (cond, ld, cid), grp in groups.items():
+        mp = os.path.join(RECORDINGS_ROOT, cond, ld,
+                          "pipeline_results", "masks.npz")
+        if not os.path.exists(mp):
+            continue
+        stack = np.load(mp)["labels"] == cid
+        ff = {}
+        for fi in np.where(stack.any(axis=(1, 2)))[0]:
+            d = _frame_feats(stack[fi], min_area)
+            if d is not None:
+                ff[int(fi)] = d
+        if not ff:
+            continue
+        base = float(np.percentile([ff[fi]["area"] for fi in ff], 90)) or 1.0
+        for r in grp:
+            fi = int(r["frame"])
+            if fi in ff:
+                d = ff[fi]
+                r["rel_area"] = d["area"] / base
+                for f in FEATURES:
+                    if f != "rel_area" and f in d:
+                        r[f] = d[f]
+    return rows
+
+
 def cmd_train(args):
     if not os.path.exists(CSV_PATH):
         print("Run `sample` + `label` first."); return 1
@@ -267,6 +302,8 @@ def cmd_train(args):
     if len(rows) < 12:
         print(f"only {len(rows)} labelled — label ~30+ for a useful fit.")
         return 1
+    print("recomputing shape features from masks (hole-fill + despeck)…")
+    _recompute_clean(rows)
     cols = ["rel_area"] + [f for f in FEATURES if f != "rel_area"]
     X = np.array([[float(r[c]) for c in cols] for r in rows])
     y = np.array([1 if r["label"] == "r" else 0 for r in rows])

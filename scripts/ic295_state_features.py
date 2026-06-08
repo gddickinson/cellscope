@@ -56,7 +56,8 @@ def _frame_feats(mask, min_area):
         return None
     r0, r1 = np.where(rows)[0][[0, -1]]
     c0, c1 = np.where(cols)[0][[0, -1]]
-    mask = mask[r0:r1 + 1, c0:c1 + 1]
+    from core.mask_cleanup import clean_cell_mask
+    mask = clean_cell_mask(mask[r0:r1 + 1, c0:c1 + 1])  # fill holes + despeck
     props = measure.regionprops(mask.astype(np.uint8))
     if not props:
         return None
