@@ -837,6 +837,14 @@ class MaskEditor(QMainWindow):
             "applying.")
         btn_trim.clicked.connect(self._on_trim_edges)
         rev.addWidget(btn_trim)
+        btn_clean = QPushButton("🧹 Clean (holes/specks)")
+        btn_clean.setToolTip(
+            "Reduce each cell to one clean blob per frame: keep only the "
+            "largest connected component (drop every speck / mislabelled "
+            "region) and fill enclosed holes. Undoable per frame (Ctrl+Z). "
+            "Choose this frame or all frames.")
+        btn_clean.clicked.connect(self._on_clean_masks)
+        rev.addWidget(btn_clean)
         rev.addStretch()
         self.chk_warn_unsaved = QCheckBox("Warn on unsaved")
         self.chk_warn_unsaved.setChecked(True)
@@ -2181,6 +2189,68 @@ class MaskEditor(QMainWindow):
             5000)
         print(f"[mask_editor] delete_cell_track: cell {cell_id} "
               f"from {len(affected)} frames", flush=True)
+        self._redraw()
+
+    def _on_clean_masks(self):
+        """Ask scope, then fill holes + despeck each cell mask."""
+        if self.masks is None:
+            QMessageBox.information(self, "No masks",
+                                      "Load a recording with masks first.")
+            return
+        box = QMessageBox(self)
+        box.setWindowTitle("Clean masks")
+        box.setText("Fill enclosed holes + remove rogue specks for every "
+                    "cell.\nApply to which frames?")
+        b_all = box.addButton("All frames", QMessageBox.AcceptRole)
+        box.addButton("This frame", QMessageBox.AcceptRole)
+        box.addButton(QMessageBox.Cancel)
+        box.exec_()
+        clicked = box.clickedButton()
+        if clicked is None or box.buttonRole(clicked) == QMessageBox.RejectRole:
+            return
+        self.clean_masks(all_frames=(clicked is b_all))
+
+    def clean_masks(self, all_frames=True):
+        """Fill small holes + remove disconnected specks for every cell,
+        per frame, with per-frame undo (see core.mask_cleanup)."""
+        if self.masks is None:
+            return
+        from core.mask_cleanup import clean_cell_mask
+        frames = (range(self.masks.shape[0]) if all_frames
+                  else [self.current_frame])
+        n_holes = n_specks = n_frames = 0
+        for i in frames:
+            lf = self.masks[i]
+            snap = None
+            for cid in [int(v) for v in np.unique(lf) if v > 0]:
+                orig = lf == cid
+                rr = np.any(orig, axis=1); cc = np.any(orig, axis=0)
+                if not rr.any():
+                    continue
+                r0, r1 = np.where(rr)[0][[0, -1]]
+                c0, c1 = np.where(cc)[0][[0, -1]]
+                sub = orig[r0:r1 + 1, c0:c1 + 1]
+                cleaned = clean_cell_mask(sub)
+                if np.array_equal(cleaned, sub):
+                    continue
+                if snap is None:
+                    snap = lf.copy()
+                view = self.masks[i, r0:r1 + 1, c0:c1 + 1]
+                removed = sub & ~cleaned
+                view[removed] = 0
+                fill = (cleaned & ~sub) & (view == 0)
+                view[fill] = cid
+                n_specks += int(removed.sum()); n_holes += int(fill.sum())
+            if snap is not None:
+                self.undo_stacks.setdefault(i, []).append(snap)
+                if len(self.undo_stacks[i]) > self.max_undo:
+                    self.undo_stacks[i].pop(0)
+                self.redo_stacks.pop(i, None)
+                self._dirty_frames.add(i)
+                n_frames += 1
+        self.status.showMessage(
+            f"Cleaned {n_frames} frame(s): filled {n_holes} hole-px, "
+            f"removed {n_specks} speck-px", 6000)
         self._redraw()
 
     def _on_delete_by_id(self):

@@ -526,6 +526,12 @@ class FocusedMainWindow(QMainWindow):
         act_edit.setShortcut("Ctrl+E")
         act_edit.triggered.connect(self._on_edit)
         edit_menu.addAction(act_edit)
+        act_clean = QAction("Clean Masks (fill holes + despeck)", self)
+        act_clean.setStatusTip(
+            "Fill small enclosed holes + remove rogue specks in every "
+            "detected cell mask, across all frames.")
+        act_clean.triggered.connect(self._on_clean_masks)
+        edit_menu.addAction(act_clean)
         edit_menu.addSeparator()
         roi_menu = edit_menu.addMenu("Select ROI")
         for shape, label in [("rectangle", "Rectangle ROI"),
@@ -1221,6 +1227,50 @@ class FocusedMainWindow(QMainWindow):
                                     "restricted to the ROI region")
         else:
             self.status.showMessage("ROI inactive")
+
+    def _on_clean_masks(self):
+        """Fill holes + remove specks in every detected cell mask."""
+        if (self.detect_result is None
+                or self.detect_result.get("labels") is None):
+            self.status.showMessage("Detect (or load) results first")
+            return
+        import numpy as np
+        from core.mask_cleanup import clean_cell_mask
+        labels = np.asarray(self.detect_result["labels"]).copy()
+        n_holes = n_specks = 0
+        for i in range(len(labels)):
+            lf = labels[i]
+            for cid in [int(v) for v in np.unique(lf) if v > 0]:
+                orig = lf == cid
+                rr = np.any(orig, axis=1); cc = np.any(orig, axis=0)
+                if not rr.any():
+                    continue
+                r0, r1 = np.where(rr)[0][[0, -1]]
+                c0, c1 = np.where(cc)[0][[0, -1]]
+                sub = orig[r0:r1 + 1, c0:c1 + 1]
+                cleaned = clean_cell_mask(sub)
+                if np.array_equal(cleaned, sub):
+                    continue
+                view = labels[i, r0:r1 + 1, c0:c1 + 1]
+                removed = sub & ~cleaned
+                view[removed] = 0
+                fill = (cleaned & ~sub) & (view == 0)
+                view[fill] = cid
+                n_specks += int(removed.sum()); n_holes += int(fill.sum())
+        if not (n_holes or n_specks):
+            self.status.showMessage("Masks already clean — nothing to do")
+            return
+        # keep an undo point + push the cleaned labels to the viewer
+        self._prev_detect_result = dict(self.detect_result)
+        self.detect_result["labels"] = labels
+        self.detect_result["masks"] = labels > 0
+        self.analysis_result = None
+        self.analysis.clear()
+        self.viewer.update_masks(labels)
+        self._dirty = True
+        self.status.showMessage(
+            f"Cleaned masks: filled {n_holes} hole-px, removed "
+            f"{n_specks} speck-px (Ctrl+Z to undo)", 6000)
 
     def _on_undo_detect(self):
         if self._prev_detect_result is None:

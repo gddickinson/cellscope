@@ -9,8 +9,9 @@ exactly the signal the rounded/spread classifier keys on. Cleaning here
 touching the stored masks.
 
 `clean_cell_mask(mask)` returns a cleaned boolean mask:
-  1. keep only connected components ≥ `min_component_frac` of the largest
-     (removes rogue specks; a single cell is one blob),
+  1. keep ONLY the largest connected component — a cell is one blob per
+     frame, so every other component (speck or mislabelled region,
+     whatever its size) is removed,
   2. fill enclosed holes.
 """
 from __future__ import annotations
@@ -18,13 +19,15 @@ from __future__ import annotations
 import numpy as np
 
 
-def clean_cell_mask(mask, min_component_frac=0.10):
-    """Fill holes + remove small disconnected components for ONE cell.
+def clean_cell_mask(mask, keep_largest_only=True, min_component_frac=0.10):
+    """Reduce ONE cell's mask to a single clean blob.
 
     Args:
         mask: 2-D bool/int mask of a single cell.
-        min_component_frac: drop connected components smaller than this
-            fraction of the largest component's area (rogue-speck removal).
+        keep_largest_only: keep only the largest connected component and
+            drop every other (the default — one cell = one blob/frame).
+        min_component_frac: only when keep_largest_only is False — keep
+            components ≥ this fraction of the largest.
     Returns a 2-D bool mask. No-op on empty masks.
     """
     from scipy import ndimage as ndi
@@ -35,7 +38,10 @@ def clean_cell_mask(mask, min_component_frac=0.10):
     if n > 1:
         sizes = np.bincount(lbl.ravel())
         sizes[0] = 0                      # background
-        keep = np.where(sizes >= min_component_frac * sizes.max())[0]
+        if keep_largest_only:
+            keep = [int(sizes.argmax())]
+        else:
+            keep = np.where(sizes >= min_component_frac * sizes.max())[0]
         m = np.isin(lbl, keep)
     m = ndi.binary_fill_holes(m)
     return m
