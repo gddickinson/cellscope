@@ -10,6 +10,38 @@ Format: **DATE — short title** with bullets describing what changed
 
 ---
 
+## 2026-06-08 — Add recordings to raise n (target n=8/condition, +19)
+
+The arms are underpowered at n=4–6/condition (most real effects show as
+trends; only the pooled pseudoreplicated view clears Bonferroni). Decided
+to balance every condition to **n=8** by adding 19 of the 36 pending
+recordings (WT+2, KO+3, GOF+3, OT+3, Y1+4, DMSO+4 — lowest-numbered Pos
+per condition ≈ acquisition order).
+
+Source = the Pathak lab share
+`/Volumes/pathaklab/.../IC295_ECmigrationwithSirActin/IC295__1` (the 72
+TRUE originals: uint16, **uncompressed**, full multi-position OME metadata,
+2.45 GB each). GeorgeDrive is dead, so `inventory_drive()` works off
+`_cache` — a recording becomes analysable simply by landing there.
+
+Safe two-step pipeline (existing tooling, **never touches the originals**):
+1. `ic295_copy_from_lab.py --label <Pos>` — opens the lab file read-only,
+   verified atomic byte-copy → `_cache`, synthesises the `.ome.json`
+   sidecar, repoints the `by_condition/` symlink. ~4.5 min/recording.
+2. `recompress_recordings.py <file> --codec deflate` — lossless deflate
+   with **page-by-page bit-identity + channel-count verification** before
+   atomic replace (original untouched on any failure). 2.45 → ~1.23 GB
+   (1.99×), matching the existing `_cache` format exactly.
+
+De-risk (Pos63-DMSO) PASSED: byte-format-identical to Pos60-DMSO
+(1.23 GB, deflate, single-series), sidecar + symlink present,
+`inventory_drive()` now sees 30. Remaining 18 copying in the background
+(`_runs/copy_recompress.log`); 155 GiB free, transient disk bounded to one
+2.45 GB raw file at a time.
+
+Follow-on (the slow part, NOT yet run): `ic295_detect_one` (1–3 h GPU
+each) → `ic295_analyze_one` → re-run `ic295_compare_arms` at n=8.
+
 ## 2026-06-08 — Arm-aware comparison (respect the experimental design)
 
 The conditions are TWO independent experiments each with its own control,
