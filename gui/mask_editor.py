@@ -924,6 +924,9 @@ class MaskEditor(QMainWindow):
         view_menu = mb.addMenu("View")
         act_overlay = view_menu.addAction("Overlay Options…")
         act_overlay.triggered.connect(self._on_overlay_settings)
+        # Help menu — guide + keyboard-shortcuts popup (gui/editor_help.py)
+        from gui.editor_help import install_help_menu, show_shortcuts
+        install_help_menu(self)
 
         # Keyboard shortcuts
         QShortcut(QKeySequence("Left"), self, activated=self.prev_frame)
@@ -978,6 +981,20 @@ class MaskEditor(QMainWindow):
                           self._set_active_cell(v))
         QShortcut(QKeySequence("Shift+0"), self,
                   activated=lambda: self._set_active_cell(20))
+        # New cell (next free ID) — single key, matches the tool keys.
+        QShortcut(QKeySequence("N"), self, activated=self._on_new_cell)
+        # Cleanup / view actions — ApplicationShortcut so they fire even
+        # while the canvas has keyboard focus during active editing.
+        for keys, fn in (("Ctrl+T", self._on_trim_edges),
+                         ("Ctrl+K", self._on_clean_masks),
+                         ("Ctrl+0", self._fit_view)):
+            _sc = QShortcut(QKeySequence(keys), self, activated=fn)
+            _sc.setContext(Qt.ApplicationShortcut)
+        # Keyboard-shortcuts popup — F1 (also on the Help menu) and "?".
+        for keys in ("F1", "?"):
+            _hsc = QShortcut(QKeySequence(keys), self,
+                             activated=lambda: show_shortcuts(self))
+            _hsc.setContext(Qt.ApplicationShortcut)
 
     # ------------------------------------------------------------------
     # Drag-and-drop dispatcher. Accepts:
