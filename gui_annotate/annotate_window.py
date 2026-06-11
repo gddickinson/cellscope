@@ -106,6 +106,20 @@ class AnnotateWindow(QMainWindow):
         a_save = m.addAction("Save"); a_save.setShortcut("Ctrl+S")
         a_save.triggered.connect(self._on_save)
         m.addAction("Save As…").triggered.connect(self._on_save_as)
+        # Help menu: keyboard-shortcuts popup + docs link.
+        from gui.help_menu import install_help_menu
+        install_help_menu(self, "CellScope — Annotation", [
+            ("Labelling", [
+                ("R", "Label as rounded"),
+                ("S", "Label as spread"),
+                ("U", "Label as unsure"),
+            ]),
+            ("Navigation", [
+                ("→  /  ←", "Next / previous cell-frame"),
+            ]),
+            ("File", [("Ctrl+S", "Save labels")]),
+            ("Help", [("F1  /  ?", "Show this shortcuts list")]),
+        ])
 
     def _build_shortcuts(self):
         for code in CLASS_LABELS:

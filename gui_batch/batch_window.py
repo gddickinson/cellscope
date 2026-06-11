@@ -34,6 +34,11 @@ class BatchWindow(QMainWindow):
                         (".tif", ".tiff", ".mp4", ".avi", ".mov"))
 
     def _build_ui(self):
+        # Help menu (also creates the native menu bar). No editing
+        # shortcuts in this GUI, so the popup lists just the help keys.
+        from gui.help_menu import install_help_menu
+        install_help_menu(self, "CellScope — Batch Processing",
+                          [("Help", [("F1  /  ?", "Show this shortcuts list")])])
         central = QWidget()
         self.setCentralWidget(central)
         layout = QVBoxLayout(central)

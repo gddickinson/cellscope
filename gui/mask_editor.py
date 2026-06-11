@@ -924,8 +924,9 @@ class MaskEditor(QMainWindow):
         view_menu = mb.addMenu("View")
         act_overlay = view_menu.addAction("Overlay Options…")
         act_overlay.triggered.connect(self._on_overlay_settings)
-        # Help menu — guide + keyboard-shortcuts popup (gui/editor_help.py)
-        from gui.editor_help import install_help_menu, show_shortcuts
+        # Help menu — guide + keyboard-shortcuts popup (gui/editor_help.py).
+        # install_help_menu also registers F1 / ? to open the popup.
+        from gui.editor_help import install_help_menu
         install_help_menu(self)
 
         # Keyboard shortcuts
@@ -990,11 +991,8 @@ class MaskEditor(QMainWindow):
                          ("Ctrl+0", self._fit_view)):
             _sc = QShortcut(QKeySequence(keys), self, activated=fn)
             _sc.setContext(Qt.ApplicationShortcut)
-        # Keyboard-shortcuts popup — F1 (also on the Help menu) and "?".
-        for keys in ("F1", "?"):
-            _hsc = QShortcut(QKeySequence(keys), self,
-                             activated=lambda: show_shortcuts(self))
-            _hsc.setContext(Qt.ApplicationShortcut)
+        # (F1 / ? for the shortcuts popup are registered by
+        # install_help_menu above.)
 
     # ------------------------------------------------------------------
     # Drag-and-drop dispatcher. Accepts:

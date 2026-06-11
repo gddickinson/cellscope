@@ -79,3 +79,17 @@ class TrackingWindow(QMainWindow):
             "Batch: process multiple recordings, compare groups\n"
             "with t-test, Mann-Whitney, ANOVA + significance plots"))
         help_menu.addAction(act_about)
+        # Shared Help items: keyboard-shortcuts popup + docs link.
+        from gui.help_menu import install_help_menu
+        install_help_menu(self, "CellScope — Tracking & Analysis", [
+            ("File", [
+                ("Ctrl+O", "Open recording"),
+                ("Ctrl+M", "Load masks"),
+                ("Ctrl+Q", "Quit"),
+            ]),
+            ("View", [
+                ("Ctrl+1", "Single Recording tab"),
+                ("Ctrl+2", "Batch Comparison tab"),
+            ]),
+            ("Help", [("F1  /  ?", "Show this shortcuts list")]),
+        ])
