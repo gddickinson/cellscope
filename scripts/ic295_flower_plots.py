@@ -231,8 +231,15 @@ def _plot_area_speed_overlay(data, key, out_path):
     fig.savefig(out_path, dpi=130); plt.close(fig)
 
 
-_MSD_MAXLAG = 30          # frames (× dt = max lag time shown)
-_MSD_MIN_CELLS = 5        # only plot a lag where ≥ this many cells contribute
+_MSD_MAXLAG = 60          # frames (× dt = max lag time shown); more bins
+_MSD_MIN_CELLS = 5        # need ≥ this many full-duration cells per condition
+
+
+def _full_track(cents):
+    """True if the cell is tracked the ENTIRE recording (present at the
+    first + last frame and in ≥ 90% of frames)."""
+    v = np.isfinite(cents).all(axis=1)
+    return bool(v.size and v[0] and v[-1] and v.mean() >= 0.9)
 
 
 def _cell_msd(cents, maxlag):
@@ -256,16 +263,12 @@ def _plot_msd(data, key, out_path, dt, maxlag=_MSD_MAXLAG, logscale=False):
     lag = np.arange(maxlag + 1) * dt                 # min
     fig, ax = plt.subplots(figsize=(8, 6))
     for c in CONDITIONS:
-        cells = [_cell_msd(r["cents"], maxlag) for r in data[c][key]]
-        if not cells:
+        # only cells tracked the ENTIRE recording → fixed cohort, defined
+        # at every lag, no jump-as-cells-drop-in/out artefact.
+        recs = [r for r in data[c][key] if _full_track(r["cents"])]
+        if not recs:
             continue
-        arr = np.vstack(cells)                        # (n_cells, maxlag+1)
-        # CONSISTENT COHORT: keep only cells whose MSD is defined at EVERY
-        # plotted lag, so the curve is over a fixed cell set (no jumps as
-        # cells drop in/out with lag — the artefact in the raw version).
-        defined = np.isfinite(arr[:, 1:maxlag + 1]).all(axis=1)
-        if defined.sum() >= _MSD_MIN_CELLS:
-            arr = arr[defined]
+        arr = np.vstack([_cell_msd(r["cents"], maxlag) for r in recs])
         nc = arr.shape[0]
         with np.errstate(invalid="ignore"):
             mean = np.nanmean(arr, axis=0)
@@ -279,7 +282,8 @@ def _plot_msd(data, key, out_path, dt, maxlag=_MSD_MAXLAG, logscale=False):
     ax.set_xlabel("lag time τ  (min)")
     ax.set_ylabel("mean MSD  (µm²)")
     ax.set_title("Ensemble mean MSD ± SEM, by treatment "
-                 "(all cells, full track)" + ("  [log-log]" if logscale else ""))
+                 "(cells tracked the full recording)"
+                 + ("  [log-log]" if logscale else ""))
     ax.legend(fontsize=9); ax.grid(alpha=0.3, which="both")
     fig.tight_layout()
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
