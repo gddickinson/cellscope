@@ -78,14 +78,17 @@ def collect(um, dt):
             seg = seg[np.isfinite(seg)]
             spd = seg / dt
             spd = spd[spd <= _SPEED_CAP]
+            sd = classify_track_states(stack, um_per_px=um)
+            ar = np.asarray(sd["metrics"]["area"], dtype=float)   # px², per frame
             rec = {
                 "traj": (cv - cv[0]) * um,            # origin-centred µm
                 "speed": float(np.mean(spd)) if spd.size else float("nan"),
                 "distance": float(np.sum(seg)),       # path length µm
                 "netdisp": float(np.linalg.norm(cv[-1] - cv[0]) * um),
+                "area": (float(np.nanmean(ar)) * um * um   # mean footprint µm²
+                         if np.isfinite(ar).any() else float("nan")),
             }
             out[cond]["all"].append(rec)
-            sd = classify_track_states(stack, um_per_px=um)
             st = np.asarray(sd["states"])
             cls = st[(st == STATE_ROUNDED) | (st == STATE_SPREAD)]
             if cls.size:
@@ -165,6 +168,66 @@ def _plot_by_cond(data, key, mkey, ylabel, title, out_path):
     fig.savefig(out_path, dpi=130, bbox_inches="tight"); plt.close(fig)
 
 
+def _area_speed_xy(data, key):
+    xy = {c: [(r["area"], r["speed"]) for r in data[c][key]
+              if r["area"] == r["area"] and r["speed"] == r["speed"]]
+          for c in CONDITIONS}
+    allx = [a for c in CONDITIONS for a, _ in xy[c]]
+    ally = [s for c in CONDITIONS for _, s in xy[c]]
+    xlim = float(np.percentile(allx, 99)) * 1.05 if allx else 1.0
+    ylim = float(np.percentile(ally, 99)) * 1.05 if ally else 1.0
+    return xy, xlim, ylim
+
+
+def _plot_area_speed_facet(data, key, out_path):
+    """area (µm²) vs mean speed (µm/min), one panel per treatment, equal axes."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    xy, xlim, ylim = _area_speed_xy(data, key)
+    fig, axs = plt.subplots(2, 3, figsize=(13, 8), sharex=True, sharey=True)
+    for ax, c in zip(axs.flat, CONDITIONS):
+        pts = xy[c]
+        if pts:
+            xs, ys = zip(*pts)
+            ax.scatter(xs, ys, s=24, color=_COND_COLOR.get(c), alpha=0.75,
+                       edgecolor="white", linewidth=0.3)
+        ax.set_xlim(0, xlim); ax.set_ylim(0, ylim)
+        ax.set_title(f"{c}   (n={len(pts)})", fontsize=11)
+        ax.grid(alpha=0.3)
+    for ax in axs[:, 0]:
+        ax.set_ylabel("mean speed  (µm/min)")
+    for ax in axs[1, :]:
+        ax.set_xlabel("mean area  (µm²)")
+    fig.suptitle("Cell area vs mean speed, by treatment "
+                 "(full track, all cells; equal axes)", fontsize=13)
+    fig.tight_layout(rect=[0, 0, 1, 0.96])
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    fig.savefig(out_path, dpi=130); plt.close(fig)
+
+
+def _plot_area_speed_overlay(data, key, out_path):
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    xy, xlim, ylim = _area_speed_xy(data, key)
+    fig, ax = plt.subplots(figsize=(8, 6))
+    for c in CONDITIONS:
+        pts = xy[c]
+        if not pts:
+            continue
+        xs, ys = zip(*pts)
+        ax.scatter(xs, ys, s=28, color=_COND_COLOR.get(c), alpha=0.7,
+                   edgecolor="white", linewidth=0.3, label=f"{c} (n={len(pts)})")
+    ax.set_xlim(0, xlim); ax.set_ylim(0, ylim)
+    ax.set_xlabel("mean area  (µm²)"); ax.set_ylabel("mean speed  (µm/min)")
+    ax.set_title("Cell area vs mean speed (full track, all cells)")
+    ax.legend(fontsize=9); ax.grid(alpha=0.3)
+    fig.tight_layout()
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    fig.savefig(out_path, dpi=130); plt.close(fig)
+
+
 # (metric key, y-axis label, file stem)
 _MOTILITY = [
     ("speed",    "mean speed  (µm/min)",        "speed"),
@@ -204,7 +267,13 @@ def main():
                           os.path.join(OUT_DIR, f"{stem}_{key}.png"))
         print(f"  motility plots ({key}): speed / distance / netdisp")
 
-    print(f"\nWrote flower + motility plots → {OUT_DIR}/")
+    _plot_area_speed_facet(data, "all",
+                           os.path.join(OUT_DIR, "area_vs_speed_by_treatment.png"))
+    _plot_area_speed_overlay(data, "all",
+                             os.path.join(OUT_DIR, "area_vs_speed_overlay.png"))
+    print("  area-vs-speed plots (by treatment + overlay)")
+
+    print(f"\nWrote flower + motility + area-vs-speed plots → {OUT_DIR}/")
     return 0
 
 
