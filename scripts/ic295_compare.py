@@ -159,36 +159,41 @@ def _kw_and_pairs(groups, alpha=0.05):
 
 
 def _plot_metric(metric, groups, out_path, kw_p=None):
-    """Box plot per condition + scatter overlay (one dot per recording)."""
+    """Box plot per condition + scatter overlay (one dot per recording).
+    Auto-breaks the y-axis when high outliers would squish the bulk."""
     try:
         import matplotlib
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
     except ImportError:
         return
+    from ic295_plot_utils import apply_ybreak
     conds = [c for c in CONDITIONS if groups.get(c)]
     if not conds:
         return
     data = [groups[c] for c in conds]
-    fig, ax = plt.subplots(figsize=(7, 4.5))
-    bp = ax.boxplot(data, labels=conds, widths=0.6, showfliers=False,
-                     patch_artist=True)
-    for patch in bp["boxes"]:
-        patch.set(facecolor="#cce4ff", edgecolor="#446")
-    # Overlay individual recording points
-    for i, vals in enumerate(data):
-        x = np.random.default_rng(0).normal(i + 1, 0.06, size=len(vals))
-        ax.scatter(x, vals, s=22, color="#234", alpha=0.7, zorder=3)
-    ax.set_xlabel("Condition")
-    ax.set_ylabel(metric)
-    title = metric
-    if kw_p is not None:
-        title += f"   (Kruskal-Wallis p={kw_p:.2e})"
-    ax.set_title(title)
-    ax.grid(axis="y", alpha=0.3)
-    plt.tight_layout()
+    pos = list(range(1, len(conds) + 1))
+    rng = np.random.default_rng(0)
+    # Jitter computed ONCE so both broken panels place points identically.
+    jit = [rng.normal(p, 0.06, size=len(v)) for p, v in zip(pos, data)]
+
+    def draw(ax):
+        bp = ax.boxplot(data, positions=pos, widths=0.6, showfliers=False,
+                        patch_artist=True)
+        for patch in bp["boxes"]:
+            patch.set(facecolor="#cce4ff", edgecolor="#446")
+        for jx, vals in zip(jit, data):
+            ax.scatter(jx, vals, s=22, color="#234", alpha=0.7, zorder=3)
+        ax.set_xticks(pos)
+        ax.set_xticklabels(conds)
+
+    fig = plt.figure(figsize=(7, 4.8))
+    title = metric + (f"   (Kruskal-Wallis p={kw_p:.2e})"
+                      if kw_p is not None else "")
+    apply_ybreak(fig, draw, [x for vals in data for x in vals],
+                 ylabel=metric, xlabel="Condition", title=title)
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
-    plt.savefig(out_path, dpi=120)
+    fig.savefig(out_path, dpi=120, bbox_inches="tight")
     plt.close(fig)
 
 

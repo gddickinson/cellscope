@@ -83,43 +83,43 @@ def _plot(metric, stats, points, kw_p, out_path, point_label):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+    from ic295_plot_utils import apply_ybreak
     conds = [c for c in CONDITIONS
              if points.get(c) or (stats.get(c) or {}).get("mean") is not None]
     if not conds:
         return False
-    fig, ax = plt.subplots(figsize=(7, 4.5))
     rng = np.random.default_rng(0)
     x = np.arange(1, len(conds) + 1)
     means = [(stats.get(c) or {}).get("mean") for c in conds]
     sems = [(stats.get(c) or {}).get("sem") or 0.0 for c in conds]
-    # bar at the mean
-    ax.bar(x, [m if m is not None else 0 for m in means], width=0.62,
-           color="#cfe3f7", edgecolor="#3a5a78", linewidth=1.1, zorder=1)
-    # SEM error bars (drawn separately so caps render above the bar)
-    ax.errorbar(x, [m if m is not None else 0 for m in means], yerr=sems,
-                fmt="none", ecolor="#1b2b3a", elinewidth=1.4, capsize=5,
-                capthick=1.4, zorder=3)
-    # individual points, jittered
-    for xi, c in zip(x, conds):
-        vals = points.get(c) or []
-        if not vals:
-            continue
-        jx = rng.normal(xi, 0.075, size=len(vals))
-        ax.scatter(jx, vals, s=26, color="#21405a", alpha=0.55,
-                   edgecolor="white", linewidth=0.4, zorder=4)
-    ax.set_xticks(x)
-    ax.set_xticklabels([f"{c}\n(n={len(points.get(c) or [])})" for c in conds])
-    ax.set_xlabel("Condition")
-    ax.set_ylabel(metric)
+    bar_h = [m if m is not None else 0 for m in means]
+    pts = [points.get(c) or [] for c in conds]
+    # Jitter once so both broken panels place points identically.
+    jit = [rng.normal(xi, 0.075, size=len(v)) for xi, v in zip(x, pts)]
+
+    def draw(ax):
+        ax.bar(x, bar_h, width=0.62, color="#cfe3f7", edgecolor="#3a5a78",
+               linewidth=1.1, zorder=1)
+        ax.errorbar(x, bar_h, yerr=sems, fmt="none", ecolor="#1b2b3a",
+                    elinewidth=1.4, capsize=5, capthick=1.4, zorder=3)
+        for jx, vals in zip(jit, pts):
+            if len(vals):
+                ax.scatter(jx, vals, s=26, color="#21405a", alpha=0.55,
+                           edgecolor="white", linewidth=0.4, zorder=4)
+        ax.set_xticks(x)
+        ax.set_xticklabels([f"{c}\n(n={len(v)})" for c, v in zip(conds, pts)])
+        ax.margins(x=0.02)
+
+    fig = plt.figure(figsize=(7, 4.8))
     title = f"{metric}  —  mean ± SEM, points = {point_label}s"
     if kw_p is not None:
         title += f"\nKruskal-Wallis p = {kw_p:.2g}"
-    ax.set_title(title, fontsize=10)
-    ax.grid(axis="y", alpha=0.3)
-    ax.margins(x=0.02)
-    plt.tight_layout()
+    # break decision off the individual points (the values that squish)
+    allv = [v for vals in pts for v in vals] or bar_h
+    apply_ybreak(fig, draw, allv, ylabel=metric, xlabel="Condition",
+                 title=title)
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
-    plt.savefig(out_path, dpi=130)
+    fig.savefig(out_path, dpi=130, bbox_inches="tight")
     plt.close(fig)
     return True
 
