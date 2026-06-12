@@ -110,7 +110,7 @@ def _plot_arms(metric, groups_all, stats, out_path):
         import matplotlib.pyplot as plt
     except ImportError:
         return
-    from ic295_plot_utils import apply_ybreak
+    from ic295_plot_utils import apply_ybreak, axis_label
     fig = plt.figure(figsize=(11, 5.2))
     subfigs = fig.subfigures(1, 2, wspace=0.05)
     for sub, (arm, spec) in zip(subfigs, ARMS.items()):
@@ -155,7 +155,7 @@ def _plot_arms(metric, groups_all, stats, out_path):
                                 for c in conds])
 
         apply_ybreak(sub, draw, [v for d in data for v in d],
-                     ylabel=(metric if arm == "genetic" else None),
+                     ylabel=(axis_label(metric) if arm == "genetic" else None),
                      title=atitle, headroom=0.30)
     veh = stats.get("vehicle", {}).get("pairs", {}).get("WT_vs_DMSO", {})
     vp = veh.get("p_raw")

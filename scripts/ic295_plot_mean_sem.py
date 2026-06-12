@@ -83,7 +83,7 @@ def _plot(metric, stats, points, kw_p, out_path, point_label):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    from ic295_plot_utils import apply_ybreak
+    from ic295_plot_utils import apply_ybreak, axis_label
     conds = [c for c in CONDITIONS
              if points.get(c) or (stats.get(c) or {}).get("mean") is not None]
     if not conds:
@@ -116,8 +116,8 @@ def _plot(metric, stats, points, kw_p, out_path, point_label):
         title += f"\nKruskal-Wallis p = {kw_p:.2g}"
     # break decision off the individual points (the values that squish)
     allv = [v for vals in pts for v in vals] or bar_h
-    apply_ybreak(fig, draw, allv, ylabel=metric, xlabel="Condition",
-                 title=title)
+    apply_ybreak(fig, draw, allv, ylabel=axis_label(metric),
+                 xlabel="Condition", title=title)
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     fig.savefig(out_path, dpi=130, bbox_inches="tight")
     plt.close(fig)

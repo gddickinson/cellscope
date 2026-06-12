@@ -114,7 +114,8 @@ def _hist_facet(metric, by_cond, out_path, density, unit_label):
         ax.grid(alpha=0.3)
     for j in range(len(conds), nrows * ncols):   # hide unused panels
         axes[j // ncols][j % ncols].axis("off")
-    fig.supxlabel(metric)
+    from ic295_plot_utils import axis_label
+    fig.supxlabel(axis_label(metric))
     fig.supylabel("density" if density else "count")
     ttl = f"{metric} — {unit_label}, by condition"
     if thr is not None:
@@ -146,7 +147,8 @@ def _hist_overlay(metric, by_cond, out_path, density, unit_label):
     if thr is not None:
         ax.axvline(thr, color="#c00", lw=2, ls="--",
                    label=f"rounded thr = {thr}")
-    ax.set_xlabel(metric)
+    from ic295_plot_utils import axis_label
+    ax.set_xlabel(axis_label(metric))
     ax.set_ylabel("density" if density else "count")
     ax.set_title(f"{metric} — {unit_label}, split by condition")
     ax.legend(fontsize=8, ncol=2)

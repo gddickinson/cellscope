@@ -19,6 +19,32 @@ from __future__ import annotations
 import numpy as np
 
 
+def metric_unit(metric):
+    """Physical unit for an IC295 metric name (handles _mean/_rounded/… suffixes
+    by substring match). Dimensionless metrics return 'dimensionless'."""
+    m = metric.lower()
+    if "area_um2" in m:
+        return "µm²"
+    if "speed" in m:
+        return "µm/min"
+    if "n_frames" in m:
+        return "frames"
+    if ("n_cells" in m or "n_divisions" in m or "n_speed_samples" in m):
+        return "count"
+    if "division_rate" in m:
+        return "divisions / cell"
+    if m.startswith("frac_") or "_frac_" in m or "frac_" in m:
+        return "fraction"
+    # circularity / solidity / eccentricity / aspect_ratio / extent /
+    # convexity / persistence / straightness / boundary_confidence …
+    return "dimensionless"
+
+
+def axis_label(metric):
+    """Metric name with its unit appended, e.g. 'mean_speed (µm/min)'."""
+    return f"{metric}  ({metric_unit(metric)})"
+
+
 def _decide_break(v):
     """Return (bulk_top, base, hi_bottom, vmax) if a break looks warranted."""
     v = v[np.isfinite(v)]

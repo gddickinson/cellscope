@@ -167,7 +167,7 @@ def _plot_metric(metric, groups, out_path, kw_p=None):
         import matplotlib.pyplot as plt
     except ImportError:
         return
-    from ic295_plot_utils import apply_ybreak
+    from ic295_plot_utils import apply_ybreak, axis_label
     conds = [c for c in CONDITIONS if groups.get(c)]
     if not conds:
         return
@@ -191,7 +191,7 @@ def _plot_metric(metric, groups, out_path, kw_p=None):
     title = metric + (f"   (Kruskal-Wallis p={kw_p:.2e})"
                       if kw_p is not None else "")
     apply_ybreak(fig, draw, [x for vals in data for x in vals],
-                 ylabel=metric, xlabel="Condition", title=title)
+                 ylabel=axis_label(metric), xlabel="Condition", title=title)
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     fig.savefig(out_path, dpi=120, bbox_inches="tight")
     plt.close(fig)
