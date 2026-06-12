@@ -188,11 +188,15 @@ suite 8771. See `gui_focused/remote_control.py` and `CLAUDE.md` for usage.
     panel + diagonal marks) when high outliers would squish the data
     (inlier range < ½ the full range); else a single axes. Used by the
     box+strip (`ic295_compare`), mean±SEM, and arm plots.
-  - **ic295_flower_plots.py** — origin-centred **track (flower) plots** by
-    condition: each cell's full trajectory (both states) translated to the
-    origin, overlaid per condition on a shared equal x/y axis. Three
-    figures under `compare/flower_plots/` — all cells, whole-track-rounded
-    cells, whole-track-spread cells. Reads masks.npz centroids.
+  - **ic295_flower_plots.py** — origin-centred **track (flower) plots** +
+    per-cell **motility** by condition. Each cell's full trajectory (both
+    states) is translated to the origin and overlaid per condition on a
+    shared equal x/y axis (`flower_{all,rounded_only,spread_only}.png`); in
+    the same mask-load pass it computes per-cell mean speed (µm/min,
+    glitch-capped), total path length (µm) and net displacement (µm) and
+    writes box+strip-by-condition plots (`{speed,distance,netdisp}_{all,
+    rounded,spread}.png`). Three cell groupings: all / whole-track-rounded
+    / whole-track-spread. Under `compare/flower_plots/`.
   - **ic295_state_features.py** — multi-feature diagnostic for the
     rounded/spread boundary: per cell-frame computes area (µm²),
     **rel_area** (footprint vs the cell's own 90th-pctl area),
