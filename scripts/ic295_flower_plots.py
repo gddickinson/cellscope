@@ -25,6 +25,7 @@ Usage:
 import os
 import sys
 import glob
+import pickle
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _paths import setup_imports  # noqa: E402
@@ -36,6 +37,7 @@ from scripts.ic295_plot_utils import apply_ybreak  # noqa: E402
 import numpy as np  # noqa: E402
 
 OUT_DIR = os.path.join(COMPARE_DIR, "flower_plots")
+_CACHE = os.path.join(OUT_DIR, "_track_cache.pkl")   # per-cell tracks (re-plot fast)
 DEFAULT_UM = 0.6523                      # IC295 scope (single magnification)
 DEFAULT_DT = 10.0                        # min / frame
 _SPEED_CAP = 15.0                        # µm/min — drop tracking glitches
@@ -258,15 +260,20 @@ def _plot_msd(data, key, out_path, dt, maxlag=_MSD_MAXLAG, logscale=False):
         if not cells:
             continue
         arr = np.vstack(cells)                        # (n_cells, maxlag+1)
-        n = np.sum(np.isfinite(arr), axis=0)
+        # CONSISTENT COHORT: keep only cells whose MSD is defined at EVERY
+        # plotted lag, so the curve is over a fixed cell set (no jumps as
+        # cells drop in/out with lag — the artefact in the raw version).
+        defined = np.isfinite(arr[:, 1:maxlag + 1]).all(axis=1)
+        if defined.sum() >= _MSD_MIN_CELLS:
+            arr = arr[defined]
+        nc = arr.shape[0]
         with np.errstate(invalid="ignore"):
             mean = np.nanmean(arr, axis=0)
-            sem = np.nanstd(arr, axis=0) / np.sqrt(np.maximum(n, 1))
-        keep = n >= _MSD_MIN_CELLS                    # trim noisy long-lag tail
-        keep[0] = False
-        ax.errorbar(lag[keep], mean[keep], yerr=sem[keep],
+            sem = np.nanstd(arr, axis=0) / np.sqrt(nc) if nc else mean * np.nan
+        sl = slice(1, maxlag + 1)
+        ax.errorbar(lag[sl], mean[sl], yerr=sem[sl],
                     color=_COND_COLOR.get(c), lw=1.8, capsize=3, errorevery=2,
-                    label=f"{c} (n={arr.shape[0]})")
+                    label=f"{c} (n={nc})")
     if logscale:
         ax.set_xscale("log"); ax.set_yscale("log")
     ax.set_xlabel("lag time τ  (min)")
@@ -293,10 +300,18 @@ def main():
         um = float(sys.argv[sys.argv.index("--um") + 1])
     if "--dt" in sys.argv:
         dt = float(sys.argv[sys.argv.index("--dt") + 1])
-    print(f"Collecting tracks (um/px={um}, dt={dt} min)…", flush=True)
-    data = collect(um, dt)
-    lim = _axis_limit(data)
     os.makedirs(OUT_DIR, exist_ok=True)
+    if "--from-cache" in sys.argv and os.path.exists(_CACHE):
+        print(f"Loading cached tracks from {_CACHE}…", flush=True)
+        with open(_CACHE, "rb") as f:
+            data = pickle.load(f)
+    else:
+        print(f"Collecting tracks (um/px={um}, dt={dt} min)…", flush=True)
+        data = collect(um, dt)
+        with open(_CACHE, "wb") as f:
+            pickle.dump(data, f)
+        print(f"  cached tracks → {_CACHE}  (re-plot fast with --from-cache)")
+    lim = _axis_limit(data)
 
     for key, title, fname in [
         ("all", "All cell tracks — full track (both states)",
