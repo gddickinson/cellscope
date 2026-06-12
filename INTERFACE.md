@@ -183,6 +183,16 @@ suite 8771. See `gui_focused/remote_control.py` and `CLAUDE.md` for usage.
     (overlaid step, shared bins), at both levels — recording
     (`compare/histograms/`) and cell (`compare_pooled/histograms/`).
     Shape metrics get the rounded threshold drawn.
+  - **ic295_plot_utils.py** — `apply_ybreak(fig, draw, values, …)`: shared
+    helper that auto-breaks the y-axis (small outlier panel + large bulk
+    panel + diagonal marks) when high outliers would squish the data
+    (inlier range < ½ the full range); else a single axes. Used by the
+    box+strip (`ic295_compare`), mean±SEM, and arm plots.
+  - **ic295_flower_plots.py** — origin-centred **track (flower) plots** by
+    condition: each cell's full trajectory (both states) translated to the
+    origin, overlaid per condition on a shared equal x/y axis. Three
+    figures under `compare/flower_plots/` — all cells, whole-track-rounded
+    cells, whole-track-spread cells. Reads masks.npz centroids.
   - **ic295_state_features.py** — multi-feature diagnostic for the
     rounded/spread boundary: per cell-frame computes area (µm²),
     **rel_area** (footprint vs the cell's own 90th-pctl area),
