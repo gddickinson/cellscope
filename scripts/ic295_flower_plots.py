@@ -82,6 +82,7 @@ def collect(um, dt):
             ar = np.asarray(sd["metrics"]["area"], dtype=float)   # px², per frame
             rec = {
                 "traj": (cv - cv[0]) * um,            # origin-centred µm
+                "cents": cents * um,                  # full (N,2) µm, NaN absent
                 "speed": float(np.mean(spd)) if spd.size else float("nan"),
                 "distance": float(np.sum(seg)),       # path length µm
                 "netdisp": float(np.linalg.norm(cv[-1] - cv[0]) * um),
@@ -101,12 +102,12 @@ def collect(um, dt):
 
 
 def _axis_limit(data):
-    """Symmetric square limit covering ~all tracks (99th pct of |coords|)."""
+    """Symmetric square limit covering ALL tracks (the longest one fully
+    fits), shared by every panel so conditions are directly comparable."""
     pts = [r["traj"] for c in CONDITIONS for r in data[c]["all"]]
     if not pts:
         return 50.0
-    allc = np.concatenate(pts)
-    lim = float(np.percentile(np.abs(allc), 99))
+    lim = float(np.max(np.abs(np.concatenate(pts))))     # farthest point
     return float(np.ceil(max(lim, 1.0) / 25.0) * 25.0)   # round up to 25 µm
 
 
@@ -228,6 +229,56 @@ def _plot_area_speed_overlay(data, key, out_path):
     fig.savefig(out_path, dpi=130); plt.close(fig)
 
 
+_MSD_MAXLAG = 30          # frames (× dt = max lag time shown)
+_MSD_MIN_CELLS = 5        # only plot a lag where ≥ this many cells contribute
+
+
+def _cell_msd(cents, maxlag):
+    """Per-cell MSD(τ) µm² for τ=0..maxlag from a full (N,2) track (NaN gaps)."""
+    n = len(cents)
+    msd = np.full(maxlag + 1, np.nan)
+    for tau in range(1, min(maxlag, n - 1) + 1):
+        dr = cents[tau:] - cents[:-tau]
+        sq = np.sum(dr * dr, axis=1)                 # NaN where either absent
+        v = np.isfinite(sq)
+        if v.any():
+            msd[tau] = float(np.mean(sq[v]))
+    return msd
+
+
+def _plot_msd(data, key, out_path, dt, maxlag=_MSD_MAXLAG, logscale=False):
+    """Ensemble mean MSD ± SEM vs lag time, one curve per treatment."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    lag = np.arange(maxlag + 1) * dt                 # min
+    fig, ax = plt.subplots(figsize=(8, 6))
+    for c in CONDITIONS:
+        cells = [_cell_msd(r["cents"], maxlag) for r in data[c][key]]
+        if not cells:
+            continue
+        arr = np.vstack(cells)                        # (n_cells, maxlag+1)
+        n = np.sum(np.isfinite(arr), axis=0)
+        with np.errstate(invalid="ignore"):
+            mean = np.nanmean(arr, axis=0)
+            sem = np.nanstd(arr, axis=0) / np.sqrt(np.maximum(n, 1))
+        keep = n >= _MSD_MIN_CELLS                    # trim noisy long-lag tail
+        keep[0] = False
+        ax.errorbar(lag[keep], mean[keep], yerr=sem[keep],
+                    color=_COND_COLOR.get(c), lw=1.8, capsize=3, errorevery=2,
+                    label=f"{c} (n={arr.shape[0]})")
+    if logscale:
+        ax.set_xscale("log"); ax.set_yscale("log")
+    ax.set_xlabel("lag time τ  (min)")
+    ax.set_ylabel("mean MSD  (µm²)")
+    ax.set_title("Ensemble mean MSD ± SEM, by treatment "
+                 "(all cells, full track)" + ("  [log-log]" if logscale else ""))
+    ax.legend(fontsize=9); ax.grid(alpha=0.3, which="both")
+    fig.tight_layout()
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    fig.savefig(out_path, dpi=130); plt.close(fig)
+
+
 # (metric key, y-axis label, file stem)
 _MOTILITY = [
     ("speed",    "mean speed  (µm/min)",        "speed"),
@@ -273,7 +324,12 @@ def main():
                              os.path.join(OUT_DIR, "area_vs_speed_overlay.png"))
     print("  area-vs-speed plots (by treatment + overlay)")
 
-    print(f"\nWrote flower + motility + area-vs-speed plots → {OUT_DIR}/")
+    _plot_msd(data, "all", os.path.join(OUT_DIR, "msd_by_treatment.png"), dt)
+    _plot_msd(data, "all", os.path.join(OUT_DIR, "msd_by_treatment_loglog.png"),
+              dt, logscale=True)
+    print("  MSD plots (linear + log-log)")
+
+    print(f"\nWrote flower + motility + area-vs-speed + MSD plots → {OUT_DIR}/")
     return 0
 
 
