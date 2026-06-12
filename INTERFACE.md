@@ -196,7 +196,11 @@ suite 8771. See `gui_focused/remote_control.py` and `CLAUDE.md` for usage.
     glitch-capped), total path length (µm) and net displacement (µm) and
     writes box+strip-by-condition plots (`{speed,distance,netdisp}_{all,
     rounded,spread}.png`). Three cell groupings: all / whole-track-rounded
-    / whole-track-spread. Under `compare/flower_plots/`.
+    / whole-track-spread. Also: per-cell **area-vs-speed** scatter
+    (`area_vs_speed_by_treatment.png` facet + overlay) and ensemble
+    **MSD(τ)** mean ± SEM by treatment (`msd_by_treatment{,_loglog}.png`,
+    gap-aware, long-lag tail trimmed at < 5 cells). Flower axes use the max
+    track extent, shared across panels. Under `compare/flower_plots/`.
   - **ic295_state_features.py** — multi-feature diagnostic for the
     rounded/spread boundary: per cell-frame computes area (µm²),
     **rel_area** (footprint vs the cell's own 90th-pctl area),
