@@ -324,13 +324,20 @@ def write_report(groups, arm_stats, rows, rec_rows, ols, lmm, path):
                  f"{_fmt_p(pr('drug','DMSO','OT'))} | {_fmt_p(veh)} |")
     L += ["", "## Confounder 1 — cell STATE (rounded vs spread)", ""]
     n, ms, mr, p = _paired(rows, "speed_spread", "speed_rounded")
+    nd, rho_nd, p_nd = _spearman(rows, "frac_spread", "netdisp")
     L.append(f"- Within-cell paired speed (n={n} cells with both states): "
              f"spread median **{ms:.2f}** vs rounded **{mr:.2f}** µm/min, "
-             f"Wilcoxon p={_fmt_p(p)}. Spread cells migrate; rounded barely "
-             "move — so any treatment that shifts the rounded:spread balance "
-             "shifts dispersal even with identical per-state motility.")
-    L.append("- `frac_spread` is therefore tested as its own per-recording "
-             "metric in the table above (time-in-state channel).")
+             f"Wilcoxon p={_fmt_p(p)}.")
+    L.append(f"- Net displacement vs time-spread (Spearman, n={nd}): "
+             f"ρ={rho_nd:+.2f}, p={_fmt_p(p_nd)}. On THIS corpus the sign runs "
+             "*opposite* to the naive expectation — more time spread → **less** "
+             "net displacement (and rounded frames show slightly higher step "
+             "speed). Two non-exclusive reasons: small rounded masks give "
+             "noisier centroids (inflating apparent step speed), and spread "
+             "cells sit in denser, more jammed regions (see Confounder 2). "
+             "Either way `frac_spread` is a real covariate — tested as its own "
+             "per-recording metric above and partialled out in the OLS/LMM. "
+             "Don't read it as 'spread = migratory'.")
     L += ["", "## Confounder 2 — CONTACT / local density", ""]
     n, rho, p = _spearman(rows, "med_neighbors", "speed")
     L.append(f"- Speed vs crowding (Spearman, n={n} cells): ρ={rho:.2f}, "

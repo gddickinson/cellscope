@@ -233,6 +233,13 @@ suite 8771. See `gui_focused/remote_control.py` and `CLAUDE.md` for usage.
     `stats_arms_motility.json`, `plots_arms/*.png`, `speed_vs_density.png`,
     `REPORT.md` under `compare/motility_stats/`. **Finding (n=8): no
     treatment effect on any motility metric; state + crowding dominate.**
+  - **ic295_motility_plots.py** — the three **presentation figures** that
+    carry the conclusions (reuses `ic295_motility_stats` features so numbers
+    match REPORT.md): `motility_forest.png` (covariate-adjusted treatment
+    effects ± 95% CI — all cross 0), `motility_covariates.png` (net
+    displacement vs time-spread + vs crowding, both negative, treatments
+    intermix), `msd_mean_vs_median.png` (genetic arm — KO lowest-by-mean /
+    highest-by-median). Under `compare/motility_stats/`.
   - **ic295_state_features.py** — multi-feature diagnostic for the
     rounded/spread boundary: per cell-frame computes area (µm²),
     **rel_area** (footprint vs the cell's own 90th-pctl area),

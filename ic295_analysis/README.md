@@ -205,7 +205,18 @@ Rebuild after re-detecting/editing masks:
 conda run -n cellpose4 python scripts/ic295_track_data.py --rebuild   # ~1 h
 conda run -n cellpose4 python scripts/ic295_flower_plots.py --from-cache   # ~5 s
 conda run -n cellpose4 python scripts/ic295_motility_stats.py --from-cache
+conda run -n cellpose4 python scripts/ic295_motility_plots.py --from-cache
 ```
+
+The three figures worth showing (`ic295_motility_plots.py` →
+`compare/motility_stats/`): **`motility_forest.png`** (covariate-adjusted
+treatment effects ± 95% CI — every interval crosses 0 = the null result),
+**`motility_covariates.png`** (net displacement vs time-spread and vs
+crowding — both negative, treatments intermix: dispersal is structured by
+state + crowding, not treatment), and **`msd_mean_vs_median.png`** (genetic
+arm: KO is lowest by mean but highest by median — why the ensemble mean
+misleads). Plus `speed_vs_density.png` (contact inhibition) from the stats
+script.
 
 - **`ic295_flower_plots.py`** → `compare/flower_plots/`: origin-centred
   flower plots, per-cell speed/distance/net-disp, area-vs-speed, and
