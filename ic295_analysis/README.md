@@ -193,6 +193,43 @@ The default metric set lives at the top of `scripts/ic295_compare.py`;
 override with `--metrics name1,name2,...`. The `per_recording.csv`
 keeps every field, so any further analysis can use the full data.
 
+## Motility & dispersal (tracks, MSD, confounders)
+
+Track-level migration analysis runs off a **shared enriched cache** built
+once from every recording's masks (`scripts/ic295_track_data.py`,
+`compare/flower_plots/_track_cache.pkl`, `CACHE_VERSION`): per cell it
+stores the trajectory, per-frame state, and per-frame local density.
+Rebuild after re-detecting/editing masks:
+
+```bash
+conda run -n cellpose4 python scripts/ic295_track_data.py --rebuild   # ~1 h
+conda run -n cellpose4 python scripts/ic295_flower_plots.py --from-cache   # ~5 s
+conda run -n cellpose4 python scripts/ic295_motility_stats.py --from-cache
+```
+
+- **`ic295_flower_plots.py`** → `compare/flower_plots/`: origin-centred
+  flower plots, per-cell speed/distance/net-disp, area-vs-speed, and
+  ensemble **MSD(τ)** for full-recording cells — mean±SEM *and*
+  **median+bootstrap-CI** (the mean is outlier-driven on this skewed
+  data; always check the median), all-treatment + per-arm.
+- **`ic295_motility_stats.py`** → `compare/motility_stats/REPORT.md`:
+  the **design-correct** test — each recording's full-duration cells are
+  reduced to one value (recording = unit, no pseudoreplication), then the
+  arm-structured test (reuses `ic295_compare_arms`) over 11 metrics incl.
+  MSD exponent α and the persistent-random-walk D & P
+  (`ic295_motility_models.py`). Confounders are handled explicitly:
+  **STATE** (frac_spread + paired within-cell speed), **CONTACT/density**
+  (Spearman + paired isolated-vs-crowded), and **pseudoreplication**
+  (recording-level OLS + cell-level statsmodels LMM, both adjusting for
+  state + density).
+
+**Result on this corpus (n=8/condition): no treatment changes any
+motility/dispersal metric** (survives none of Bonferroni / OLS / LMM).
+What *is* significant is the confounders — **time-in-state dominates
+motility** (LMM frac_spread p≤0.001) and there's weak (between-cell)
+contact inhibition. Read together with the shape/state findings: the
+IC295 phenotype is in cell **shape/state, not migration**.
+
 ## Rounded / spread state classifier (learned from hand labels)
 
 Each cell-frame is classified `rounded` / `spread` / `unknown`. The rule

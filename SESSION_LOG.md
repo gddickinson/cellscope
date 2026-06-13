@@ -10,6 +10,55 @@ Format: **DATE — short title** with bullets describing what changed
 
 ---
 
+## 2026-06-12 — Motility/dispersal: design-correct + confounder-aware stats
+
+Prompted by an over-read of the ensemble MSD curves ("KO and OT reduce
+dispersal vs their controls"). The mean MSD is outlier-driven on this
+skewed data, so the rank order isn't trustworthy:
+
+- **Median MSD** (`_ensemble_msd(stat="median")`, bootstrap CI) **inverts**
+  the genetic arm — KO becomes the *highest* median, not lowest — and keeps
+  OT lowest in the drug arm. So the KO read was a mean artifact; the OT
+  read is the more defensible one. Both CIs overlap → neither significant.
+
+Built the proper test stack (new modules, all from one enriched cache):
+- **`ic295_track_data.py`** — shared per-cell collector + versioned cache
+  (`CACHE_VERSION=2`), now carrying recording label + per-frame state +
+  per-frame local density (neighbours within 100 µm, nearest-neighbour
+  distance). `ic295_flower_plots` refactored onto it.
+- **`ic295_motility_models.py`** — `msd_alpha` (log-log slope), `furth_fit`
+  (2D persistent-random-walk → motility coeff D + persistence time P),
+  `fit_lmm` (statsmodels MixedLM; **statsmodels installed into cellpose4**).
+- **`ic295_motility_stats.py`** — (b) per-recording arm test (recording =
+  unit, no pseudoreplication) over 11 metrics; confounders for STATE
+  (paired spread-vs-rounded + frac_spread metric), CONTACT (speed-vs-
+  density Spearman, paired isolated-vs-crowded, per-treatment density),
+  and PSEUDOREPLICATION (recording-level OLS + cell-level LMM adjusting for
+  state + density). Writes `compare/motility_stats/{REPORT.md,
+  stats_arms_motility.json, speed_vs_density.png, plots_arms/}`.
+
+**Result (n=8/condition): NO treatment changes any motility/dispersal
+metric** — survives none of per-recording Bonferroni, OLS, or LMM. What IS
+significant is confounders: **state dominates motility** (LMM frac_spread
+p=0.001 genetic / <0.001 drug — the biggest single driver of dispersal),
+and **weak contact inhibition** (speed vs crowding ρ=−0.12, p=0.020, but
+*between-cell* — the within-cell paired isolated-vs-crowded test is ns).
+
+Caveats recorded in REPORT.md: full-duration cohort censors the most motile
+cells (leave FOV → dispersal conservative); the rounded-faster-than-spread
+paired result is likely centroid noise on small rounded masks (LMM's
+negative frac_spread coefficient is consistent with that); the drug-arm LMM
+random effect is singular (use the OLS there). **Takeaway: the IC295
+phenotype is in cell shape/state, not migration** — and migration variation
+is driven by state + crowding, not treatment.
+
+Bugfix during validation: a recording with < 3 full-duration cells has no
+PRW fit (NaN D/P); `mannwhitneyu` propagated the NaN, blanking the D/P/
+nn_dist rows to `n/a`. Non-finite per-recording values are now filtered
+before the arm test.
+
+---
+
 ## 2026-06-12 — Arm-split MSD plots (genetic | drug)
 
 Added two per-arm ensemble-MSD plots to `ic295_flower_plots.py` alongside

@@ -210,18 +210,29 @@ suite 8771. See `gui_focused/remote_control.py` and `CLAUDE.md` for usage.
     (robust to the skew). Emitted all-treatment + per **arm** (genetic |
     drug), linear/log-log/median (`msd_by_treatment*`, `msd_{genetic,
     drug}{,_loglog,_median}.png`). Under `compare/flower_plots/`.
+  - **ic295_motility_models.py** — pure migration-model fits (no I/O),
+    consumed by `ic295_motility_stats`: `msd_alpha(msd,lag)` log-log slope
+    α (α≈1 diffusive, >1 directionally persistent); `furth_fit(lag,msd)`
+    2D persistent-random-walk → motility coefficient **D** (µm²/min) +
+    persistence time **P** (min); `fit_lmm(table,arm,control)` statsmodels
+    MixedLM `speed ~ treatment + frac_spread + density + (1|recording)`
+    (`LMM_AVAILABLE` guards the optional statsmodels import).
   - **ic295_motility_stats.py** — **design-correct + confounder-aware**
-    motility/dispersal stats (consumes `ic295_track_data`). (b) reduces
-    each recording's full-duration cells to one value → arm-structured
-    test (reuses `ic295_compare_arms`) on net displacement, endpoint MSD,
-    speed, frac-spread, and crowding. Confounders: STATE (paired within-
-    cell spread-vs-rounded speed + frac_spread as its own metric), CONTACT
-    (speed-vs-density Spearman + paired isolated-vs-crowded speed +
-    per-treatment density), PSEUDOREPLICATION (recording-level numpy OLS
-    adjusting treatment effect for frac_spread + density — the dependency-
-    free stand-in for a cell-level LMM). Writes `stats_arms_motility.json`,
-    `plots_arms/*.png`, `speed_vs_density.png`, `REPORT.md` under
-    `compare/motility_stats/`.
+    motility/dispersal stats (consumes `ic295_track_data` +
+    `ic295_motility_models`). (b) reduces each recording's full-duration
+    cells to one value → arm-structured test (reuses `ic295_compare_arms`)
+    over 11 metrics: net displacement, endpoint MSD, speed, frac-spread,
+    **MSD exponent α**, crowding (neighbours / NN-dist / frac-isolated),
+    and the Fürth **D** + **P** (one ensemble fit per recording).
+    Confounders: STATE (paired within-cell spread-vs-rounded speed +
+    frac_spread metric), CONTACT (speed-vs-density Spearman + paired
+    isolated-vs-crowded + per-treatment density), PSEUDOREPLICATION
+    (recording-level numpy OLS **and** the cell-level LMM, both adjusting
+    for frac_spread + density). Non-finite per-recording values are
+    filtered before the arm test (NaN would poison `mannwhitneyu`). Writes
+    `stats_arms_motility.json`, `plots_arms/*.png`, `speed_vs_density.png`,
+    `REPORT.md` under `compare/motility_stats/`. **Finding (n=8): no
+    treatment effect on any motility metric; state + crowding dominate.**
   - **ic295_state_features.py** — multi-feature diagnostic for the
     rounded/spread boundary: per cell-frame computes area (µm²),
     **rel_area** (footprint vs the cell's own 90th-pctl area),

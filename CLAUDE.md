@@ -391,6 +391,22 @@ Conventions to preserve when extending:
   quote its cross-arm pairwise p-values. The vehicle effect (WT vs
   DMSO) is significant on this corpus, so **drug effects are read vs
   DMSO, not WT**.
+- **Motility/dispersal is its own pipeline, off a shared enriched track
+  cache.** `ic295_track_data.py` collects per-cell tracks + per-frame
+  state + per-frame local density once (`_track_cache.pkl`,
+  `CACHE_VERSION`; `--rebuild` after re-detect/edit). `ic295_flower_plots`
+  (flowers, MSD — always check the **median**, the mean MSD is outlier-
+  driven here) and `ic295_motility_stats` (the design-correct test) both
+  read it. **Same arm structure + recording-as-unit rule as the shape
+  comparison** — `ic295_motility_stats` reuses `ic295_compare_arms`'s
+  machinery, reduces each recording's full-duration cells to one value,
+  and reports α / Fürth D,P (`ic295_motility_models`) plus explicit
+  confounder controls (state via frac_spread, contact via density, and
+  pseudoreplication via recording-OLS + a statsmodels LMM — **statsmodels
+  is installed in `cellpose4`**). Finding (n=8): **no treatment changes
+  any motility metric; the IC295 phenotype is in shape/state, not
+  migration** — state + crowding dominate what motility variation exists.
+  Don't re-quote raw ensemble-MSD rank order as a result.
 - The driver's per-recording subprocess isolation, lock file,
   SIGTERM handler, and atomic `progress.json` are load-bearing for
   multi-day runs. Don't simplify them away.
