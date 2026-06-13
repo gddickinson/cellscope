@@ -60,6 +60,8 @@ from scripts.ic295_track_data import (  # noqa: E402
 from scripts.ic295_flower_plots import _full_track, _cell_msd, _MSD_MAXLAG
 from scripts.ic295_compare_arms import (  # noqa: E402
     ARMS, VEHICLE, _arm_stats, _plot_arms, _print_summary)
+from scripts.ic295_motility_models import (  # noqa: E402
+    msd_alpha, furth_fit, fit_lmm, LMM_AVAILABLE)
 from core.cell_state import STATE_ROUNDED, STATE_SPREAD  # noqa: E402
 import numpy as np  # noqa: E402
 
@@ -75,10 +77,18 @@ REC_METRICS = [
     ("speed_med",          "mean step speed (µm/min)",        "median"),
     ("speed_spread_med",   "speed when spread (µm/min)",      "median"),
     ("frac_spread_mean",   "fraction of time spread",         "mean"),
+    ("msd_alpha_med",      "MSD exponent α (>1 super-diff)",  "median_full"),
     ("n_neighbors_med",    "neighbours within 100 µm",        "median"),
     ("nn_dist_med",        "nearest-neighbour dist (µm)",     "median"),
     ("frac_isolated_mean", "fraction of frames isolated",     "mean"),
 ]
+# Per-recording ENSEMBLE-FIT metrics (one Fürth fit to the recording's mean
+# MSD, not a per-cell aggregate) — filled directly in per_recording().
+MODEL_METRICS = [
+    ("prw_D", "motility coefficient D (µm²/min)"),
+    ("prw_P", "persistence time P (min)"),
+]
+ALL_ARM_METRICS = ([(k, lab) for k, lab, _ in REC_METRICS] + MODEL_METRICS)
 
 
 # ---------------------------------------------------------------- per cell
@@ -109,12 +119,15 @@ def cell_features(rec, dt, maxlag):
     pres = np.isfinite(cents[:, 0])
     full = _full_track(cents)
     nnd_pres = rec["nn_dist"][pres]
+    curve = _cell_msd(cents, maxlag) if full else None    # per-cell MSD(τ)
     return {
         "label": rec["label"], "cond": rec["cond"],
         "full": full,
+        "msd_curve": curve,                               # used for ensemble PRW fit
         "netdisp": rec["netdisp"],
         "speed": rec["speed"],
-        "endpoint_msd": float(_cell_msd(cents, maxlag)[maxlag]) if full else np.nan,
+        "endpoint_msd": float(curve[maxlag]) if full else np.nan,
+        "alpha": msd_alpha(curve, np.arange(maxlag + 1)) if full else np.nan,
         "frac_spread": _frac_spread(states),
         "speed_spread": _mean_or_nan(sp[st_f == STATE_SPREAD]),
         "speed_rounded": _mean_or_nan(sp[st_f == STATE_ROUNDED]),
@@ -144,27 +157,42 @@ def _agg(values, how):
     return float(np.median(v)) if how.startswith("median") else float(np.mean(v))
 
 
-def per_recording(rows):
-    """{metric: {cond: [one value per recording]}} for the arm tests."""
+_SRC = {"netdisp": "netdisp", "endpoint_msd": "endpoint_msd", "speed": "speed",
+        "speed_spread": "speed_spread", "frac_spread": "frac_spread",
+        "msd_alpha": "alpha", "n_neighbors": "med_neighbors",
+        "nn_dist": "med_nndist", "frac_isolated": "frac_isolated"}
+
+
+def per_recording(rows, dt=DEFAULT_DT, maxlag=_MSD_MAXLAG):
+    """{metric: {cond: [one value per recording]}} for the arm tests.
+
+    Per-cell metrics are aggregated (median/mean); the PRW D & P come from
+    a single Fürth fit to each recording's mean MSD over its full cells."""
     by_rec = {}
     for r in rows:
         by_rec.setdefault((r["cond"], r["label"]), []).append(r)
-    groups = {m: {c: [] for c in CONDITIONS} for m, _, _ in REC_METRICS}
+    keys = [k for k, _ in ALL_ARM_METRICS]
+    groups = {m: {c: [] for c in CONDITIONS} for m in keys}
+    lag_min = np.arange(maxlag + 1) * dt
     rec_rows = []                                     # for the OLS adjustment
     for (cond, label), cells in by_rec.items():
         rec = {"cond": cond, "label": label}
         for key, _lab, how in REC_METRICS:
-            src = key.replace("_med", "").replace("_mean", "")
-            src = {"netdisp": "netdisp", "endpoint_msd": "endpoint_msd",
-                   "speed": "speed", "speed_spread": "speed_spread",
-                   "frac_spread": "frac_spread", "n_neighbors": "med_neighbors",
-                   "nn_dist": "med_nndist",
-                   "frac_isolated": "frac_isolated"}[src]
+            src = _SRC[key.replace("_med", "").replace("_mean", "")]
             vals = ([c[src] for c in cells if c["full"]] if how == "median_full"
                     else [c[src] for c in cells])
-            val = _agg(vals, how)
-            groups[key][cond].append(val)
-            rec[key] = val
+            rec[key] = _agg(vals, how)
+            groups[key][cond].append(rec[key])
+        curves = [c["msd_curve"] for c in cells
+                  if c["full"] and c["msd_curve"] is not None]
+        if len(curves) >= 3:
+            ens = np.nanmean(np.vstack(curves), axis=0)
+            D, P = furth_fit(lag_min, ens)
+        else:
+            D, P = np.nan, np.nan
+        rec["prw_D"], rec["prw_P"] = D, P
+        groups["prw_D"][cond].append(D)
+        groups["prw_P"][cond].append(P)
         rec_rows.append(rec)
     return groups, rec_rows
 
@@ -274,7 +302,7 @@ def _fmt_p(p):
     return f"{p:.3f} {star}"
 
 
-def write_report(groups, arm_stats, rows, rec_rows, ols, path):
+def write_report(groups, arm_stats, rows, rec_rows, ols, lmm, path):
     L = ["# IC295 motility & dispersal — design-correct + confounder-aware",
          "",
          "Per-recording arm-structured tests (the recording is the unit, "
@@ -285,7 +313,7 @@ def write_report(groups, arm_stats, rows, rec_rows, ols, path):
     L.append("| metric | KO vs WT | GOF vs WT | Y1 vs DMSO | OT vs DMSO | "
              "WT vs DMSO (veh) |")
     L.append("|---|---|---|---|---|---|")
-    for key, lab, _ in REC_METRICS:
+    for key, lab in ALL_ARM_METRICS:
         st = arm_stats[key]
         def pr(arm, a, b):
             return st[arm]["pairs"].get(f"{a}_vs_{b}", {}).get("p_bonf")
@@ -334,6 +362,30 @@ def write_report(groups, arm_stats, rows, rec_rows, ols, path):
             L.append(f"- {arm} (n={o['n_recordings']} rec, dof={o['dof']}): "
                      + "; ".join(bits))
         L.append("")
+    L += ["## Confounder 3b — cell-level linear mixed model (gold standard)",
+          "",
+          "`speed ~ C(treatment) + frac_spread + density + (1 | recording)`. "
+          "Per-cell rows; the recording random intercept handles "
+          "pseudoreplication while frac_spread + density partial out the "
+          "state-time and crowding confounds. Coefficients read µm/min vs the "
+          "arm control.", ""]
+    if not LMM_AVAILABLE:
+        L.append("- statsmodels unavailable — LMM skipped (OLS above stands in).")
+    for arm in ARMS:
+        m = (lmm or {}).get(arm)
+        if not m:
+            L.append(f"- {arm}: LMM unavailable / did not converge."); continue
+        ctrl = ARMS[arm]["control"]
+        bits = [f"{t} vs {ctrl}: β={m[t]['coef']:.2f} µm/min, p={_fmt_p(m[t]['p'])}"
+                for t in ARMS[arm]["conditions"] if t != ctrl and t in m]
+        cov = m.get("_covariates", {})
+        covbits = "; ".join(
+            f"{k}: β={v['coef']:.3g}, p={_fmt_p(v['p'])}" for k, v in cov.items())
+        L.append(f"- {arm} (n={m['n']} cells / {m['groups']} recordings): "
+                 + "; ".join(bits))
+        if covbits:
+            L.append(f"    - covariates — {covbits}")
+    L.append("")
     L.append("_Caveat: full-duration cohort under-samples the most motile "
              "cells (they leave the field of view), so absolute dispersal is "
              "conservative. Cell-level numbers are pseudoreplicated and shown "
@@ -362,8 +414,8 @@ def main():
     rows = all_cells(data)
     groups, rec_rows = per_recording(rows)
 
-    arm_stats = {key: _arm_stats(groups[key]) for key, _, _ in REC_METRICS}
-    for key, _lab, _ in REC_METRICS:
+    arm_stats = {key: _arm_stats(groups[key]) for key, _ in ALL_ARM_METRICS}
+    for key, _lab in ALL_ARM_METRICS:
         _plot_arms(key, groups[key], arm_stats[key],
                    os.path.join(OUT_DIR, "plots_arms", f"{key}.png"))
     atomic_write_json(os.path.join(OUT_DIR, "stats_arms_motility.json"),
@@ -371,9 +423,11 @@ def main():
 
     ols = {o: {arm: _ols_adjusted(rec_rows, arm, o) for arm in ARMS}
            for o in ("speed_med", "netdisp_med")}
+    lmm = {arm: fit_lmm(rows, ARMS[arm]["conditions"], ARMS[arm]["control"])
+           for arm in ARMS}
 
     _scatter_speed_density(rows, os.path.join(OUT_DIR, "speed_vs_density.png"))
-    write_report(groups, arm_stats, rows, rec_rows, ols,
+    write_report(groups, arm_stats, rows, rec_rows, ols, lmm,
                  os.path.join(OUT_DIR, "REPORT.md"))
 
     print(f"\nWrote motility stats → {OUT_DIR}/")
