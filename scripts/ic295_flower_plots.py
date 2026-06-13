@@ -24,23 +24,18 @@ Usage:
 """
 import os
 import sys
-import glob
-import pickle
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _paths import setup_imports  # noqa: E402
 setup_imports()
 
-from scripts.ic295_common import (  # noqa: E402
-    RECORDINGS_ROOT, COMPARE_DIR, CONDITIONS, parse_condition)
+from scripts.ic295_common import COMPARE_DIR, CONDITIONS  # noqa: E402
 from scripts.ic295_plot_utils import apply_ybreak  # noqa: E402
+from scripts.ic295_track_data import (  # noqa: E402
+    load_or_build, DEFAULT_UM, DEFAULT_DT)
 import numpy as np  # noqa: E402
 
 OUT_DIR = os.path.join(COMPARE_DIR, "flower_plots")
-_CACHE = os.path.join(OUT_DIR, "_track_cache.pkl")   # per-cell tracks (re-plot fast)
-DEFAULT_UM = 0.6523                      # IC295 scope (single magnification)
-DEFAULT_DT = 10.0                        # min / frame
-_SPEED_CAP = 15.0                        # µm/min — drop tracking glitches
 _COND_COLOR = {"WT": "#1f77b4", "KO": "#d62728", "GOF": "#2ca02c",
                "Y1": "#9467bd", "OT": "#ff7f0e", "DMSO": "#7f7f7f"}
 _GROUP_TITLE = {"all": "all cells",
@@ -48,59 +43,9 @@ _GROUP_TITLE = {"all": "all cells",
                 "spread": "whole-track-spread cells"}
 
 
-def collect(um, dt):
-    """{condition: {'all'|'rounded'|'spread': [ {traj,speed,distance,netdisp} ]}}."""
-    from core.cell_state import (classify_track_states, STATE_ROUNDED,
-                                 STATE_SPREAD)
-    from core.tracking import extract_centroids
-    out = {c: {"all": [], "rounded": [], "spread": []} for c in CONDITIONS}
-    paths = sorted(glob.glob(os.path.join(
-        RECORDINGS_ROOT, "*", "*", "pipeline_results", "masks.npz")))
-    for i, mp in enumerate(paths):
-        label = os.path.basename(os.path.dirname(os.path.dirname(mp)))
-        cond = os.path.basename(os.path.dirname(os.path.dirname(
-            os.path.dirname(mp))))
-        if cond not in CONDITIONS:
-            cond = parse_condition(label)
-        if cond not in out:
-            continue
-        try:
-            labels = np.load(mp)["labels"]
-        except Exception as e:
-            print(f"  WARN {mp}: {e}"); continue
-        for cid in [int(v) for v in np.unique(labels) if v > 0]:
-            stack = labels == cid
-            cents = extract_centroids(stack)          # (N,2) px, NaN absent
-            valid = ~np.isnan(cents).any(axis=1)
-            if valid.sum() < 2:
-                continue
-            cv = cents[valid]
-            # per-step distances over CONSECUTIVE present frames (gaps→NaN)
-            seg = np.linalg.norm(np.diff(cents, axis=0), axis=1) * um
-            seg = seg[np.isfinite(seg)]
-            spd = seg / dt
-            spd = spd[spd <= _SPEED_CAP]
-            sd = classify_track_states(stack, um_per_px=um)
-            ar = np.asarray(sd["metrics"]["area"], dtype=float)   # px², per frame
-            rec = {
-                "traj": (cv - cv[0]) * um,            # origin-centred µm
-                "cents": cents * um,                  # full (N,2) µm, NaN absent
-                "speed": float(np.mean(spd)) if spd.size else float("nan"),
-                "distance": float(np.sum(seg)),       # path length µm
-                "netdisp": float(np.linalg.norm(cv[-1] - cv[0]) * um),
-                "area": (float(np.nanmean(ar)) * um * um   # mean footprint µm²
-                         if np.isfinite(ar).any() else float("nan")),
-            }
-            out[cond]["all"].append(rec)
-            st = np.asarray(sd["states"])
-            cls = st[(st == STATE_ROUNDED) | (st == STATE_SPREAD)]
-            if cls.size:
-                if np.all(cls == STATE_ROUNDED):
-                    out[cond]["rounded"].append(rec)
-                elif np.all(cls == STATE_SPREAD):
-                    out[cond]["spread"].append(rec)
-        print(f"  [{i+1}/{len(paths)}] {label} ({cond})", flush=True)
-    return out
+# Per-cell track collection + cache live in ic295_track_data.collect /
+# load_or_build (shared with ic295_motility_stats). The flower plots only
+# read the 'all'/'rounded'/'spread' groupings + the scalar per-cell fields.
 
 
 def _axis_limit(data):
@@ -343,16 +288,7 @@ def main():
     if "--dt" in sys.argv:
         dt = float(sys.argv[sys.argv.index("--dt") + 1])
     os.makedirs(OUT_DIR, exist_ok=True)
-    if "--from-cache" in sys.argv and os.path.exists(_CACHE):
-        print(f"Loading cached tracks from {_CACHE}…", flush=True)
-        with open(_CACHE, "rb") as f:
-            data = pickle.load(f)
-    else:
-        print(f"Collecting tracks (um/px={um}, dt={dt} min)…", flush=True)
-        data = collect(um, dt)
-        with open(_CACHE, "wb") as f:
-            pickle.dump(data, f)
-        print(f"  cached tracks → {_CACHE}  (re-plot fast with --from-cache)")
+    data = load_or_build(um, dt, from_cache="--from-cache" in sys.argv)
     lim = _axis_limit(data)
 
     for key, title, fname in [

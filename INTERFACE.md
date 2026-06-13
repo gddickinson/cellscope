@@ -188,19 +188,40 @@ suite 8771. See `gui_focused/remote_control.py` and `CLAUDE.md` for usage.
     panel + diagonal marks) when high outliers would squish the data
     (inlier range < ½ the full range); else a single axes. Used by the
     box+strip (`ic295_compare`), mean±SEM, and arm plots.
+  - **ic295_track_data.py** — **shared per-cell track collector + cache**
+    (`collect`, `load_or_build`) used by BOTH `ic295_flower_plots` and
+    `ic295_motility_stats`. One mask-load pass per recording builds an
+    enriched per-cell record: recording `label`/`cond`, origin-centred
+    `traj` + absolute `cents` (µm, NaN gaps), per-frame `states`,
+    per-frame local density (`n_neighbors` within 100 µm + nearest-
+    neighbour `nn_dist`), per-frame `area_frames`, and the scalar
+    `speed`/`distance`/`netdisp`/`area`. Versioned pickle cache
+    (`compare/flower_plots/_track_cache.pkl`, `CACHE_VERSION`) so the ~1 h
+    reload stays out of the plot/stat iterate loop; `--rebuild` recollects.
   - **ic295_flower_plots.py** — origin-centred **track (flower) plots** +
-    per-cell **motility** by condition. Each cell's full trajectory (both
-    states) is translated to the origin and overlaid per condition on a
-    shared equal x/y axis (`flower_{all,rounded_only,spread_only}.png`); in
-    the same mask-load pass it computes per-cell mean speed (µm/min,
-    glitch-capped), total path length (µm) and net displacement (µm) and
-    writes box+strip-by-condition plots (`{speed,distance,netdisp}_{all,
-    rounded,spread}.png`). Three cell groupings: all / whole-track-rounded
-    / whole-track-spread. Also: per-cell **area-vs-speed** scatter
-    (`area_vs_speed_by_treatment.png` facet + overlay) and ensemble
-    **MSD(τ)** mean ± SEM by treatment (`msd_by_treatment{,_loglog}.png`,
-    gap-aware, long-lag tail trimmed at < 5 cells). Flower axes use the max
-    track extent, shared across panels. Under `compare/flower_plots/`.
+    per-cell **motility** by condition (consumes `ic295_track_data`). Each
+    cell's full trajectory (both states) is translated to the origin and
+    overlaid per condition on a shared equal x/y axis
+    (`flower_{all,rounded_only,spread_only}.png`); plus per-cell box+strip
+    plots (`{speed,distance,netdisp}_{all,rounded,spread}.png`) over three
+    groupings (all / whole-track-rounded / whole-track-spread), per-cell
+    **area-vs-speed** scatter, and ensemble **MSD(τ)** for full-recording
+    cells: `_ensemble_msd(stat)` does mean±SEM OR **median+bootstrap-CI**
+    (robust to the skew). Emitted all-treatment + per **arm** (genetic |
+    drug), linear/log-log/median (`msd_by_treatment*`, `msd_{genetic,
+    drug}{,_loglog,_median}.png`). Under `compare/flower_plots/`.
+  - **ic295_motility_stats.py** — **design-correct + confounder-aware**
+    motility/dispersal stats (consumes `ic295_track_data`). (b) reduces
+    each recording's full-duration cells to one value → arm-structured
+    test (reuses `ic295_compare_arms`) on net displacement, endpoint MSD,
+    speed, frac-spread, and crowding. Confounders: STATE (paired within-
+    cell spread-vs-rounded speed + frac_spread as its own metric), CONTACT
+    (speed-vs-density Spearman + paired isolated-vs-crowded speed +
+    per-treatment density), PSEUDOREPLICATION (recording-level numpy OLS
+    adjusting treatment effect for frac_spread + density — the dependency-
+    free stand-in for a cell-level LMM). Writes `stats_arms_motility.json`,
+    `plots_arms/*.png`, `speed_vs_density.png`, `REPORT.md` under
+    `compare/motility_stats/`.
   - **ic295_state_features.py** — multi-feature diagnostic for the
     rounded/spread boundary: per cell-frame computes area (µm²),
     **rel_area** (footprint vs the cell's own 90th-pctl area),
