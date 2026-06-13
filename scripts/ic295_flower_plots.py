@@ -262,16 +262,42 @@ def _cell_msd(cents, maxlag):
     return msd
 
 
+def _ensemble_msd(arr, stat):
+    """(center, lo, hi) per lag for an (n_cells, n_lags) MSD matrix.
+
+    stat='mean'   → mean ± SEM
+    stat='median' → median + bootstrap 95% CI (robust to the few hyper-
+                    motile cells that dominate the mean on this skewed data)."""
+    nc = arr.shape[0]
+    with np.errstate(invalid="ignore"):
+        if stat == "median":
+            center = np.nanmedian(arr, axis=0)
+            rng = np.random.default_rng(0)            # reproducible band
+            boots = np.empty((400, arr.shape[1]))
+            for b in range(400):
+                idx = rng.integers(0, nc, nc)
+                boots[b] = np.nanmedian(arr[idx], axis=0)
+            lo = np.nanpercentile(boots, 2.5, axis=0)
+            hi = np.nanpercentile(boots, 97.5, axis=0)
+        else:
+            center = np.nanmean(arr, axis=0)
+            sem = np.nanstd(arr, axis=0) / np.sqrt(nc) if nc else center * np.nan
+            lo, hi = center - sem, center + sem
+    return center, lo, hi
+
+
 def _plot_msd(data, key, out_path, dt, maxlag=_MSD_MAXLAG, logscale=False,
-              conds=CONDITIONS, arm_label=None):
-    """Ensemble mean MSD ± SEM vs lag time, one curve per treatment.
+              conds=CONDITIONS, arm_label=None, stat="mean"):
+    """Ensemble MSD vs lag time, one curve per treatment.
 
     `conds` restricts which treatments are drawn (e.g. one experimental
-    arm); `arm_label` is prepended to the title when set."""
+    arm); `arm_label` is prepended to the title when set. `stat` chooses
+    mean±SEM (default) or median+bootstrap-CI (robust to outlier cells)."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     lag = np.arange(maxlag + 1) * dt                 # min
+    sl = slice(1, maxlag + 1)
     fig, ax = plt.subplots(figsize=(8, 6))
     for c in conds:
         # only cells tracked the ENTIRE recording → fixed cohort, defined
@@ -280,22 +306,20 @@ def _plot_msd(data, key, out_path, dt, maxlag=_MSD_MAXLAG, logscale=False,
         if not recs:
             continue
         arr = np.vstack([_cell_msd(r["cents"], maxlag) for r in recs])
-        nc = arr.shape[0]
-        with np.errstate(invalid="ignore"):
-            mean = np.nanmean(arr, axis=0)
-            sem = np.nanstd(arr, axis=0) / np.sqrt(nc) if nc else mean * np.nan
-        sl = slice(1, maxlag + 1)
-        ax.errorbar(lag[sl], mean[sl], yerr=sem[sl],
-                    color=_COND_COLOR.get(c), lw=1.8, capsize=3, errorevery=2,
-                    label=f"{c} (n={nc})")
+        center, lo, hi = _ensemble_msd(arr, stat)
+        ax.plot(lag[sl], center[sl], color=_COND_COLOR.get(c), lw=1.8,
+                label=f"{c} (n={arr.shape[0]})")
+        ax.fill_between(lag[sl], lo[sl], hi[sl], color=_COND_COLOR.get(c),
+                        alpha=0.18, lw=0)
     if logscale:
         ax.set_xscale("log"); ax.set_yscale("log")
     ax.set_xlabel("lag time τ  (min)")
-    ax.set_ylabel("mean MSD  (µm²)")
+    band = "median + 95% CI" if stat == "median" else "mean ± SEM"
+    ax.set_ylabel(f"{'median' if stat == 'median' else 'mean'} MSD  (µm²)")
     if arm_label:
-        ttl = f"{arm_label}\nmean MSD ± SEM (full-recording cells)"
+        ttl = f"{arm_label}\n{band} MSD (full-recording cells)"
     else:
-        ttl = ("Ensemble mean MSD ± SEM, by treatment "
+        ttl = (f"Ensemble {band} MSD, by treatment "
                "(cells tracked the full recording)")
     ax.set_title(ttl + ("  [log-log]" if logscale else ""), fontsize=11)
     ax.legend(fontsize=9); ax.grid(alpha=0.3, which="both")
@@ -360,14 +384,18 @@ def main():
     _plot_msd(data, "all", os.path.join(OUT_DIR, "msd_by_treatment.png"), dt)
     _plot_msd(data, "all", os.path.join(OUT_DIR, "msd_by_treatment_loglog.png"),
               dt, logscale=True)
-    print("  MSD plots (linear + log-log)")
+    _plot_msd(data, "all", os.path.join(OUT_DIR, "msd_by_treatment_median.png"),
+              dt, stat="median")
+    print("  MSD plots (mean linear + log-log, median)")
 
     for arm, label, conds in _MSD_ARMS:
         _plot_msd(data, "all", os.path.join(OUT_DIR, f"msd_{arm}.png"), dt,
                   conds=conds, arm_label=label)
         _plot_msd(data, "all", os.path.join(OUT_DIR, f"msd_{arm}_loglog.png"),
                   dt, logscale=True, conds=conds, arm_label=label)
-        print(f"  MSD plots ({arm}: {', '.join(conds)}) — linear + log-log")
+        _plot_msd(data, "all", os.path.join(OUT_DIR, f"msd_{arm}_median.png"),
+                  dt, conds=conds, arm_label=label, stat="median")
+        print(f"  MSD plots ({arm}: {', '.join(conds)}) — mean + median")
 
     print(f"\nWrote flower + motility + area-vs-speed + MSD plots → {OUT_DIR}/")
     return 0
