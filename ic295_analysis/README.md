@@ -218,6 +218,16 @@ arm: KO is lowest by mean but highest by median — why the ensemble mean
 misleads). Plus `speed_vs_density.png` (contact inhibition) from the stats
 script.
 
+**Like-vs-like check** (`ic295_motility_matched.py --from-cache`): removes
+the state + crowding confounders *by design* rather than by model — cells
+are compared to their arm control only within strata of the same
+state-class × neighbour count (coarsened exact matching + van Elteren
+stratified test), and also via control-baseline residual **normalization**
+(continuous). Outputs `matched_forest.png`, `matched_strata.png`,
+`MATCHED.md`. All ns: **covariate adjustment (LMM), matching, and
+normalization independently agree on the null** — the result is not an
+artefact of comparing unlike cells.
+
 - **`ic295_flower_plots.py`** → `compare/flower_plots/`: origin-centred
   flower plots, per-cell speed/distance/net-disp, area-vs-speed, and
   ensemble **MSD(τ)** for full-recording cells — mean±SEM *and*

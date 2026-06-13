@@ -240,6 +240,16 @@ suite 8771. See `gui_focused/remote_control.py` and `CLAUDE.md` for usage.
     displacement vs time-spread + vs crowding, both negative, treatments
     intermix), `msd_mean_vs_median.png` (genetic arm — KO lowest-by-mean /
     highest-by-median). Under `compare/motility_stats/`.
+  - **ic295_motility_matched.py** — **like-vs-like** confounder control by
+    DESIGN (vs the model-based OLS/LMM): cells binned into strata of same
+    state-class × crowding, each treatment compared to its arm control only
+    within shared strata. Two design-based lenses — **matching** (coarsened
+    exact matching ATT + `_van_elteren` stratified rank test) and
+    **normalization** (residuals vs a control-fit `outcome ~ frac_spread +
+    density` baseline, continuous). Writes `matched_stats.json`,
+    `matched_forest.png` (both lenses overlaid), `matched_strata.png`
+    (per-stratum control-vs-test medians), `MATCHED.md`. All ns →
+    **adjustment, matching, and normalization all converge on the null.**
   - **ic295_state_features.py** — multi-feature diagnostic for the
     rounded/spread boundary: per cell-frame computes area (µm²),
     **rel_area** (footprint vs the cell's own 90th-pctl area),
