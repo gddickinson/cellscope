@@ -10,6 +10,24 @@ Format: **DATE — short title** with bullets describing what changed
 
 ---
 
+## 2026-06-12 — Arm-split MSD plots (genetic | drug)
+
+Added two per-arm ensemble-MSD plots to `ic295_flower_plots.py` alongside
+the existing all-treatments pair, so MSD respects the experimental design
+(only conditions sharing a control are overlaid). `_plot_msd` gained
+`conds=` + `arm_label=` params; `_MSD_ARMS` drives the two extra calls in
+`main()`. Each panel autoscales to its own arm (the drug arm tops out
+~25k µm² vs the genetic arm's ~41k, so the shared-axis version hid the
+drug-arm structure). New files: `msd_genetic{,_loglog}.png`,
+`msd_drug{,_loglog}.png`. Same full-recording cohort + 60 lag bins as the
+combined plot. Re-plots from `_track_cache.pkl` in ~5 s (`--from-cache`).
+
+Reading: genetic — WT≈GOF (high), KO lower; drug — Y1 (high) > DMSO > OT.
+SEM bands overlap within each arm, consistent with the n=8 recording-level
+stats showing no significant frac_rounded/motility arm effect.
+
+---
+
 ## 2026-06-08 — Add recordings to raise n (target n=8/condition, +19)
 
 The arms are underpowered at n=4–6/condition (most real effects show as

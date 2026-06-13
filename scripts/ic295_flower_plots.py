@@ -234,6 +234,13 @@ def _plot_area_speed_overlay(data, key, out_path):
 _MSD_MAXLAG = 60          # frames (× dt = max lag time shown); more bins
 _MSD_MIN_CELLS = 5        # need ≥ this many full-duration cells per condition
 
+# Experimental arms (control listed first) — MSD is split this way so each
+# panel compares only conditions that share a control (see ic295_compare_arms).
+_MSD_ARMS = [
+    ("genetic", "Genetic arm (WT, GOF, KO)", ["WT", "GOF", "KO"]),
+    ("drug",    "Drug arm (DMSO, Y1, OT)",   ["DMSO", "Y1", "OT"]),
+]
+
 
 def _full_track(cents):
     """True if the cell is tracked the ENTIRE recording (present at the
@@ -255,14 +262,18 @@ def _cell_msd(cents, maxlag):
     return msd
 
 
-def _plot_msd(data, key, out_path, dt, maxlag=_MSD_MAXLAG, logscale=False):
-    """Ensemble mean MSD ± SEM vs lag time, one curve per treatment."""
+def _plot_msd(data, key, out_path, dt, maxlag=_MSD_MAXLAG, logscale=False,
+              conds=CONDITIONS, arm_label=None):
+    """Ensemble mean MSD ± SEM vs lag time, one curve per treatment.
+
+    `conds` restricts which treatments are drawn (e.g. one experimental
+    arm); `arm_label` is prepended to the title when set."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     lag = np.arange(maxlag + 1) * dt                 # min
     fig, ax = plt.subplots(figsize=(8, 6))
-    for c in CONDITIONS:
+    for c in conds:
         # only cells tracked the ENTIRE recording → fixed cohort, defined
         # at every lag, no jump-as-cells-drop-in/out artefact.
         recs = [r for r in data[c][key] if _full_track(r["cents"])]
@@ -281,9 +292,12 @@ def _plot_msd(data, key, out_path, dt, maxlag=_MSD_MAXLAG, logscale=False):
         ax.set_xscale("log"); ax.set_yscale("log")
     ax.set_xlabel("lag time τ  (min)")
     ax.set_ylabel("mean MSD  (µm²)")
-    ax.set_title("Ensemble mean MSD ± SEM, by treatment "
-                 "(cells tracked the full recording)"
-                 + ("  [log-log]" if logscale else ""))
+    if arm_label:
+        ttl = f"{arm_label}\nmean MSD ± SEM (full-recording cells)"
+    else:
+        ttl = ("Ensemble mean MSD ± SEM, by treatment "
+               "(cells tracked the full recording)")
+    ax.set_title(ttl + ("  [log-log]" if logscale else ""), fontsize=11)
     ax.legend(fontsize=9); ax.grid(alpha=0.3, which="both")
     fig.tight_layout()
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
@@ -347,6 +361,13 @@ def main():
     _plot_msd(data, "all", os.path.join(OUT_DIR, "msd_by_treatment_loglog.png"),
               dt, logscale=True)
     print("  MSD plots (linear + log-log)")
+
+    for arm, label, conds in _MSD_ARMS:
+        _plot_msd(data, "all", os.path.join(OUT_DIR, f"msd_{arm}.png"), dt,
+                  conds=conds, arm_label=label)
+        _plot_msd(data, "all", os.path.join(OUT_DIR, f"msd_{arm}_loglog.png"),
+                  dt, logscale=True, conds=conds, arm_label=label)
+        print(f"  MSD plots ({arm}: {', '.join(conds)}) — linear + log-log")
 
     print(f"\nWrote flower + motility + area-vs-speed + MSD plots → {OUT_DIR}/")
     return 0
