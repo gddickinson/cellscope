@@ -250,6 +250,12 @@ suite 8771. See `gui_focused/remote_control.py` and `CLAUDE.md` for usage.
     `matched_forest.png` (both lenses overlaid), `matched_strata.png`
     (per-stratum control-vs-test medians), `MATCHED.md`. All ns →
     **adjustment, matching, and normalization all converge on the null.**
+  - **ic295_motility_panel.py** — **slide-ready composite** (PNG + vector
+    PDF, 16:9, lettered A–F) stitching the conclusion views into one figure
+    via gridspec, reusing the other modules' draw/stat code: A mean MSD, B
+    median MSD (rank inverts), C adjusted-effect forest, D/E covariate
+    scatters (state/crowding), F matched+normalized forest. Writes
+    `motility_panel.{png,pdf}` under `compare/motility_stats/`.
   - **ic295_state_features.py** — multi-feature diagnostic for the
     rounded/spread boundary: per cell-frame computes area (µm²),
     **rel_area** (footprint vs the cell's own 90th-pctl area),

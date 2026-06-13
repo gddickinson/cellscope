@@ -228,6 +228,12 @@ stratified test), and also via control-baseline residual **normalization**
 normalization independently agree on the null** — the result is not an
 artefact of comparing unlike cells.
 
+**Slide panel** (`ic295_motility_panel.py --from-cache`): one 16:9
+composite (`motility_panel.png` + vector `motility_panel.pdf`) with
+lettered panels A–F — mean vs median MSD, the adjusted-effect forest, the
+state + crowding scatters, and the matched/normalized forest — captioned
+with the conclusion. Drops straight into a slide / the writeup.
+
 - **`ic295_flower_plots.py`** → `compare/flower_plots/`: origin-centred
   flower plots, per-cell speed/distance/net-disp, area-vs-speed, and
   ensemble **MSD(τ)** for full-recording cells — mean±SEM *and*
