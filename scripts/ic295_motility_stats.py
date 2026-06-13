@@ -413,6 +413,12 @@ def main():
 
     rows = all_cells(data)
     groups, rec_rows = per_recording(rows)
+    # Drop non-finite per-recording values (e.g. a recording with < 3 full
+    # cells has no PRW fit) — mannwhitneyu would otherwise propagate NaN to
+    # the p-value. rec_rows keeps them; the OLS filters internally.
+    groups = {k: {c: [v for v in vals if v is not None and np.isfinite(v)]
+                  for c, vals in g.items()}
+              for k, g in groups.items()}
 
     arm_stats = {key: _arm_stats(groups[key]) for key, _ in ALL_ARM_METRICS}
     for key, _lab in ALL_ARM_METRICS:
