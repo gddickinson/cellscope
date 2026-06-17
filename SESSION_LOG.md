@@ -10,6 +10,125 @@ Format: **DATE — short title** with bullets describing what changed
 
 ---
 
+## 2026-06-17 — Single-cell curation wired into detect_recording + GUI
+
+Promoted the IC293 single-cell curation from a script-only step to a
+first-class, opt-in detection option (the build-toward goal).
+
+- **`core/pipeline_defaults.py`** — 6 new `DEFAULTS` fields
+  (`single_cell_curation` + `sc_present_every_frame` / `sc_no_dividing` /
+  `sc_isolated` / `sc_roughly_centered` / `sc_expected_cell_area_um2`).
+  `single_cell_curation=False` by default → **multi-cell detection
+  unchanged** (rule 1: defaults live here).
+- **`core/unified_detection.detect_recording`** — 6 matching kwargs
+  (None→DEFAULTS) + a **step 7.5** that runs `curate_single_cell` at the
+  working resolution (labels + frames matched, before the upscale),
+  replacing `result["labels"]`/`masks`/`tracks` with the curated single
+  cell and recording the log in `result["curation"]` + `auto.single_cell_
+  curation`. Wrapped in try/except so curation can never break detection.
+  Verified end-to-end on Pos28-GOF (→ 1 cell ID, 1 track, log populated).
+- **GUI** — `gui_focused/params_panel.py` adds a "Single-cell curation"
+  group (toggle + 4 prior checkboxes + expected-area spinbox, sub-widgets
+  gated on the toggle, all reading from DEFAULTS) + `get_detect_params`
+  keys; `gui_focused/workers.py` threads the 6 params into
+  `detect_recording`; `gui_focused/main_window.py::_on_test_frame` forces
+  curation OFF for the 1-frame preview (it's multi-frame). Headless panel
+  test + focused-GUI boot both pass.
+- Docs: CLAUDE.md (unified-detection section), INTERFACE.md
+  (unified_detection + single_cell_curation + params_panel), memory.
+
+## 2026-06-17 — IC293 single-cell curation + rapid-review GUI
+
+Drove a reusable curation layer from the manual review of the IC293
+detections (the experimenter's priors: one isolated, flattened, non-
+dividing cell present every frame, roughly centred).
+
+- **`core/single_cell_curation.py`** (`SingleCellCurationParams` +
+  `curate_single_cell`, schema v2). Poses curation as **label-agnostic
+  per-frame assembly of the single cell track**: a "cellness" combining
+  size-vs-expected, **DIC texture** (in-mask intensity std — separates a
+  flat optical shadow ≈16 from a textured cell ≈33), and motion/size
+  CONTINUITY. This one model subsumes artifact removal, ID-stitching
+  across tracker label switches, SAM2 gap-fill, and tracking the cell
+  through rounded states — and flags (never excludes) exceptions
+  (2-cell/division via frequent label switches; unrecoverable frames).
+- **Bugs found + fixed during review** (recorded in
+  `ic293_analysis/CURATION_DECISIONS.md`): expected-area was the median
+  of persistent objects → collapsed when debris outnumbered the cell
+  (Pos20_cell3-KO: picked the cell first as the largest full-presence
+  object); the per-frame size gate dropped a cell's own rounded frames
+  (Pos33-GOF: judge size vs the cell's *previous* size, not the flattened
+  expected — tracks through crumple-to-ball); a uniform optical shadow
+  taking the cell's label (Pos10-WT: texture + per-frame assembly stitched
+  id2→id1 at frame 83, found independently).
+- **Review collapsed 8 → 1**: only the genuine dividing crop
+  (Pos36_div-GOF) needed a human call. Excluded from analysis (kept on
+  disk) via `ic293_common.ANALYSIS_EXCLUDE` — 13 pre-division frames are
+  below the 30-frame min + 24-frame MSD window. Curated masks promoted
+  (`ic293_promote_curated.py`, `masks_pre_curation.npz` backups) and the
+  77-recording set re-analyzed. **Result: primary motility still null;
+  one EXPLORATORY signal — KO vs WT directional persistence-when-spread
+  p=0.015 (was ns pre-curation; the mask cleaning sharpened it).**
+- **`main_review.py` + `gui_review/`** — rapid single-cell review GUI
+  (repurposes the annotation GUI's zoom/cache/CSV pattern): ←/→ frames,
+  PageUp/Dn recording, scroll zoom, **F flag**; auto-discovers all
+  recordings, single-channel load, flags → `review/review_flags.csv`. RPC
+  8773. Plus `ic293_qc_diagnostic.py` + `ic293_review_montages.py`
+  (per-recording contour montages + REVIEW_INDEX confirming the one-cell-
+  ID invariant: 77/77 clean, 0 flagged).
+
+## 2026-06-16 — IC293 single-cell-crop analysis pipeline (`ic293_*.py`)
+
+Re-targeted the IC295 detect→analyze→compare battery at Ignasi's 78
+hand-cropped **IC293 endothelial-cell** crops (staged to
+`ic293_analysis/_cache/` earlier today, see `ic293_stage_crops.py` +
+`ic293_analysis/PROVENANCE.md`). The crops are **DIC-only, one cell
+each, 30–97 frames**, so the IC295 assumptions (multi-cell FOV, Cy5,
+keratinocytes, full-length) all needed adapting. Three design decisions:
+
+- **Single-channel detection works unchanged.** `detect_recording(...,
+  cy5_frames=None)` guards off every Cy5 step (verified by tracing the
+  `if has_cy5` conditions); the auto-selector returns **cpsam_dic** for
+  the 1-cell scenes (p75 < 1.5). Smoke-tested Pos28-GOF end-to-end:
+  100 s / 30 frames, 1 track, canonical `RUN_METADATA.{md,json}`.
+- **Position is the statistical unit.** Each crop is one cell; several
+  crops share a `Pos{N}` field of view (78 crops → 55 positions). The
+  stats reduce each metric to one value per **position** (the IC295
+  "recording is the unit" analog) + a cell-level LMM with a
+  `(1|position)` random intercept. Density/crowding metrics dropped
+  (every crop is one isolated cell → no between-unit variation, singular
+  term). `fit_lmm` extended with `include_density=`/`group_key=`
+  (backward-compatible; IC295 behaviour unchanged).
+- **State rule is keratinocyte-fit → state metrics EXPLORATORY.** No
+  IC293 hand-labels exist. Per the user's call, the rule is applied but
+  `frac_spread`/per-state shape are reported in a separate flagged block;
+  the **state-agnostic** motility/size metrics (speed, net disp, area,
+  MSD, α, **per-cell** Fürth D/P — the per-recording ensemble Fürth fit
+  can't apply to 1-cell crops) are the primary read.
+
+**Single-cell selection (user corrections, same day):** the user clarified
+(a) each crop is hand-cropped to ONE target cell — extra detections (which
+were flipping the auto-selector to raw cpsam, e.g. Pos61-DMSO) are
+artifacts, not cells — and (b) the target cell is **present in every
+frame**. Added `ic293_common.select_primary_cell`: gate to the
+full-presence object(s) (frames ≥ max − 5% tolerance), then prefer most
+central-at-start, then largest; flag `selection_ambiguous` only when ≥2
+full-presence objects are comparable. Used by `ic293_analyze_one` (relabels
+in-memory, leaves `masks.npz` intact for GUI review; also QC-warns +
+records `primary_cell_presence` when the kept cell isn't ~100% present) and
+`ic293_track_data`. Validated on the 15 done crops: 3 had artifacts —
+Pos61-DMSO (drop a 15/43-frame blob), Pos11_cell1-WT (drop 4 fragments),
+Pos10-WT (the presence gate cleanly picks the 97/97 cell over an 83/97
+rival). **0 ambiguous, 0 selected cells below full presence.** Detection
+was NOT re-run (it faithfully records all objects; selection is downstream).
+
+New modules (all reuse the `ic295_*` arm-stats / Fürth / LMM / plotting
+where possible): `ic293_common`, `ic293_detect_one`, `ic293_analyze_one`,
+`ic293_batch`, `ic293_status`, `ic293_track_data`, `ic293_motility_stats`,
+`ic293_compare`, `ic293_flower_plots` + `ic293_analysis/README.md`.
+Detection batch for all 78 launched (~4 h ETA). Only within-IC293 arm
+contrasts are valid; absolute values aren't comparable to IC295.
+
 ## 2026-06-12 — Motility/dispersal: design-correct + confounder-aware stats
 
 Prompted by an over-read of the ensemble MSD curves ("KO and OT reduce

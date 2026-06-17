@@ -149,6 +149,15 @@ class FocusedDetectWorker(QThread):
                         "cy5_fusion_max_overlap_frac"),
                     cy5_fusion_augment_cpsam=self.params.get(
                         "cy5_fusion_augment_cpsam"),
+                    single_cell_curation=self.params.get(
+                        "single_cell_curation"),
+                    sc_present_every_frame=self.params.get(
+                        "sc_present_every_frame"),
+                    sc_no_dividing=self.params.get("sc_no_dividing"),
+                    sc_isolated=self.params.get("sc_isolated"),
+                    sc_roughly_centered=self.params.get("sc_roughly_centered"),
+                    sc_expected_cell_area_um2=self.params.get(
+                        "sc_expected_cell_area_um2"),
                     progress_fn=cb,
                 )
                 auto = result.get("auto", {})

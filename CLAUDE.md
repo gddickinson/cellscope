@@ -191,6 +191,29 @@ Silicon (MPS, no effect on CUDA), GT-validated as a per-frame wash but
 not yet F1-certified, so the default stays bf16. Affects raw-cpsam
 detection + gap-fill only (the cpsam_dic subprocess stays bf16).
 
+### 🔬 Single-cell curation (opt-in, step 7.5 of detect_recording)
+
+For recordings hand-cropped to ONE target cell under known priors
+(isolated, flattened, non-dividing, present every frame, roughly
+centred), `detect_recording` runs `core/single_cell_curation.py::
+curate_single_cell` AFTER detection (at working resolution, before the
+upscale) to **assemble that one cell's track label-agnostically**:
+texture-based rejection of debris + uniform optical shadows (in-mask DIC
+std), ID-stitching across tracker label switches, SAM2 recovery of
+missing frames, and tracking through rounded (balled-up) states. It
+FLAGS (never drops) exceptions — division / two persistent cells /
+unrecoverable frames — in `result["curation"]` + `auto.single_cell_
+curation`. Controlled by 6 kwargs (`single_cell_curation` +
+`sc_present_every_frame` / `sc_no_dividing` / `sc_isolated` /
+`sc_roughly_centered` / `sc_expected_cell_area_um2`), all defaulting to
+None → `DEFAULTS`. **`DEFAULTS.single_cell_curation` is False, so
+ordinary multi-cell detection is completely unchanged.** The focused
+GUI's params panel exposes all six (Detection tab, "Single-cell
+curation" group); the 1-frame **Test on frame** preview forces it OFF
+(it's a multi-frame operation). Built + validated on the IC293
+EC-migration crops (2026-06-17; see `core/single_cell_curation.py`,
+`ic293_analysis/CURATION_DECISIONS.md`).
+
 **Any change to detection defaults belongs in `detect_recording` or
 its dependencies (`pipeline_defaults`, `channel_alignment`,
 `hybrid_dic`, `hybrid_cpsam_multi`, `cy5_filter`).** Don't fork the
@@ -308,6 +331,7 @@ Default port assignments (one per GUI so they can run concurrently):
 | `main_tracking.py` | 8770 | `attach_minimal()` |
 | `main_suite.py` | 8771 | tkinter, daemon-thread server |
 | `main_annotate.py` | 8772 | `attach_minimal()` |
+| `main_review.py` | 8773 | `gui_review/` + `attach_minimal()` |
 
 ```bash
 CELLSCOPE_REMOTE=8765 python main_focused.py &

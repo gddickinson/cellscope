@@ -527,6 +527,74 @@ class ParamsPanel(QWidget):
         # Also fire on enable-toggle (when Cy5 becomes available)
         self._toggle_pg_sub = _toggle_pg
 
+        # --- Single-cell curation (opt-in; curated single-cell crops) ---
+        sc_label = QLabel("<b>Single-cell curation:</b>")
+        form.addRow(sc_label)
+        self.single_cell_curation = QCheckBox()
+        self.single_cell_curation.setChecked(_PD.single_cell_curation)
+        self.single_cell_curation.setToolTip(
+            "Opt-in. For recordings hand-cropped to ONE target cell.\n"
+            "After detection, assemble that single cell's track:\n"
+            "texture-based rejection of debris + uniform optical shadows,\n"
+            "label-agnostic ID-stitching, SAM2 recovery of missing frames,\n"
+            "and tracking through rounded (balled-up) states. Flags (never\n"
+            "drops) divisions / two-cell scenes. OFF by default — leaves\n"
+            "ordinary multi-cell detection unchanged.")
+        form.addRow("Single-cell curation:", self.single_cell_curation)
+
+        self.sc_present_every_frame = QCheckBox()
+        self.sc_present_every_frame.setChecked(_PD.sc_present_every_frame)
+        self.sc_present_every_frame.setEnabled(_PD.single_cell_curation)
+        self.sc_present_every_frame.setToolTip(
+            "Prior: the cell is present in every frame → recover frames\n"
+            "where detection lost it (SAM2 propagation from a neighbour).")
+        form.addRow("  Present every frame:", self.sc_present_every_frame)
+
+        self.sc_isolated = QCheckBox()
+        self.sc_isolated.setChecked(_PD.sc_isolated)
+        self.sc_isolated.setEnabled(_PD.single_cell_curation)
+        self.sc_isolated.setToolTip(
+            "Prior: the cell is isolated (away from others) → every other\n"
+            "detected object is debris/artifact and is removed.")
+        form.addRow("  Isolated cell:", self.sc_isolated)
+
+        self.sc_no_dividing = QCheckBox()
+        self.sc_no_dividing.setChecked(_PD.sc_no_dividing)
+        self.sc_no_dividing.setEnabled(_PD.single_cell_curation)
+        self.sc_no_dividing.setToolTip(
+            "Prior: the cell does not divide → a second persistent cell-\n"
+            "sized object / frequent ID switches are FLAGGED for review\n"
+            "(the recording is kept, never auto-dropped).")
+        form.addRow("  No dividing cells:", self.sc_no_dividing)
+
+        self.sc_roughly_centered = QCheckBox()
+        self.sc_roughly_centered.setChecked(_PD.sc_roughly_centered)
+        self.sc_roughly_centered.setEnabled(_PD.single_cell_curation)
+        self.sc_roughly_centered.setToolTip(
+            "Prior: the cell starts roughly centred in the crop — a tie-\n"
+            "breaker when picking the target cell among candidates.")
+        form.addRow("  Roughly centred:", self.sc_roughly_centered)
+
+        self.sc_expected_area = QDoubleSpinBox()
+        self.sc_expected_area.setRange(0.0, 1e6)
+        self.sc_expected_area.setDecimals(0)
+        self.sc_expected_area.setSingleStep(100.0)
+        self.sc_expected_area.setValue(_PD.sc_expected_cell_area_um2)
+        self.sc_expected_area.setSpecialValueText("infer")
+        self.sc_expected_area.setEnabled(_PD.single_cell_curation)
+        self.sc_expected_area.setToolTip(
+            "Expected flattened cell area (µm²). 0 = infer per recording\n"
+            "from the largest persistent object. Scores 'cellness' (size\n"
+            "vs expected) when separating the cell from debris.")
+        form.addRow("  Expected area (µm², 0=infer):", self.sc_expected_area)
+
+        def _toggle_sc(on):
+            for w in (self.sc_present_every_frame, self.sc_isolated,
+                      self.sc_no_dividing, self.sc_roughly_centered,
+                      self.sc_expected_area):
+                w.setEnabled(on)
+        self.single_cell_curation.toggled.connect(_toggle_sc)
+
         # --- Scale ---
         scale_label = QLabel("<b>Scale:</b>")
         form.addRow(scale_label)
@@ -847,6 +915,14 @@ class ParamsPanel(QWidget):
                 self.cy5_fusion_max_overlap_frac.value(),
             "cy5_fusion_augment_cpsam":
                 self.cy5_fusion_augment_cpsam.isChecked(),
+            "single_cell_curation":
+                self.single_cell_curation.isChecked(),
+            "sc_present_every_frame":
+                self.sc_present_every_frame.isChecked(),
+            "sc_no_dividing": self.sc_no_dividing.isChecked(),
+            "sc_isolated": self.sc_isolated.isChecked(),
+            "sc_roughly_centered": self.sc_roughly_centered.isChecked(),
+            "sc_expected_cell_area_um2": self.sc_expected_area.value(),
         }
 
     def _cy5_filter_mode_value(self):

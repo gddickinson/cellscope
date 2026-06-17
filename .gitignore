@@ -122,3 +122,15 @@ cellscope_*.tar.gz
 ic295_analysis/*
 # Keep the README — it's the usage doc for the batch scripts.
 !ic295_analysis/README.md
+
+# ic293_analysis/ — staged single-cell crops from the IC293 dataset
+# (Ignasi's hand-cropped cells) converted to the IC295 file format,
+# plus future detection/analysis outputs. 3.2 GB of microscopy data +
+# derived results — local only, never ship to git. Same contents-glob
+# pattern as ic295_analysis so the README/provenance docs re-include.
+ic293_analysis/*
+!ic293_analysis/README.md
+!ic293_analysis/PROVENANCE.md
+# Human method-decision log (small, reproducibility record — ship it;
+# the generated CURATION_REPORT.md / review/ stay ignored as regenerable).
+!ic293_analysis/CURATION_DECISIONS.md

@@ -8,6 +8,7 @@
 - **main_editor.py** — Mask Editor GUI
 - **main_training.py** — Model Training GUI
 - **main_annotate.py** — Annotation / Labelling GUI — hand-label cell-frames into classes (rounded/spread, …) for training; review + edit existing labels. `gui_annotate/annotate_window.py` (table of cell-frames + zoomable DIC-crop viewer with r/s/u keys, auto-advance + auto-save) + `gui_annotate/annotate_data.py` (`LabelStore` CSV round-trip + `CropRenderer` with LRU recording cache). Reads/writes the IC295 state_labels CSV so labels feed `scripts/ic295_label_states.py train`. RPC port 8772.
+- **main_review.py** — Rapid single-cell review GUI — fast QC of curated single-cell recordings: ←/→ step frames, PageUp/Dn (n/p) change recording, scroll to zoom (Home refits the cell), **F/Space flag** a problematic cell. Auto-discovers all recordings under `by_condition/`, shows the cell + outline zoomed to its trajectory (+padding), single-channel (DIC-only) load. `gui_review/review_window.py` (`ReviewWindow`) + `gui_review/review_data.py` (`discover_recordings`, single-channel `ReviewRenderer` LRU cache, `trajectory_bbox`, `FlagStore` CSV). Flags persist to `ic293_analysis/review/review_flags.csv`; honours `ic293_common.ANALYSIS_EXCLUDE` (excluded recordings shown + marked, not hidden). RPC port 8773.
 
 ## Remote control (all GUIs)
 Every GUI launched with `CELLSCOPE_REMOTE=<port>` exposes an HTTP RPC
@@ -28,7 +29,8 @@ suite 8771. See `gui_focused/remote_control.py` and `CLAUDE.md` for usage.
 
 - **io.py** — `load_video`, `load_recording`, `find_recordings`
 - **pipeline.py** — `detect()`, `refine()`, `analyze_recording()`
-- **unified_detection.py** — `detect_recording()` — **single canonical detection entry point.** Performs alignment → downsample → threshold conversion → auto-pipeline-select → detect (with optional Cy5 fusion + recovery inline) → Cy5 persistence_guard filter → upscale labels back. Accepts **16 explicit kwargs** (use_deepsea, use_gap_fill, use_sam2_video_gap_fill, max_gap_frames, min_track_length, use_tta, use_cpsam_cy5_union, use_fallback, use_mirror_pad, use_preprocess, use_retry, cy5_filter_mode, cy5_filter_threshold, cy5_pg_min_lifetime, cy5_pg_static_velocity_px, cy5_pg_static_shape_iou, cy5_fusion_jaccard_thresh, cy5_fusion_max_overlap_frac, cy5_fusion_augment_cpsam, use_bfloat16) — None for any kwarg falls back to `DEFAULTS`. Called from both `gui_focused/workers.py` (mode="auto") and `scripts/run_pipeline_on_gt_recording.py`, guaranteeing the GUI and runner produce identical output. **`use_bfloat16`** (DEFAULTS True = bf16, cellpose default) is an opt-in precision flag: uncheck / `--fp32` → fp32, ~1.26× faster on Apple Silicon (MPS); no effect on CUDA. Validated as a wash on per-frame IoU but not yet F1-certified, so default stays bf16. Affects raw-cpsam detection + all gap-fill; the cpsam_dic subprocess stays bf16.
+- **unified_detection.py** — `detect_recording()` — **single canonical detection entry point.** Performs alignment → downsample → threshold conversion → auto-pipeline-select → detect (with optional Cy5 fusion + recovery inline) → Cy5 persistence_guard filter → upscale labels back. Accepts **16 explicit kwargs** (use_deepsea, use_gap_fill, use_sam2_video_gap_fill, max_gap_frames, min_track_length, use_tta, use_cpsam_cy5_union, use_fallback, use_mirror_pad, use_preprocess, use_retry, cy5_filter_mode, cy5_filter_threshold, cy5_pg_min_lifetime, cy5_pg_static_velocity_px, cy5_pg_static_shape_iou, cy5_fusion_jaccard_thresh, cy5_fusion_max_overlap_frac, cy5_fusion_augment_cpsam, use_bfloat16) — None for any kwarg falls back to `DEFAULTS`. Called from both `gui_focused/workers.py` (mode="auto") and `scripts/run_pipeline_on_gt_recording.py`, guaranteeing the GUI and runner produce identical output. **`use_bfloat16`** (DEFAULTS True = bf16, cellpose default) is an opt-in precision flag: uncheck / `--fp32` → fp32, ~1.26× faster on Apple Silicon (MPS); no effect on CUDA. Validated as a wash on per-frame IoU but not yet F1-certified, so default stays bf16. Affects raw-cpsam detection + all gap-fill; the cpsam_dic subprocess stays bf16. **Optional single-cell curation** (step 7.5, 6 more kwargs `single_cell_curation` + `sc_*`; default OFF via `DEFAULTS.single_cell_curation`): runs `core.single_cell_curation.curate_single_cell` after detection to assemble one target cell's track (see below). No effect on multi-cell detection.
+- **single_cell_curation.py** — `curate_single_cell(labels, frames, um_per_px, params)` + `SingleCellCurationParams`. Opt-in curation for hand-cropped single-cell recordings, driven by experimenter priors (isolated / flattened / non-dividing / present-every-frame / centred). Label-agnostic **per-frame track assembly**: a "cellness" = size-vs-expected × **DIC texture** (in-mask std — flat optical shadow vs textured cell) × motion/size continuity, picking the one cell each frame. Subsumes debris + shadow rejection, ID-stitching across label switches, SAM2 gap recovery, and tracking through rounded states; FLAGS (never drops) divisions / two-cell scenes / unresolved frames. Wired into `unified_detection.detect_recording` (step 7.5) + the focused GUI panel; built on the IC293 crops (`scripts/ic293_*`, `ic293_analysis/CURATION_DECISIONS.md`).
 - **detection_presets.py** — named speed↔quality bundles for the focused GUI's "Detection preset" dropdown: **Fast** (skips gap-fill, 3× downsample, fp32, no TTA/DeepSea/fallback/mirror-pad), **Medium** (cheap gap-fill only — no SAM2/CP3 — fp32), **Default (Balanced)** (no overrides = `DEFAULTS`), **Highest Quality** (full res, all gap-fill phases, full-frame always-augment, TTA + DeepSea + fallback + mirror-pad). Per the single-source rule a preset records only *deltas* vs `DEFAULTS`; `preset_values(name)` resolves the full knob set, `apply_preset_to_panel(panel, name)` drives the existing widgets (no new pipeline plumbing). Selecting a preset resets all of `PRESET_PARAMS`, so it's deterministic; the user can still tweak individual options afterward.
 - **channel_alignment.py** — `align_cy5_to_dic()` measures DIC↔Cy5 offset via cellpose centroid matching (in `cellpose4` subprocess), `apply_offset_to_stack()` shifts via scipy.ndimage. Skips when |offset| < 1px.
 - **detection.py** — `detect_cellpose`, `detect_cellpose_labels`, `detect_cellpose_tiled`
@@ -88,7 +90,7 @@ suite 8771. See `gui_focused/remote_control.py` and `CLAUDE.md` for usage.
 - **remote_control.py** — HTTP RPC server module (stdlib `BaseHTTPRequestHandler` inside the Qt event loop). `RemoteControlServer(QObject)` dispatches commands across threads via `pyqtSignal(dict, object)` so handlers run on the GUI thread. `attach(window, handlers, port)` for the full-featured focused GUI, `attach_minimal(window, gui_type, default_port)` for the simpler GUIs (status + log only). `parse_remote_env()` reads `CELLSCOPE_REMOTE=<port>` from the environment.
 - **image_viewer.py** — ImageViewer + FrameNavigatorBar (B/C, zoom, pan). "Colour by:" dropdown + legend recolour cells by an analysis result (cell state / mean speed / persistence / % rounded / per-frame area·circularity·speed) via `gui.metric_coloring`; metrics come from `core.mask_metrics` (no Analyze needed) and refresh when masks change.
 - **pipeline_panel.py** — 5 stage buttons + mode selector + Cancel / Undo Detect / **🔬 Test on frame** / Clear All toolbar row. `btn_test_frame` auto-gates on detect-stage availability; emits `test_frame_clicked` signal.
-- **params_panel.py** — Context-sensitive parameters (modality selector: Auto/DIC/Phase-contrast). A top-of-page **Detection preset** dropdown (Fast / Medium / Default (Balanced) / Highest Quality) one-click-sets the speed↔quality knobs via `core.detection_presets`. Exposes **19 wired pipeline parameters** in 6 grouped sections: Detection (model, min_area, expected_cells, search_radius, min_track_length, ROI), Refinement steps (DeepSea, TTA, cpsam-on-Cy5 union, fallback, mirror-pad), Gap fill (toggle + SAM2 video sub-toggle + **Gap-fill crop (fast)** + **Gap-fill always augment** revert toggles, all gated on Gap fill, max_gap_frames), Cy5 multichannel (fusion, recovery, filter mode dropdown + 3 persistence_guard sub-spinboxes gated on Persistence guard mode), Tiling, DIC pipeline (preprocess, retry, 3 Cy5 fusion sub-thresholds). All values reach `detect_recording` end-to-end via `get_detect_params()`.
+- **params_panel.py** — Context-sensitive parameters (modality selector: Auto/DIC/Phase-contrast). A top-of-page **Detection preset** dropdown (Fast / Medium / Default (Balanced) / Highest Quality) one-click-sets the speed↔quality knobs via `core.detection_presets`. Exposes **19 wired pipeline parameters** in 6 grouped sections: Detection (model, min_area, expected_cells, search_radius, min_track_length, ROI), Refinement steps (DeepSea, TTA, cpsam-on-Cy5 union, fallback, mirror-pad), Gap fill (toggle + SAM2 video sub-toggle + **Gap-fill crop (fast)** + **Gap-fill always augment** revert toggles, all gated on Gap fill, max_gap_frames), Cy5 multichannel (fusion, recovery, filter mode dropdown + 3 persistence_guard sub-spinboxes gated on Persistence guard mode), Tiling, DIC pipeline (preprocess, retry, 3 Cy5 fusion sub-thresholds), and **Single-cell curation** (opt-in toggle + 4 prior checkboxes + expected-area spinbox, sub-widgets gated on the toggle). All values reach `detect_recording` end-to-end via `get_detect_params()`; the 1-frame Test-on-frame preview forces single-cell curation OFF (multi-frame op).
 - **analysis_view.py** — Summary/Graphs/Log tabs. Multi-cell Summary now shows a recording-level aggregate block (n_cells, division rate, mean speed, speed-by-state) plus per-cell state composition + per-frame speed-by-state, using `core.cell_metrics_table`.
 - **analysis_plots.py** — 16 plot functions + GRAPH_REGISTRY (timeseries plots accept `gap_interp_max` kwarg for short-gap interpolation)
 - **vampire_plots.py** — 4 VAMPIRE plots (Shape Modes scatter, Mode Distribution histogram, Mode Over Time, Eigenshape variations); split out so analysis_plots stays under the 500-line limit
@@ -310,6 +312,52 @@ suite 8771. See `gui_focused/remote_control.py` and `CLAUDE.md` for usage.
     and exponential backoff retries. Synthesizes `.ome.json`
     sidecars and repoints `by_condition/<cond>/<label>/` symlinks
     at the local cache. Idempotent / resume-friendly.
+- **IC293 single-cell-crop analysis** (`ic293_*.py`) — the IC295
+  detect→analyze→compare battery re-targeted at Ignasi's hand-cropped
+  IC293 endothelial-cell crops (DIC-only, one cell per crop, several
+  crops per field of view). Same six conditions + two-arm design, so
+  the arm-stats / Fürth / LMM machinery is **imported** from the
+  `ic295_*` modules. See `ic293_analysis/README.md`.
+  - **ic293_stage_crops.py** — converts the lab-share crops to the
+    IC295 on-disk format (single-channel `.ome.tif` + `.ome.json` +
+    `_metadata.txt`) under `ic293_analysis/_cache/`. Reads the share
+    strictly read-only; never touches Ignasi's originals. (Run once;
+    already done — see `ic293_analysis/PROVENANCE.md`.)
+  - **ic293_common.py** — IC293 inventory (LOCAL `_cache/`, no drive),
+    `parse_position` (`Pos13_cell2-WT`→`Pos13`, the cluster unit),
+    `select_primary_cell` (one crop = one real cell present every frame;
+    presence-gate then central+large → keep it, drop artifacts; flags
+    `selection_ambiguous`), folder setup, progress helpers. Reuses the
+    generic atomic-write / progress-entry helpers from `ic295_common`.
+  - **ic293_detect_one.py** — single-channel detect: `load_recording`
+    with no channel args (`cy5_frames=None` → all Cy5 logic guarded
+    off), `detect_recording(pipeline_kind="auto")` → cpsam_dic for the
+    1-cell scenes. Writes canonical `RUN_METADATA.{md,json}` via
+    `core.run_metadata` (rule 2).
+  - **ic293_analyze_one.py** — same per-cell + `annotate_state` path as
+    IC295 (all DIC-derived); single-channel load; applies
+    `select_primary_cell` (keeps the one real cell, drops artifacts;
+    records `n_artifacts_dropped` / `selection_ambiguous` /
+    `primary_cell_presence`); writes its own analysis-phase `RUN_METADATA`.
+  - **ic293_batch.py** / **ic293_status.py** — driver + read-only
+    status (lock / atomic `progress.json` / subprocess isolation /
+    SIGTERM), mirroring the IC295 pair.
+  - **ic293_track_data.py** — per-cell cache (adds `pos`); reuses the
+    IC295 density/centroid helpers. `CACHE_VERSION=1`.
+  - **ic293_motility_stats.py** — **design-correct motility stats,
+    POSITION as the unit**. State-agnostic PRIMARY (speed, net disp,
+    area, MSD, α, **per-cell** Fürth D/P) + flagged EXPLORATORY state
+    rows (`frac_spread`/`speed_spread`, keratinocyte rule on EC).
+    Density dropped (single isolated cells); confounders = position-OLS
+    + cell-level LMM `speed ~ C(treatment)+frac_spread+(1|position)`
+    (via the extended `fit_lmm(include_density=, group_key=)`). Writes
+    `compare/motility_stats/{stats_arms_motility.json,plots_arms/*,REPORT.md}`.
+  - **ic293_compare.py** — shape/state arm comparison, per-position
+    reduction (median over a position's crops). Every metric is
+    state-rule-dependent → labelled EXPLORATORY. `compare/{per_position.csv,
+    stats_arms_shape.json,plots_arms/*}`.
+  - **ic293_flower_plots.py** — flower / motility / MSD plots (reuses
+    the IC295 plotters; `maxlag=24`=240 min for the short crops).
 - **gui/mask_editor_sam2_point.py** — SAM2 point-and-click cell
   detection for the mask editor. Picks "sam2" in the tool palette,
   one click on a missed cell adds a mask with the active cell ID.

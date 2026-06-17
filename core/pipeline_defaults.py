@@ -506,6 +506,23 @@ class PipelineDefaults:
     # --no-state). Turn off per-run if you only need bulk metrics.
     compute_state_classification: bool = True
 
+    # --- Single-cell curation (opt-in; for curated single-cell crops) ---
+    # When a recording is hand-cropped to ONE target cell under known
+    # priors (isolated, flattened, non-dividing, present every frame,
+    # roughly centred), run core.single_cell_curation AFTER detection to
+    # assemble that one cell's track: texture-based artifact + optical-
+    # shadow rejection, label-agnostic ID-stitching, SAM2 gap recovery,
+    # and tracking through rounded states. Flags (never drops) exceptions
+    # (division / two persistent cells / unrecoverable frames). OFF by
+    # default → ordinary multi-cell detection is completely unchanged.
+    # (Built + validated on the IC293 EC-migration crops, 2026-06-17.)
+    single_cell_curation: bool = False
+    sc_present_every_frame: bool = True
+    sc_no_dividing: bool = True
+    sc_isolated: bool = True
+    sc_roughly_centered: bool = True
+    sc_expected_cell_area_um2: float = 0.0   # 0 = infer per recording
+
     def as_dict(self) -> dict:
         return asdict(self)
 

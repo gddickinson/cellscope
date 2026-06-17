@@ -79,13 +79,21 @@ def furth_fit(lag, msd):
         return float("nan"), float("nan")
 
 
-def fit_lmm(table, arm_conditions, control, outcome="speed"):
-    """Cell-level linear mixed model, recording as random intercept.
+def fit_lmm(table, arm_conditions, control, outcome="speed",
+            include_density=True, group_key="label"):
+    """Cell-level linear mixed model with a random intercept per cluster.
 
-    table: list of per-cell dicts with keys cond, label, <outcome>,
-           frac_spread, med_neighbors. Rows outside `arm_conditions` or
-           with non-finite fields are dropped. The control level is the
-           reference so each coefficient reads "<test> vs control".
+    table: list of per-cell dicts with keys cond, <group_key>, <outcome>,
+           frac_spread, and (when include_density) med_neighbors. Rows
+           outside `arm_conditions` or with non-finite fields are dropped.
+           The control level is the reference so each coefficient reads
+           "<test> vs control".
+
+    include_density=False drops the crowding covariate + its finiteness
+    requirement — used by the IC293 single-cell crops where every crop is
+    one isolated cell (density has no between-unit variation, so the term
+    is singular). group_key selects the random-intercept cluster column
+    (IC295: 'label' = recording; IC293: 'pos' = field of view).
 
     Returns {test_cond: {coef, p, se}, '_covariates': {...}, 'n', 'groups'}
     or None if statsmodels is unavailable / the fit fails."""
@@ -97,25 +105,31 @@ def fit_lmm(table, arm_conditions, control, outcome="speed"):
     for r in table:
         if r["cond"] not in arm_conditions:
             continue
-        vals = (r.get(outcome), r.get("frac_spread"), r.get("med_neighbors"))
+        vals = [r.get(outcome), r.get("frac_spread")]
+        if include_density:
+            vals.append(r.get("med_neighbors"))
         if not all(v is not None and np.isfinite(v) for v in vals):
             continue
-        rows.append({"y": float(r[outcome]), "frac_spread": float(r["frac_spread"]),
-                     "density": float(r["med_neighbors"]),
-                     "treatment": r["cond"], "recording": r["label"]})
+        row = {"y": float(r[outcome]), "frac_spread": float(r["frac_spread"]),
+               "treatment": r["cond"], "cluster": r[group_key]}
+        if include_density:
+            row["density"] = float(r["med_neighbors"])
+        rows.append(row)
     if len(rows) < len(arm_conditions) * 3:
         return None
     df = pd.DataFrame(rows)
     df["treatment"] = pd.Categorical(
         df["treatment"],
         categories=[control] + [c for c in arm_conditions if c != control])
+    formula = "y ~ C(treatment) + frac_spread" + (
+        " + density" if include_density else "")
     try:
-        md = smf.mixedlm("y ~ C(treatment) + frac_spread + density", df,
-                         groups=df["recording"])
+        md = smf.mixedlm(formula, df, groups=df["cluster"])
         fit = md.fit(reml=True, method="lbfgs")
     except Exception:
         return None
-    out = {"n": int(len(df)), "groups": int(df["recording"].nunique()),
+    cov_names = ("frac_spread", "density") if include_density else ("frac_spread",)
+    out = {"n": int(len(df)), "groups": int(df["cluster"].nunique()),
            "_covariates": {}}
     for name in fit.params.index:
         coef = float(fit.params[name]); p = float(fit.pvalues[name])
@@ -123,6 +137,6 @@ def fit_lmm(table, arm_conditions, control, outcome="speed"):
         if name.startswith("C(treatment)[T."):
             cond = name.split("[T.")[1].rstrip("]")
             out[cond] = {"coef": coef, "p": p, "se": se}
-        elif name in ("frac_spread", "density"):
+        elif name in cov_names:
             out["_covariates"][name] = {"coef": coef, "p": p}
     return out

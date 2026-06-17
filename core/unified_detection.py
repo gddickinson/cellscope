@@ -30,6 +30,20 @@ import numpy as np
 log = logging.getLogger(__name__)
 
 
+def _single_track_from_labels(labels):
+    """Minimal one-track-per-label list for the curated single cell, so
+    the GUI + downstream see a single track. Stacks are at the labels'
+    resolution; the upscale step lifts them like any other track."""
+    tracks = []
+    for cid in [int(v) for v in np.unique(labels) if v > 0]:
+        stack = labels == cid
+        present = stack.any(axis=(1, 2))
+        if present.any():
+            tracks.append({"stack": stack,
+                           "first_frame": int(np.argmax(present))})
+    return tracks
+
+
 def detect_recording(dic_frames, cy5_frames=None,
                       um_per_px=None, time_interval_min=None,
                       downsample="auto",
@@ -61,6 +75,12 @@ def detect_recording(dic_frames, cy5_frames=None,
                       cy5_fusion_max_overlap_frac=None,
                       cy5_fusion_augment_cpsam=None,
                       use_bfloat16=None,
+                      single_cell_curation=None,
+                      sc_present_every_frame=None,
+                      sc_no_dividing=None,
+                      sc_isolated=None,
+                      sc_roughly_centered=None,
+                      sc_expected_cell_area_um2=None,
                       progress_fn=None):
     """Run the canonical end-to-end detection.
 
@@ -283,6 +303,54 @@ def detect_recording(dic_frames, cy5_frames=None,
         result["labels"] = rebuild_label_stack(
             kept, dic_frames.shape)
         result["masks"] = result["labels"] > 0
+
+    # ---- 7.5 Single-cell curation (opt-in; one target cell) ----
+    # Runs at the WORKING resolution (labels + dic_frames matched here),
+    # before the upscale; the curated single-cell labels are then upscaled
+    # by step 8 like any other result. OFF by default → no effect on
+    # ordinary multi-cell detection.
+    eff_sc = (single_cell_curation if single_cell_curation is not None
+              else DEFAULTS.single_cell_curation)
+    if eff_sc and result.get("labels") is not None:
+        _emit("Single-cell curation", 95)
+        from core.single_cell_curation import (
+            SingleCellCurationParams, curate_single_cell)
+
+        def _eff(v, d):
+            return v if v is not None else d
+        exp_area = _eff(sc_expected_cell_area_um2,
+                        DEFAULTS.sc_expected_cell_area_um2)
+        sc_params = SingleCellCurationParams(
+            enabled=True,
+            cell_present_every_frame=_eff(sc_present_every_frame,
+                                          DEFAULTS.sc_present_every_frame),
+            no_dividing=_eff(sc_no_dividing, DEFAULTS.sc_no_dividing),
+            cell_isolated=_eff(sc_isolated, DEFAULTS.sc_isolated),
+            roughly_centered=_eff(sc_roughly_centered,
+                                  DEFAULTS.sc_roughly_centered),
+            expected_cell_area_um2=(exp_area or None),
+            max_hop_px=max(10.0, eff_max_hop / max(factor, 1)))
+        try:
+            new_labels, clog = curate_single_cell(
+                result["labels"], dic_frames, effective_um_per_px, sc_params)
+            result["labels"] = new_labels.astype(np.int32)
+            result["masks"] = result["labels"] > 0
+            result.setdefault("tracks_raw", result.get("tracks"))
+            result["tracks"] = _single_track_from_labels(result["labels"])
+            result["curation"] = clog
+            auto["single_cell_curation"] = {
+                k: clog.get(k) for k in
+                ("primary_id", "final_presence", "n_objects_initial",
+                 "needs_manual_review")}
+            auto["single_cell_curation"]["exceptions"] = [
+                e.get("type") for e in clog.get("exceptions", [])]
+            log.info("single-cell curation: presence=%s review=%s",
+                     clog.get("final_presence"),
+                     clog.get("needs_manual_review"))
+        except Exception as e:                       # never break detection
+            log.warning("single-cell curation failed (%s); keeping raw "
+                        "detection", e)
+            auto["single_cell_curation"] = {"error": str(e)}
 
     # ---- 8. Upscale labels back to original resolution ----
     if factor > 1:

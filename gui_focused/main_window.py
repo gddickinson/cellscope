@@ -961,6 +961,10 @@ class FocusedMainWindow(QMainWindow):
                 pipeline_kind=test_pipeline_kind,
                 run_cy5_filter=False,
                 use_gap_fill=False,
+                # Single-cell curation assembles the cell's track ACROSS
+                # frames (texture/continuity + SAM2 recovery), so it's
+                # meaningless on a 1-frame preview — force it off here.
+                single_cell_curation=False,
                 # Tracking needs min_track_length=1 for a 1-frame run
                 # (default 3 would drop the single-frame "track").
                 min_track_length=1,
