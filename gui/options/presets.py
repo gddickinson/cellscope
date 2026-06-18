@@ -83,7 +83,7 @@ def _rf_only_combined() -> RunParams:
 
 
 def _best_for_our_recordings() -> RunParams:
-    """Legacy optimal pipeline for our full-frame DIC keratinocyte videos.
+    """Legacy optimal pipeline for our full-frame DIC endothelial cell videos.
 
     Matches SESSION_LOG Test 20/21: cellpose_dic at ft=0.0 ct=0.0 →
     RF isoline refinement. Crop enabled for speed.

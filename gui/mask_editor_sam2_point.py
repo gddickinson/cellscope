@@ -183,7 +183,7 @@ def predict_at_point(frame_image, click_x, click_y,
 
     max_area_px guards against SAM2 segmenting empty/low-contrast
     background as one giant blob. Default 50000 px is ~10× a typical
-    keratinocyte cell area (~5000 px at 0.6523 µm/px) — generous
+    endothelial cell area (~5000 px at 0.6523 µm/px) — generous
     enough not to clip legitimately large cells, tight enough to
     reject the 200k-300k-px background blobs SAM2 produces when the
     click happens to land on featureless space.

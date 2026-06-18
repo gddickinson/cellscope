@@ -98,7 +98,7 @@ background texture as cell material.
 ## Plan B: Train a DIC-Specific Cellpose 3 Detector
 
 ### Goal
-Train a cellpose 3 model specifically for DIC keratinocytes using the
+Train a cellpose 3 model specifically for DIC endothelial cells using the
 full VAMPIRE dataset. Unlike Plan A (fine-tuning cpsam), this trains a
 lighter CNN-based model that runs in the CP3 env without needing the
 ViT backbone.

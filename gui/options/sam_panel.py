@@ -45,8 +45,8 @@ def build_sam_group():
 
     note = QLabel(
         "<i>SAM typically produces smooth blob-like contours on DIC "
-        "keratinocytes (misses filopodia). Useful as a comparison "
-        "baseline or on non-keratinocyte data.</i>"
+        "endothelial cells (misses filopodia). Useful as a comparison "
+        "baseline or on non-endothelial cell data.</i>"
     )
     note.setWordWrap(True)
     form.addRow(note)

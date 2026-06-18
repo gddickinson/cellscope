@@ -295,7 +295,7 @@ def figure_ignasi(model_cpsam):
 
     fig.text(0.5, 0.01,
              "coloured = per-cell prediction (default cpsam, no DIC fine-tune)   "
-             "expected best for phase-contrast keratinocytes",
+             "expected best for phase-contrast endothelial cells",
              ha="center", fontsize=9)
     fig.tight_layout(rect=[0, 0.03, 1, 0.97])
     out = f"{OUT_DIR}/04_ignasi_phase.png"

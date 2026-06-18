@@ -1,7 +1,7 @@
 """Sequence-level preprocessing: background subtraction, high-pass, debris.
 
 Ported from `claude_test/optical_flow/src/{background,debris_removal}.py`
-which validated these on the same DIC keratinocyte data we use here.
+which validated these on the same DIC endothelial cell data we use here.
 
 Filters that run ONCE before per-frame analysis:
 
@@ -23,7 +23,7 @@ Filters that run ONCE before per-frame analysis:
 4. **Physical-unit debris removal** — morphological alternating-sequence
    filter with a disk sized in micrometers. Wipes bright AND dark features
    smaller than `min_cell_diameter_um` (default 5 μm; safely below
-   keratinocyte size). Requires `pixel_size_um`.
+   endothelial cell size). Requires `pixel_size_um`.
 
 These are SAFE additions: each step has a graceful disable (None or 0)
 and the output is always uint8 the same shape as input.

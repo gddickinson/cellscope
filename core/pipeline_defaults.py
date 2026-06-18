@@ -361,10 +361,10 @@ class PipelineDefaults:
     min_area_px: int = 200
     # Physical-unit equivalent. At IC295's 0.6523 µm/px:
     #   200 px × 0.6523² µm²/px² ≈ 85 µm² — small but real (balled
-    #   keratinocytes can project to ~80-150 µm² in DIC).
+    #   endothelial cells can project to ~80-150 µm² in DIC).
     min_area_um2: float = 85.0
 
-    # Expected cell diameter (typical spread keratinocyte). Cellpose
+    # Expected cell diameter (typical spread endothelial cell). Cellpose
     # uses this to internally scale features so the model's training-
     # diameter prior matches the input. None = let cellpose auto-
     # estimate from image content (works at IC295 scale).
@@ -373,7 +373,7 @@ class PipelineDefaults:
     expected_cells: int = 0   # 0 = unknown, scan_cell_count() may set
     search_radius_px: int = 150
     # Physical-unit equivalent for tracker max-hop and gap-fill search.
-    # Keratinocytes move <0.5-2 µm/min on DIC time-lapse; our
+    # Endothelial cells move <0.5-2 µm/min on DIC time-lapse; our
     # 10-min/frame interval gives <20 µm/frame max, so 100 µm /min
     # search radius covers ~5 frames of motion.
     max_hop_um_per_min: float = 15.0
@@ -499,7 +499,7 @@ class PipelineDefaults:
     compute_membrane: bool = False
     compute_vampire: bool = False
     vampire_n_clusters: int = 5
-    # On by default: the keratinocyte motility analysis is confounded
+    # On by default: the endothelial cell motility analysis is confounded
     # by balled-up (rounded mitotic / dying) cells, so every GUI now
     # stratifies motility by cell state out of the box — matching the
     # IC295 batch (scripts/ic295_analyze_one.py runs state unless

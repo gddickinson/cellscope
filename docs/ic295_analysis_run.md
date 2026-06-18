@@ -1,6 +1,6 @@
 # IC295 batch analysis — operations guide
 
-The IC295 batch processes the **65 multichannel DIC + Cy5 keratinocyte
+The IC295 batch processes the **65 multichannel DIC + Cy5 endothelial cell
 recordings** across 6 Piezo1-genotype conditions (WT, KO, GOF, Y1, OT,
 DMSO) into a treatment-comparison dataset, with a **manual mask-review
 checkpoint between detection and analysis** so segmentation artifacts

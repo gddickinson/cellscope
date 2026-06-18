@@ -133,7 +133,7 @@ This is the original goal of the project.
 **Effort:** ~1 week.
 
 ### 3.2 Cross-cell-type validation
-Try the pipeline on a non-keratinocyte recording (fibroblasts, neurons,
+Try the pipeline on a non-endothelial cell recording (fibroblasts, neurons,
 MDA-MB-231). Either confirms generality or reveals limits.
 **Effort:** 0.5–1 day.
 

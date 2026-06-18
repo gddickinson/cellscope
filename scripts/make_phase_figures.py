@@ -36,7 +36,7 @@ import tifffile
 OUT = "docs/figures"
 os.makedirs(OUT, exist_ok=True)
 
-UM_PER_PX = 0.65   # typical for phase-contrast keratinocytes
+UM_PER_PX = 0.65   # typical for phase-contrast endothelial cells
 DT_MIN = 5.0
 SPEED_CAP = 15.0
 

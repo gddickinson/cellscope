@@ -3,7 +3,7 @@
 Hero: 4 panels showing the pipeline end-to-end on a clean recording
       (Jesse pos0_wt — single cell, 200 frames, very stable tracking).
       Speeds are smoothed (rolling-window) and capped at a biologically
-      plausible upper bound (15 µm/min for keratinocytes), eliminating
+      plausible upper bound (15 µm/min for endothelial cells), eliminating
       the centroid-jump artifacts in the previous hero.
 
 Phase-contrast: detect_hybrid_cpsam_multi requires cellpose 4, so this
@@ -36,7 +36,7 @@ os.makedirs(OUT, exist_ok=True)
 
 UM_PER_PX = 0.65
 DT_MIN = 5.0
-SPEED_CAP = 15.0   # keratinocytes don't migrate faster than this
+SPEED_CAP = 15.0   # endothelial cells don't migrate faster than this
 
 
 # ──────────────────────────────────────────────────────────────────────

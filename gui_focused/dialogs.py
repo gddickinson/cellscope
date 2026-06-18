@@ -147,7 +147,7 @@ def show_about(parent):
         parent, "About CellScope",
         "CellScope — Focused Pipeline\n\n"
         "Analyzes DIC/phase-contrast time-lapse microscopy\n"
-        "of migrating keratinocytes.\n\n"
+        "of migrating endothelial cells.\n\n"
         "Detection: Cellpose-SAM (cpsam) + DeepSea union\n"
         "Tracking: Hungarian algorithm with gap fill\n"
         "Analysis: speed, morphology, edge dynamics\n\n"

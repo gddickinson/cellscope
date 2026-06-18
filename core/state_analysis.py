@@ -45,7 +45,7 @@ from __future__ import annotations
 import numpy as np
 
 # Speed cap (µm/min) for the per-frame speed — discards tracking glitches
-# (a keratinocyte cannot exceed ~15 µm/min).
+# (an endothelial cell cannot exceed ~15 µm/min).
 _PF_SPEED_CAP = 15.0
 
 _SHAPE_KEYS = ("circularity", "solidity", "aspect_ratio", "eccentricity")

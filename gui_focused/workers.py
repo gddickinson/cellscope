@@ -133,7 +133,7 @@ class FocusedDetectWorker(QThread):
                         "min_track_length"),
                     # The GUI's "Search radius (px)" widget controls
                     # the multi-cell tracker's max centroid hop —
-                    # tighten it for slow keratinocytes to suppress
+                    # tighten it for slow endothelial cells to suppress
                     # ID switches across nearby cells.
                     max_hop_px=self.params.get("search_radius"),
                     use_tta=self.params.get("use_tta"),

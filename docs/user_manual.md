@@ -50,7 +50,7 @@ The primary workflow for analyzing a single recording.
 ### Single-Cell Detection
 
 ![Single-cell detection](figures/focused_detected.png)
-*Single-cell phase-contrast detection (red contour) on a cropped keratinocyte recording.*
+*Single-cell phase-contrast detection (red contour) on a cropped endothelial cell recording.*
 
 ### Pipeline Stages
 

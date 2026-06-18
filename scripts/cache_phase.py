@@ -1,7 +1,7 @@
 """Cache a phase-contrast multi-cell pipeline run.
 
 Phase-contrast recordings (Ignasi-style) show clearer cell migration
-and division events than the slow keratinocyte DIC recordings used
+and division events than the slow endothelial cell DIC recordings used
 elsewhere in the figure set. Cache once, render figures from cache.
 
 Run from cellpose4 env (hybrid_cpsam_multi requires cellpose 4):

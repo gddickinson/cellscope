@@ -5,7 +5,7 @@
 CellScope detects cell boundaries, tracks cells across frames, and quantifies migration, morphology, and edge dynamics — for single-cell, multi-cell, and multi-channel (DIC + actin) recordings. Five specialised GUIs cover the full workflow from raw recordings to publication-ready figures and statistical comparisons.
 
 ![CellScope: detect → track → analyse](docs/figures/hero.png)
-*End-to-end workflow on a phase-contrast keratinocyte recording: cpsam detection → Hungarian tracking → per-cell migration metrics → group statistics.*
+*End-to-end workflow on a phase-contrast endothelial cell recording: cpsam detection → Hungarian tracking → per-cell migration metrics → group statistics.*
 
 ## Key Features
 
@@ -275,7 +275,7 @@ Every parameter in the right-hand panel is plumbed end-to-end — toggling `Deep
 
 ## Example Results
 
-All graphs come from one tracked cell in a real 97-frame phase-contrast keratinocyte recording. Your own analyses produce equivalent plots from your data.
+All graphs come from one tracked cell in a real 97-frame phase-contrast endothelial cell recording. Your own analyses produce equivalent plots from your data.
 
 | Trajectory | Speed | Edge Kymograph |
 |:---:|:---:|:---:|
@@ -307,7 +307,7 @@ Hungarian wins on TRA by 0.08 — fewer edge-addition errors. Both clear the 0.8
 ## DIC recordings
 
 ![DIC multi-cell with debris filter](docs/figures/focused_phase_detected.png)
-*The DIC pipeline (cpsam_dic + min_area filter + per-cell DeepSea refinement) handles cropped DIC keratinocyte recordings. The debris filter automatically drops small false-positive blobs.*
+*The DIC pipeline (cpsam_dic + min_area filter + per-cell DeepSea refinement) handles cropped DIC endothelial cell recordings. The debris filter automatically drops small false-positive blobs.*
 
 **DIC detection benchmarks** (head-to-head, 90 stratified frames per test):
 
@@ -549,7 +549,7 @@ All tests run headless via `QT_QPA_PLATFORM=offscreen`.
 | cpsam (default) | ViT (CP4) | General microscopy | Phase-contrast, crowded fields |
 | cellpose_dic_v3 | CNN (CP3) | 2,644 standardised 448 px crops | Faster DIC alternative |
 | cellpose_dic_v2 | CNN (CP3) | 2,812 DIC pairs (VAMPIRE+GT+CTC) | Legacy DIC |
-| cellpose_dic | CNN (CP3) | Our DIC keratinocytes | Original DIC fine-tune |
+| cellpose_dic | CNN (CP3) | Our DIC endothelial cells | Original DIC fine-tune |
 | cellpose_combined_robust | CNN (CP3) | 5,826 augmented pairs | Noisy / perturbed recordings |
 | DeepSea | U-Net | Brightfield / phase-contrast | Boundary refinement |
 | MedSAM | SAM-ViT | Biomedical images | Foundation-model fallback refinement |

@@ -11,7 +11,7 @@ platform for DIC and phase-contrast time-lapse microscopy. It provides
 end-to-end analysis from raw recordings to publication-ready figures
 and statistical comparisons.
 
-Built to analyze migrating keratinocytes from Holt et al. 2021 (eLife),
+Built to analyze migrating endothelial cells from Holt et al. 2021 (eLife),
 extensible to any single- or multi-cell DIC/phase-contrast recordings.
 
 ---
@@ -61,7 +61,7 @@ cpsam (ViT) → DeepSea union → fallback (CP3) → gap fill
 - 100% detection across 5 recordings (485 frames)
 - Auto-fallback rescues 1-4 frames per recording
 
-### DIC (Jesse's VAMPIRE / our keratinocytes)
+### DIC (Jesse's VAMPIRE / our endothelial cells)
 ```
 cpsam_dic (CP4 ViT, via cellpose4 subprocess) → DeepSea union → fallback
 ```
@@ -116,7 +116,7 @@ cpsam/cellpose → debris filter → DeepSea per-cell → Hungarian tracker
 | cpsam (default) | ViT (CP4) | General microscopy | Phase-contrast |
 | cellpose_dic_v3 | CNN (CP3) | 2,644 standardized 448px crops | Faster DIC alternative |
 | cellpose_dic_v2 | CNN (CP3) | 2,812 DIC pairs (VAMPIRE+GT+CTC) | Legacy DIC |
-| cellpose_dic | CNN (CP3) | Our DIC keratinocytes | Original DIC fine-tune |
+| cellpose_dic | CNN (CP3) | Our DIC endothelial cells | Original DIC fine-tune |
 | cellpose_combined_robust | CNN (CP3) | 5,826 augmented pairs | Noisy / perturbed recordings |
 | DeepSea | U-Net | Brightfield/phase-contrast | Boundary refinement |
 | MedSAM | SAM-ViT | Biomedical images | Foundation model refinement |
@@ -244,7 +244,7 @@ in `download_models.py` serves this same v2 file.
 
 | Dataset | Pairs | Format | Purpose |
 |---------|-------|--------|---------|
-| VAMPIRE (Jesse) | 5,290 | TIFF crops | DIC keratinocyte training |
+| VAMPIRE (Jesse) | 5,290 | TIFF crops | DIC endothelial cell training |
 | Our GT (control) | 122 | PNG 526² | Full-frame evaluation |
 | Our GT (cKO) | 122 | PNG 526² | Full-frame evaluation |
 | CTC DIC-HeLa | 168 | PNG 512² | Cross-domain benchmark |

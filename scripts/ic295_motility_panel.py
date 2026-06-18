@@ -164,7 +164,7 @@ def main():
                   fontsize=10)
     _letter(axF, "F")
 
-    fig.suptitle("IC295 keratinocyte motility (n=8/condition): NO treatment "
+    fig.suptitle("IC295 endothelial cell motility (n=8/condition): NO treatment "
                  "effect on migration — dispersal is structured by cell "
                  "STATE + CROWDING, not genotype/drug\n"
                  "A naive ensemble mean (A) suggests differences but inverts "

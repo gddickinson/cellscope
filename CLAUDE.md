@@ -272,9 +272,9 @@ Important physical defaults:
 
 | Default | Value | Why |
 |---|---|---|
-| `min_area_um2` | 85 µm² | catches rounded keratinocytes (~80-150 µm²) |
-| `expected_cell_diameter_um` | 30 µm | typical spread keratinocyte; passed to cellpose for cross-scope robustness |
-| `max_hop_um_per_min` | 15 µm/min | upper bound on keratinocyte motion |
+| `min_area_um2` | 85 µm² | catches rounded endothelial cells (~80-150 µm²) |
+| `expected_cell_diameter_um` | 30 µm | typical spread endothelial cell; passed to cellpose for cross-scope robustness |
+| `max_hop_um_per_min` | 15 µm/min | upper bound on endothelial cell motion |
 | `search_radius_um` | 100 µm | tracker gap-fill window |
 
 For a hypothetical 0.4 µm/px microscope, the converter gives

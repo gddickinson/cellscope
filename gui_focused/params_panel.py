@@ -159,7 +159,7 @@ class ParamsPanel(QWidget):
         self.search_radius.setToolTip(
             "Max centroid hop (pixels) the multi-cell tracker will "
             "allow between consecutive frames. Default 150 suits "
-            "fast-moving cells; for slow keratinocytes at long frame "
+            "fast-moving cells; for slow endothelial cells at long frame "
             "intervals, tighten to 30-50 to prevent ID swaps "
             "between nearby cells.")
         form.addRow("Search radius (px):", self.search_radius)

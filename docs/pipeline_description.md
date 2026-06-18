@@ -221,7 +221,7 @@ significance brackets (*, **, ***).
    Communications 2024;15:654.
 
 5. Holt CE, et al. Piezo1 regulates mechanotransduction in
-   keratinocyte migration. eLife 2021.
+   endothelial cell migration. eLife 2021.
 
 6. Lam J, et al. A robust unsupervised machine-learning method to
    quantify the morphological heterogeneity of cells and nuclei.

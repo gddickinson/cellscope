@@ -3,10 +3,10 @@
 SAM is a general-purpose foundation model trained on ~1B diverse masks.
 Given prompts (centroid point + bounding box + optional rough mask),
 it returns a precise boundary. Useful as an alternative refinement
-path — historically on DIC keratinocytes it produces smooth blob-like
+path — historically on DIC endothelial cells it produces smooth blob-like
 contours and misses filopodia, but bundled as an option for users who
 want to compare against the RF pipeline or need generic foundation-
-model behaviour on non-keratinocyte DIC data.
+model behaviour on non-endothelial cell DIC data.
 
 Requires `segment_anything` package and a SAM checkpoint under
 `data/models/sam/sam_vit_{b,l,h}_*.pth`. The `vit_b` model ships with

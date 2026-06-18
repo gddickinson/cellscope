@@ -1,7 +1,7 @@
 # Demo recordings
 
 Five compact example recordings for trying out the GUI. Each is a
-trimmed + DEFLATE-compressed slice of a real keratinocyte recording —
+trimmed + DEFLATE-compressed slice of a real endothelial cell recording —
 small enough to ship in the repo (~108 MB total) but big enough to
 exercise the full pipeline end-to-end.
 
