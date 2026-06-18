@@ -371,6 +371,32 @@ suite 8771. See `gui_focused/remote_control.py` and `CLAUDE.md` for usage.
     FRAME-BY-FRAME from the reviewer's per-frame picks (Original base +
     chosen candidate per picked frame; from `review/review_choices.csv`);
     lists manual-brush flags; provenance to `review/applied_choices.json`.
+- **IC295 single-cell-crop analysis** (`ic295sc_*.py`) — a DERIVED dataset:
+  individual **non-dividing** single cells cropped out of the multi-cell IC295
+  recordings and analysed exactly like the IC293 crops, in a separate folder
+  `ic295_single-cell-crop_analysis/` (`ic295_analysis/` is never modified).
+  See that folder's `README.md`.
+  - **ic295sc_crop_cells.py** — reads `ic295_analysis/` READ-ONLY; for every
+    recording, keeps each tracked cell that is non-dividing (not parent/daughter
+    in `divisions.json`; label = `track_index+1`), present ≥ `--min-frames`
+    (default 30 = the shortest IC293 track) contiguous frames, and not heavily
+    edge-truncated; crops the DIC video + that one cell's isolated mask to the
+    trajectory bbox + margin over the cell's present span; writes the IC293
+    on-disk layout (`_cache/<label>.ome.tif` + sidecar, `by_condition/<cond>/
+    <label>/{<label>.cellscope, pipeline_results/{masks.npz, RUN_METADATA}}`) +
+    `crops_manifest.csv`. Label = `<SrcPos>_cell<ID>-<COND>`. Masks are REUSED
+    from the validated IC295 detection (not re-detected).
+  - **ic295sc_run.py** — sets `IC293_ANALYSIS_ROOT` to the derived folder and
+    runs the IDENTICAL IC293 battery (no forks): `ic293_analyze_one` per crop
+    (parallel pool) → `ic293_compare` → `ic293_track_data --rebuild` →
+    `ic293_motility_stats` → `ic293_flower_plots`. Unit = source recording
+    (the `PosN` cluster). Endothelial cells (IC295 EC-migration); since they are
+    IC295's own cells (the rounded/spread rule was fit on IC295 hand labels),
+    state metrics are a primary read here — IC293, a separate EC experiment,
+    flags the transferred rule exploratory.
+  - Enabled by a one-line, backward-compatible env-override in
+    `ic293_common.py` (`ANALYSIS_ROOT = $IC293_ANALYSIS_ROOT or <default>`);
+    unset → IC293 behaviour unchanged.
 - **gui/mask_editor_sam2_point.py** — SAM2 point-and-click cell
   detection for the mask editor. Picks "sam2" in the tool palette,
   one click on a missed cell adds a mask with the active cell ID.

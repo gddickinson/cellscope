@@ -10,6 +10,41 @@ Format: **DATE — short title** with bullets describing what changed
 
 ---
 
+**2026-06-18 — IC295 single-cell-crop dataset (`ic295_single-cell-crop_analysis/`)**
+- New DERIVED dataset: individual **non-dividing** single cells cropped out of
+  the 48 multi-cell IC295 recordings and analysed with the SAME battery as the
+  IC293 crops. `ic295_analysis/` is read-only throughout; nothing in it changes.
+- `scripts/ic295sc_crop_cells.py` — reads each IC295 `pipeline_results/masks.npz`
+  + `divisions.json`, keeps cells that are non-dividing (label = `track_index+1`;
+  excludes parents + daughters), present ≥ 30 contiguous frames (= the shortest
+  IC293 track; median IC293 = 60, max = 97), present/span ≥ 0.9, edge-truncated
+  ≤ 50 % of frames. Crops the DIC video + that one cell's isolated mask (relabel
+  → 1) to the trajectory bbox + 60 px margin over the cell's present span.
+  **Masks are REUSED from the validated/reviewed IC295 detection** (no
+  re-detection). Writes the IC293 on-disk layout (`_cache/<label>.ome.tif` u8
+  TYX + sidecar, `by_condition/<cond>/<label>/{...,pipeline_results/{masks.npz,
+  RUN_METADATA}}`, `<label>.cellscope`) + `crops_manifest.csv`. Label grammar
+  `<SrcPos>_cell<ID>-<COND>` so the IC293 condition/position parsers work
+  verbatim; **source recording = the replication unit** (PosN unique across
+  conditions — verified). Edge semantics preserved by bbox+margin cropping.
+- `scripts/ic295sc_run.py` — sets `IC293_ANALYSIS_ROOT` and runs the IDENTICAL
+  IC293 battery (analyze_one per crop in a pool → compare → track_data --rebuild
+  → motility_stats → flower_plots). NO code forks.
+- Reuse enabled by a one-line, **backward-compatible** env-override in
+  `scripts/ic293_common.py`: `ANALYSIS_ROOT = $IC293_ANALYSIS_ROOT or <default>`
+  (all derived paths follow). Env unset → IC293 behaviour byte-identical.
+- Cell type: **endothelial** (IC295 = "EC migration"), same as IC293. But these
+  are IC295's OWN cells — the ones the rounded/spread rule was fitted on
+  (`ic295_analysis/state_labels`) — so state metrics are a **primary** read here,
+  as in the main IC295 population analysis. IC293, a SEPARATE endothelial
+  experiment with no labels of its own, flags the *transferred* rule exploratory.
+  Noted in the dataset README + `compare/INTERPRETATION.md`. (Corrected after the
+  initial draft mislabeled the cells keratinocyte.)
+- Validated end-to-end on Pos1-WT: 4 crops (cells 1/3/4/6; division pair
+  `[2,9]` excluded), `load_recording` reads them single-channel (T,H,W) u8 with
+  matching masks, `ic293_analyze_one` ran via the override. Dataset git-ignored
+  (derived microscopy, public repo) except its README.
+
 **2026-06-18 — Comprehensive lab report (`docs/CELLSCOPE_REPORT.md`)**
 - Wrote a single-file, shareable internal report (~1030 lines): project
   overview + architecture, development history (10 phases), current state,

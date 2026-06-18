@@ -56,7 +56,16 @@ DEFAULT_UM_PER_PX = 0.6523
 DEFAULT_DT_MIN = 10.0
 
 PROJECT_ROOT    = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-ANALYSIS_ROOT   = os.path.join(PROJECT_ROOT, "ic293_analysis")
+# Analysis root is normally `ic293_analysis/`. It can be RETARGETED to another
+# single-cell-crop dataset that shares this on-disk layout and the same six
+# conditions / two-arm design by setting the env var IC293_ANALYSIS_ROOT.
+# This is how the derived `ic295_single-cell-crop_analysis/` dataset reuses the
+# ENTIRE IC293 analysis battery (analyze_one / track_data / motility_stats /
+# compare / flower_plots) with zero code forks — see scripts/ic295sc_*.py.
+# Unset (the normal case) → the default IC293 root, so IC293 behaviour is
+# completely unchanged.
+ANALYSIS_ROOT   = (os.environ.get("IC293_ANALYSIS_ROOT")
+                   or os.path.join(PROJECT_ROOT, "ic293_analysis"))
 CACHE_DIR       = os.path.join(ANALYSIS_ROOT, "_cache")
 RECORDINGS_ROOT = os.path.join(ANALYSIS_ROOT, "by_condition")
 RUNS_DIR        = os.path.join(ANALYSIS_ROOT, "_runs")

@@ -136,6 +136,13 @@ ic293_analysis/*
 # the generated CURATION_REPORT.md / review/ stay ignored as regenerable).
 !ic293_analysis/CURATION_DECISIONS.md
 
+# ic295_single-cell-crop_analysis/ — DERIVED single-cell crops cut out of the
+# multi-cell IC295 recordings (cropped videos + isolated masks + per-cell
+# analysis + comparison plots). GBs of microscopy data, derived locally from
+# ic295_analysis; never ship to git (public repo). Keep only the README.
+ic295_single-cell-crop_analysis/*
+!ic295_single-cell-crop_analysis/README.md
+
 # Comprehensive internal lab report — its figures are ACTUAL microscopy
 # screenshots (DIC frames, single-cell crops). This repo is PUBLIC and no
 # real microscopy data may ship, so keep the report + its figure folder
