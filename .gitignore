@@ -12,6 +12,7 @@ data/models/*.pkl
 data/models/*.pth
 data/models/cellpose_*
 data/models/rf_*
+data/models/filter_config.json
 data/models/sam/
 data/models/sam2/
 data/models/deepsea/segmentation.pth

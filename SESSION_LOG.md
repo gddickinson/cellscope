@@ -10,6 +10,43 @@ Format: **DATE — short title** with bullets describing what changed
 
 ---
 
+## 2026-06-17 — IC293 outline refinement: chunk-add + candidate selection
+
+Tackled the 21 flagged single-cell outlines (faint clipped protrusions /
+noisy over-extensions). Built a trained RF boundary classifier path and a
+**chunk-add** graft, then — because no single rule wins on these hard
+cases — a **human-in-the-loop candidate-selection** workflow.
+
+- **`core/boundary_chunk_add.py`** (new) — `ChunkAddParams` +
+  `chunk_add_mask` + `refine_label_stack`. Grafts large solid RF lobes
+  (P>t → morphological opening → keep components adjacent to the cell)
+  onto a mask without disturbing the existing boundary; preserves label
+  identity, no cross-cell graft overlap. Validated: clean cells +0%,
+  low-SNR (CNR≈0.3) +0–1% (self-limiting), real lobe Pos11_cell2 +24%.
+- **Failure modes found on the full 78** (single-method): over-grafts on
+  optical **shadows** (Pos10-WT), **debris** (Pos20_cell3-KO), and uniform
+  **perimeter expansion** (Pos31-GOF). P>0.9 killed real lobes but kept the
+  shadow (RF confidently wrong there). Added a **locality gate**
+  (`max_contact_frac`): rejects chunks touching a long arc of the cell —
+  cleanly separates lobe (contact 0.02–0.15) from rind (0.59–1.0); fixes
+  over-expansion. Shadow is not gate-separable (textured at the crossing
+  frame) → handled by the reviewer keeping Original.
+- **Candidate workflow** — `scripts/ic293_gen_candidates.py` writes 4
+  candidates/cell (Original / Moderate P>0.65+gate / Conservative
+  P>0.9+gate / SAM2 reseg), RF prob computed once/frame; manifest of
+  per-candidate deltas. **`gui_review/` rebuilt** for candidate review
+  (`ChoiceStore`, keys 1-4/Tab, shows active vs Original; ~35-cell review
+  set, biggest change first). `scripts/ic293_apply_choices.py` writes the
+  picked stack into `masks.npz`. NON-DESTRUCTIVE throughout
+  (`masks_pre_chunkadd.npz` baseline). See `CURATION_DECISIONS.md`.
+- **Gotcha fixed** — `refine_label_stack` now takes a `probs` list indexed
+  by frame `t`. The candidate generator first cached RF prob by
+  `id(frames[t])`, but `frames[t]` is an ephemeral view whose `id()`
+  **recycles**, so the cache returned the wrong frame's prob and grafted
+  one frame's shape onto another (clean Pos0-WT ballooned +25%, and
+  Conservative > Moderate — the tell). Never key a cache on `id()` of a
+  transient numpy view; index by `t`.
+
 ## 2026-06-17 — Single-cell curation wired into detect_recording + GUI
 
 Promoted the IC293 single-cell curation from a script-only step to a

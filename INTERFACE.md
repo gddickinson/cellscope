@@ -8,7 +8,7 @@
 - **main_editor.py** — Mask Editor GUI
 - **main_training.py** — Model Training GUI
 - **main_annotate.py** — Annotation / Labelling GUI — hand-label cell-frames into classes (rounded/spread, …) for training; review + edit existing labels. `gui_annotate/annotate_window.py` (table of cell-frames + zoomable DIC-crop viewer with r/s/u keys, auto-advance + auto-save) + `gui_annotate/annotate_data.py` (`LabelStore` CSV round-trip + `CropRenderer` with LRU recording cache). Reads/writes the IC295 state_labels CSV so labels feed `scripts/ic295_label_states.py train`. RPC port 8772.
-- **main_review.py** — Rapid single-cell review GUI — fast QC of curated single-cell recordings: ←/→ step frames, PageUp/Dn (n/p) change recording, scroll to zoom (Home refits the cell), **F/Space flag** a problematic cell. Auto-discovers all recordings under `by_condition/`, shows the cell + outline zoomed to its trajectory (+padding), single-channel (DIC-only) load. `gui_review/review_window.py` (`ReviewWindow`) + `gui_review/review_data.py` (`discover_recordings`, single-channel `ReviewRenderer` LRU cache, `trajectory_bbox`, `FlagStore` CSV). Flags persist to `ic293_analysis/review/review_flags.csv`; honours `ic293_common.ANALYSIS_EXCLUDE` (excluded recordings shown + marked, not hidden). RPC port 8773.
+- **main_review.py** — Single-cell **candidate-review** GUI, **per-frame, 4-up**. For each difficult cell it shows all four outline candidates AT ONCE in a 2×2 grid (① Original / ② Moderate / ③ Conservative / ④ SAM2) on the same DIC frame (dim Original under each for reference) and the reviewer picks the best **per frame** (chosen panel gets a red border): **1-4 or click** a panel to pick THIS frame · **A** apply the pick to all the cell's change-frames · **←/→** step only CHANGE frames (a candidate differs ≥`MIN_CHANGE`=10% of cell area; SAM2's ~5% re-seg jitter filtered; all such frames, no cap) · **F** manual-flag · scroll zoom. The final mask is assembled frame-by-frame and is Original wherever the reviewer didn't deliberately improve it. Surfaces only the review set (`review/review_candidates.json`), biggest change first. `gui_review/review_window.py` (`ReviewWindow`) + `gui_review/review_data.py` (`discover_recordings`, `discover_candidates`, `load_manifest`, `ReviewRenderer` LRU, `trajectory_bbox`, **per-`(label,frame)` `ChoiceStore`** CSV; frame=-1 = manual). Picks → `ic293_analysis/review/review_choices.csv` → assembled by `scripts/ic293_apply_choices.py`. Honours `ic293_common.ANALYSIS_EXCLUDE`. RPC port 8773.
 
 ## Remote control (all GUIs)
 Every GUI launched with `CELLSCOPE_REMOTE=<port>` exposes an HTTP RPC
@@ -54,6 +54,7 @@ suite 8771. See `gui_focused/remote_control.py` and `CLAUDE.md` for usage.
 - **statistics.py** — Group comparison: t-test, Mann-Whitney, ANOVA, Bonferroni
 - **contour.py** — Contour extraction, Fourier smoothing, temporal smoothing
 - **boundary_rf.py** — Random Forest boundary classifier
+- **boundary_chunk_add.py** — RF-driven chunk-add: graft large solid missing lobes onto a mask without disturbing the existing boundary (`ChunkAddParams`, `chunk_add_mask`, `refine_label_stack`); IC293-validated, self-limiting
 - **boundary_crf.py** — Dense CRF post-processing
 - **refinement.py** — Full-stack refinement pipeline
 - **alt_segmentation.py** — 15 classical segmentation methods
@@ -358,6 +359,18 @@ suite 8771. See `gui_focused/remote_control.py` and `CLAUDE.md` for usage.
     stats_arms_shape.json,plots_arms/*}`.
   - **ic293_flower_plots.py** — flower / motility / MSD plots (reuses
     the IC295 plotters; `maxlag=24`=240 min for the short crops).
+  - **ic293_chunkadd_all.py** — apply `core.boundary_chunk_add` across
+    the crops; `--jobs` parallel, `--revert`, idempotent backup to
+    `masks_pre_chunkadd.npz`. (Superseded as a blanket step by the
+    candidate workflow below; kept for one-shot chunk-add.)
+  - **ic293_gen_candidates.py** — generate per-cell outline candidates
+    (`--phase chunkadd` = Moderate+Conservative, CPU `--jobs`; `--phase
+    sam2` = SAM2 reseg, GPU) → `masks_cand_*.npz` + `--collect` writes
+    `review/review_candidates.json` (per-candidate delta vs Original).
+  - **ic293_apply_choices.py** — assemble each cell's `masks.npz`
+    FRAME-BY-FRAME from the reviewer's per-frame picks (Original base +
+    chosen candidate per picked frame; from `review/review_choices.csv`);
+    lists manual-brush flags; provenance to `review/applied_choices.json`.
 - **gui/mask_editor_sam2_point.py** — SAM2 point-and-click cell
   detection for the mask editor. Picks "sam2" in the tool palette,
   one click on a missed cell adds a mask with the active cell ID.
