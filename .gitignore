@@ -135,3 +135,10 @@ ic293_analysis/*
 # Human method-decision log (small, reproducibility record — ship it;
 # the generated CURATION_REPORT.md / review/ stay ignored as regenerable).
 !ic293_analysis/CURATION_DECISIONS.md
+
+# Comprehensive internal lab report — its figures are ACTUAL microscopy
+# screenshots (DIC frames, single-cell crops). This repo is PUBLIC and no
+# real microscopy data may ship, so keep the report + its figure folder
+# out of git. Shared with the lab out-of-band, not via GitHub.
+docs/CELLSCOPE_REPORT.md
+docs/report_figures/

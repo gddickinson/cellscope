@@ -253,8 +253,8 @@ single decision point. Auto mode uses `max(H, W)` of the recording:
 
 | max(H, W) | Factor | Rationale |
 |---|:---:|---|
-| < 900 | 1 (no change) | cells get too small for cpsam at ds≥2 (Pos0 F1 0.92 → 0.82 was the lesson) |
-| 900–1500 | 2 | medium recordings get ~3× speedup, ~3% IoU cost (Pos3) |
+| < 1100 | 1 (no change) | cells get too small for cpsam at ds≥2 (Pos0 F1 0.92 → 0.82 was the lesson). Threshold raised from 900 → **`DOWNSAMPLE_SMALL_PX = 1100`** so 1024² recordings keep full res |
+| 1100–1500 | 2 | medium recordings get ~3× speedup, ~3% IoU cost (Pos3) |
 | ≥ 1500 | 2 | large recordings get ~5× speedup with NO IoU cost (Pos7_WT actually IMPROVED with ds=2) |
 
 Tunable per-run via `--downsample-small-px` / `--downsample-large-px`.

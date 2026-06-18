@@ -471,6 +471,11 @@ suite 8771. See `gui_focused/remote_control.py` and `CLAUDE.md` for usage.
   drives the same widget paths the user clicks.
 
 ## `docs/`
+- **CELLSCOPE_REPORT.md** — Comprehensive internal lab report (project overview,
+  development history, full pipeline-step/algorithm descriptions, options, result
+  formats, every suite GUI with emphasis on `main_focused`, and the scripting API).
+  Figures are actual GUI screenshots under `docs/report_figures/` (captured via the
+  remote-control RPC). Shareable single-file overview of the whole system.
 - **user_manual.md** — How to use the GUIs (load → detect → edit → analyse → export).
 - **recording_recommendations.md** — Per-modality / per-recording-type best practices.
 - **pipeline_description.md** — Pipeline internals.

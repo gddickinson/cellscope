@@ -10,6 +10,27 @@ Format: **DATE — short title** with bullets describing what changed
 
 ---
 
+**2026-06-18 — Comprehensive lab report (`docs/CELLSCOPE_REPORT.md`)**
+- Wrote a single-file, shareable internal report (~1030 lines): project
+  overview + architecture, development history (10 phases), current state,
+  full pipeline-step/algorithm descriptions (alignment → downsample →
+  threshold conv → backbone auto-select → detect → track → 4-phase gap-fill
+  → post-process → Cy5 persistence_guard → upscale → opt-in single-cell
+  curation), analysis/metrics (motility, morphology, learned rounded/spread
+  rule, per-state stratification, edge dynamics, VAMPIRE, divisions, edge
+  filter, stats, graph registry), the `DEFAULTS` options tables, result
+  formats (masks.npz / RUN_METADATA / per_cell.csv / recording_summary.json
+  / divisions.json / .cellscope / shareable exports), all 8 suite GUIs
+  (emphasis `main_focused`), and the GUI-free scripting API.
+- Figures are **actual screenshots** captured via the remote-control RPC
+  (offscreen Qt): Focused GUI full window + analysis summary (8765), the
+  multichannel detection overlay (12 cells, IDs + tracks), and the
+  per-frame 4-up candidate-review grid (8773, real IC293 Pos68-DMSO data).
+  Reused the existing real graph/GUI screenshots for the stable apps. All
+  14 figures under `docs/report_figures/`; report references verified
+  (0 broken links).
+- Doc-only change — no code touched. Registered in `INTERFACE.md` (docs/).
+
 ## 2026-06-17 — IC293 outline refinement: chunk-add + candidate selection
 
 Tackled the 21 flagged single-cell outlines (faint clipped protrusions /
