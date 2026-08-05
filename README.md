@@ -14,7 +14,7 @@ CellScope detects cell boundaries, tracks cells across frames, and quantifies mi
 - **DIC↔Cy5 channel alignment** — sub-pixel offset measured per recording via cellpose-centroid matching, applied before detection.
 - **Four-phase track gap fill** — cpsam(augment=True) → CP3 + MedSAM + DeepSea fallback → **SAM2 video propagation** → translation-only fill. 100% gap-fill rate on tested recordings.
 - **Cell-state classification** — per cell-frame: balled (mitotic / rounded) vs attached (spread) vs transitional, with per-state motility metrics (removes the dividing-cell composition confound).
-- **VAMPIRE shape modes** — PCA eigenshapes + K-means clustering + Shannon entropy heterogeneity (Lam et al., Nature Protocols 2021).
+- **VAMPIRE shape modes** — PCA eigenshapes + K-means clustering + Shannon entropy heterogeneity (Phillip et al., Nature Protocols 2021).
 - **Statistical comparison** — t-test, Mann-Whitney, ANOVA, Kruskal-Wallis, Cohen's d, Bonferroni post-hoc.
 - **🔬 Test on frame** — one-click preview detection on the currently displayed frame with current GUI settings, with a density-aware runtime estimate for the full recording (sparse 1.5× / medium 2.0× / dense 2.5× post-proc multiplier). Tune any of the 17 GUI-exposed pipeline parameters interactively without paying the cost of a full re-detect.
 - **Single source of truth for defaults** — every GUI + worker reads from `core/pipeline_defaults.py`. All 17 detection toggles (persistence_guard sub-params, mirror padding, SAM2 gap-fill, max_gap_frames, Cy5 fusion sub-thresholds, DIC preprocess/retry, etc.) are GUI-tunable and threaded end-to-end. No drift between focused/batch/tracking analysis of the same recording.
