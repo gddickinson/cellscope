@@ -548,7 +548,7 @@ auto-converted.
 
 ## VAMPIRE Shape Mode Analysis
 
-VAMPIRE (Lam et al., Nature Protocols 2021) quantifies morphological
+VAMPIRE (Phillip et al., Nature Protocols 2021) quantifies morphological
 heterogeneity by decomposing cell contours into principal shape modes.
 
 ### Enabling VAMPIRE
