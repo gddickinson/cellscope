@@ -597,7 +597,9 @@ Full module map: see `INTERFACE.md`. Detailed status + benchmark tables: `PROJEC
 
 ## Citation
 
-If you use CellScope in your research, please cite the original software (see below).
+If you use CellScope in your research, please cite it. Citation metadata lives in
+[`CITATION.cff`](CITATION.cff) — GitHub's **Cite this repository** button (right-hand
+sidebar) will format it as BibTeX or APA for you.
 
 ## License
 
@@ -606,13 +608,13 @@ MIT License. See [LICENSE](LICENSE) for details.
 ## Acknowledgments
 
 CellScope builds on:
-- [Cellpose](https://github.com/MouseLand/cellpose) (Stringer et al., Nature Methods 2021)
-- [Cellpose-SAM](https://github.com/MouseLand/cellpose) (Pachitariu et al., 2024)
-- [DeepSea](https://github.com/abzargar/DeepSea) (Zargari et al., Cell Reports Methods 2022)
-- [MedSAM](https://github.com/bowang-lab/MedSAM) (Ma et al., Nature Communications 2024)
-- [SAM2](https://github.com/facebookresearch/sam2) (Ravi et al., 2024) — track gap fill
-- [VAMPIRE](https://github.com/kukionfr/VAMPIRE_analysis) (Lam et al., Nature Protocols 2021)
-- [Trackastra](https://github.com/weigertlab/trackastra) (Weigert et al., 2024) — alternative tracker
+- [Cellpose](https://github.com/MouseLand/cellpose) (Stringer et al., Nature Methods 2021, [doi:10.1038/s41592-020-01018-x](https://doi.org/10.1038/s41592-020-01018-x))
+- [Cellpose-SAM](https://github.com/MouseLand/cellpose) (Pachitariu et al., bioRxiv 2025, [doi:10.1101/2025.04.28.651001](https://doi.org/10.1101/2025.04.28.651001))
+- [DeepSea](https://github.com/abzargar/DeepSea) (Zargari et al., Cell Reports Methods 2023, [doi:10.1016/j.crmeth.2023.100500](https://doi.org/10.1016/j.crmeth.2023.100500))
+- [MedSAM](https://github.com/bowang-lab/MedSAM) (Ma et al., Nature Communications 2024, [doi:10.1038/s41467-024-44824-z](https://doi.org/10.1038/s41467-024-44824-z))
+- [SAM2](https://github.com/facebookresearch/sam2) (Ravi et al., arXiv 2024, [arXiv:2408.00714](https://arxiv.org/abs/2408.00714)) — track gap fill
+- [VAMPIRE](https://github.com/kukionfr/VAMPIRE_analysis) (Phillip et al., Nature Protocols 2021, [doi:10.1038/s41596-020-00432-x](https://doi.org/10.1038/s41596-020-00432-x))
+- [Trackastra](https://github.com/weigertlab/trackastra) (Gallusser & Weigert, ECCV 2024, [doi:10.1007/978-3-031-73116-7_27](https://doi.org/10.1007/978-3-031-73116-7_27)) — alternative tracker
 
 ### AI-assisted development
 
