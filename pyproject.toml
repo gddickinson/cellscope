@@ -1,0 +1,120 @@
+# CellScope packaging metadata.
+#
+# SCOPE NOTE — please read before publishing to PyPI.
+#
+# CellScope runs across TWO conda environments: `cellpose` (CP3 + GUI +
+# analysis pipeline, specified here) and `cellpose4` (cpsam ViT, invoked by
+# subprocess). A single wheel cannot express that split, so this file is
+# intended for:
+#
+#   * declaring project metadata and dependencies in one machine-readable place
+#   * `pip install -e .` inside an already-created `cellpose` env
+#   * tooling (dependabot, licence scanners, Zenodo, JOSS) that reads pyproject
+#
+# It is NOT yet sufficient for `pip install cellscope` from PyPI. That needs a
+# src-layout refactor (move `core/`, `gui*/` under `src/cellscope/`, turn the
+# `main_*.py` launchers into `cellscope.cli` entry points) and a decision about
+# how to provision the second env. See CONTRIBUTING.md.
+#
+# conda remains the canonical install path: `install.sh` / `install.bat`.
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cellscope"
+version = "0.1.0"
+description = "Automated cell detection, tracking, and morphometrics for DIC, phase-contrast, and multi-channel fluorescence time-lapse microscopy"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+authors = [
+    { name = "George D. Dickinson", email = "george.dickinson@gmail.com" },
+]
+maintainers = [
+    { name = "George D. Dickinson", email = "george.dickinson@gmail.com" },
+]
+keywords = [
+    "microscopy",
+    "cell-tracking",
+    "cell-segmentation",
+    "bioimage-analysis",
+    "image-analysis",
+    "cellpose",
+    "live-cell-imaging",
+    "morphometrics",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Topic :: Scientific/Engineering :: Image Processing",
+    "Topic :: Scientific/Engineering :: Medical Science Apps.",
+]
+
+# Mirrors the pip section of environment.yml (the `cellpose` env).
+dependencies = [
+    "cellpose==3.1.1.1",
+    "torch==2.7.0",
+    "torchvision==0.22.0",
+    "numpy==2.0.2",
+    "scipy>=1.15",
+    "scikit-image>=0.25",
+    "scikit-learn>=1.7",
+    "opencv-python>=4.13.0.92",
+    "tifffile>=2023.2.28",
+    "ome-types>=0.6",
+    "matplotlib>=3.8",
+    "PyQt5==5.15.11",
+    "psutil",
+]
+
+[project.optional-dependencies]
+# SAM refinement + the Trackastra tracker. Large model weights on first use.
+refine = [
+    "segment-anything==1.0",
+    "trackastra==0.5.3",
+]
+# CRF refinement. No Windows wheels; rarely builds from source there.
+# Only mode="full_stack" with CRF=True is affected if this is absent.
+crf = ["pydensecrf2==1.1"]
+# Model downloader (download_models.py).
+models = ["gdown"]
+dev = ["pytest>=8"]
+
+[project.urls]
+Homepage = "https://github.com/gddickinson/cellscope"
+Repository = "https://github.com/gddickinson/cellscope"
+Issues = "https://github.com/gddickinson/cellscope/issues"
+Documentation = "https://github.com/gddickinson/cellscope/blob/main/README.md"
+
+# The project uses a flat layout: analysis code in `core/`, one package per
+# GUI. Listed explicitly rather than auto-discovered so that the analysis
+# directories (ic293_analysis/, ic295_analysis/, output/, notebooks/) are not
+# swept into a distribution.
+[tool.setuptools]
+packages = [
+    "core",
+    "gui",
+    "gui_annotate",
+    "gui_batch",
+    "gui_editor",
+    "gui_focused",
+    "gui_review",
+    "gui_tracking",
+    "gui_training",
+]
+
+[tool.setuptools.package-data]
+core = ["*.json", "*.yaml"]
+
+[tool.pytest.ini_options]
+# Tests live alongside the maintainer scripts rather than in tests/.
+# They are Qt-driven and must run headless: QT_QPA_PLATFORM=offscreen.
+testpaths = ["scripts"]
+python_files = ["test_*.py"]
