@@ -36,7 +36,7 @@ at the FoV edge.
 ### DeepSea union refinement
 
 The raw cpsam masks undergo a union operation with predictions from
-DeepSea (Zargari et al., 2022), a segmentation model specifically
+DeepSea (Zargari et al., 2023), a segmentation model specifically
 trained on phase-contrast and brightfield time-lapse data. For each
 frame:
 
@@ -166,8 +166,8 @@ the centroid. The boundary is divided into angular sectors (default
 
 ### VAMPIRE shape mode analysis
 
-CellScope optionally performs VAMPIRE shape mode analysis (Lam et al.,
-Nature Protocols 2021) to quantify morphological heterogeneity:
+CellScope optionally performs VAMPIRE shape mode analysis (Phillip et
+al., Nature Protocols 2021) to quantify morphological heterogeneity:
 
 1. **Contour extraction**: the cell boundary is extracted from each
    frame's binary mask
@@ -210,19 +210,22 @@ significance brackets (*, **, ***).
    generalist algorithm for cellular segmentation. Nature Methods
    2021;18:100-106.
 
-2. Pachitariu M, Stringer C. Cellpose 3: one-click image restoration
-   for improved cellular segmentation. bioRxiv 2024.
+2. Stringer C, Pachitariu M. Cellpose3: one-click image restoration
+   for improved cellular segmentation. Nature Methods 2025.
+   doi:10.1038/s41592-025-02595-5
 
-3. Zargari A, et al. DeepSea: an efficient deep learning model for
-   automated cell segmentation and tracking. Cell Reports Methods
-   2022;2:100367.
+3. Zargari A, et al. DeepSea is an efficient deep-learning model for
+   single-cell segmentation and tracking in time-lapse microscopy.
+   Cell Reports Methods 2023;3:100500.
+   doi:10.1016/j.crmeth.2023.100500
 
 4. Ma J, et al. Segment anything in medical images. Nature
    Communications 2024;15:654.
 
-5. Holt CE, et al. Piezo1 regulates mechanotransduction in
-   endothelial cell migration. eLife 2021.
+5. Holt JR, et al. Spatiotemporal dynamics of PIEZO1 localization
+   controls keratinocyte migration during wound healing.
+   eLife 2021;10:e65415. doi:10.7554/eLife.65415
 
-6. Lam J, et al. A robust unsupervised machine-learning method to
+6. Phillip JM, et al. A robust unsupervised machine-learning method to
    quantify the morphological heterogeneity of cells and nuclei.
    Nature Protocols 2021;16:754-774.
