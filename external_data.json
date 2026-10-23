@@ -1,0 +1,13 @@
+{
+  "_comment": "Large untracked data kept on an external drive. Each item is a repo-relative path that is a symlink to <root>/<item>. Override root with CELLSCOPE_EXTERNAL_ROOT. Check/repair with: python scripts/external_data.py",
+  "root": "/Volumes/FANTOM/CELLSCOPE_DATA",
+  "moved": "2026-10-23 (GeorgeDrive failed; these were the only copies)",
+  "items": [
+    "ic295_analysis/_cache",
+    "ic295_single-cell-crop_analysis/_cache",
+    "ic293_analysis/_cache",
+    "data/models/cpsam_dic",
+    "data/models/cpsam_dic_gt_ft_v1",
+    "data/models/sam2"
+  ]
+}

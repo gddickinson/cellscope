@@ -15,6 +15,7 @@ data/models/rf_*
 data/models/filter_config.json
 data/models/sam/
 data/models/sam2/
+data/models/sam2
 data/models/deepsea/segmentation.pth
 data/models/deepsea/tracker.pth
 data/models/medsam_*

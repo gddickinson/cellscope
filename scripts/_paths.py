@@ -7,12 +7,25 @@ so scripts can do `from core.X import Y` regardless of where they're run.
 `piezo1_analysis` project (with manual GT, training pairs, example
 recordings). Defaults to a sibling directory next to cellscope/.
 Override with the BENCHMARK_DATA_ROOT environment variable.
+
+`external_data()` returns the external-drive root + the repo paths that
+are symlinks into it (from `external_data.json`; root overridable via
+CELLSCOPE_EXTERNAL_ROOT). See scripts/external_data.py.
 """
+import json
 import os
 import sys
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+EXTERNAL_DATA_FILE = PROJECT_ROOT / "external_data.json"
+
+
+def external_data():
+    """(root Path, [repo-relative item paths]) for data kept off-laptop."""
+    cfg = json.loads(EXTERNAL_DATA_FILE.read_text())
+    root = Path(os.environ.get("CELLSCOPE_EXTERNAL_ROOT") or cfg["root"])
+    return root, list(cfg["items"])
 
 
 def setup_imports():

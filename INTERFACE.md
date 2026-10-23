@@ -405,7 +405,12 @@ suite 8771. See `gui_focused/remote_control.py` and `CLAUDE.md` for usage.
   and clicks outside the predicted mask. Apply uses the editor's
   existing undo stack (Cmd+Z restores).
 - **_paths.py** — Project-root resolver + `benchmark_data_root()` helper
-  (env var `BENCHMARK_DATA_ROOT` overrides the default sibling lookup).
+  (env var `BENCHMARK_DATA_ROOT` overrides the default sibling lookup)
+  + `external_data()` → (FANTOM root, symlinked item paths) from
+  `external_data.json` (env `CELLSCOPE_EXTERNAL_ROOT` overrides root).
+- **external_data.py** — status of the symlinks into the external data
+  drive (OK / DRIVE-MISSING / LOCAL); `--link` (re)creates them,
+  replacing a local dir only if file count + bytes match the drive copy.
   Imported by every benchmark / training script via the standard preamble:
   ```python
   import sys, os

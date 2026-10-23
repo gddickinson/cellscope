@@ -16,6 +16,20 @@ every mask PNG + the index. Run this whenever new GT lands.
 explicit user confirmation. The PNGs are real files (not symlinks)
 and easily worth several days of manual labelling work each.
 
+## Large data lives on FANTOM (only copy) — mount it first
+
+Since 2026-10-23 the raw recordings (`ic295_analysis/_cache/`,
+`ic295_single-cell-crop_analysis/_cache/`, `ic293_analysis/_cache/`)
+and the big model weights (`data/models/cpsam_dic`,
+`cpsam_dic_gt_ft_v1`, `sam2`) are **symlinks into
+`/Volumes/FANTOM/CELLSCOPE_DATA/`** (same relative paths), listed in
+`external_data.json`. GeorgeDrive failed, so **FANTOM holds the only
+copy** — never delete there. With FANTOM unplugged these paths
+dangle: run `python scripts/external_data.py` to check (`--link`
+recreates the links). **Do not run `fix_dead_symlinks.py` with the
+drive unmounted** (it now refuses). Code needs no data-root setting —
+paths are unchanged.
+
 ## Two rules you MUST follow
 
 ### 1. Pipeline defaults live in ONE place

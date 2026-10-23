@@ -10,6 +10,21 @@ Format: **DATE — short title** with bullets describing what changed
 
 ---
 
+## 2026-10-23 — Large data moved to FANTOM (laptop disk full)
+
+- Moved the three `*_analysis/_cache/` recording folders (~62 GB) and
+  `data/models/{cpsam_dic,cpsam_dic_gt_ft_v1,sam2}` (~2.4 GB) to
+  `/Volumes/FANTOM/CELLSCOPE_DATA/<same path>`; each repo path is now a
+  directory symlink. Every file SHA-256-verified on both sides before
+  the local copy was removed. GeorgeDrive (the original source) failed,
+  so FANTOM is the only copy.
+- The ~500 absolute per-file symlinks (`by_condition/`, `gt_review/`,
+  `data/ic295_gt_full/`) point through `_cache/` and resolve unchanged.
+- New `external_data.json` + `scripts/external_data.py` (check/relink);
+  `_paths.external_data()`; `fix_dead_symlinks.py` refuses to run while
+  the drive is unmounted; `.gitignore` matches `data/models/sam2` as a
+  symlink.
+
 **2026-06-18 — IC295 single-cell-crop dataset (`ic295_single-cell-crop_analysis/`)**
 - New DERIVED dataset: individual **non-dividing** single cells cropped out of
   the 48 multi-cell IC295 recordings and analysed with the SAME battery as the

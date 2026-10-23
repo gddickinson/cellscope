@@ -56,7 +56,15 @@ def bycond_masks(label_dir):
 
 
 def main():
-    cache_names = set(os.listdir(CACHE)) if os.path.isdir(CACHE) else set()
+    # Links into the external data drive dangle whenever it is unplugged;
+    # never "fix" them (that would delete ~500 links into _cache/).
+    sys.path.insert(0, os.path.join(ROOT, "scripts"))
+    from _paths import external_data
+    ext_root, _ = external_data()
+    if not ext_root.exists():
+        sys.exit(f"External data root {ext_root} is not mounted — mount "
+                 "it first (see scripts/external_data.py).")
+    cache_names =set(os.listdir(CACHE)) if os.path.isdir(CACHE) else set()
     repointed, materialized, removed = [], [], []
 
     for p in find_dead():
