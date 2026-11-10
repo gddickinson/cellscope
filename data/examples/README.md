@@ -1,7 +1,8 @@
 # Demo recordings
 
 Five compact example recordings for trying out the GUI. Each is a
-trimmed + DEFLATE-compressed slice of a real endothelial cell recording —
+trimmed + DEFLATE-compressed slice of a real cell recording (IC293: endothelial cells;
+IC295: keratinocytes; each sidecar gives the cell type) —
 small enough to ship in the repo (~108 MB total) but big enough to
 exercise the full pipeline end-to-end.
 
