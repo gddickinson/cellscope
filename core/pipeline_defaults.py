@@ -306,44 +306,51 @@ def select_pipeline_for_recording(
     counts = _run_probe_subprocess(
         frames, indices, probe_model_path, min_area_px)
 
-    # Use the 75th-percentile sample count rather than the median so a
-    # few sparse frames (cells entering/leaving the FoV, early-time
-    # recordings before cells migrate in) can't drag the decision down
-    # in an otherwise dense field. The median is kept in the info dict
-    # for diagnostic comparability.
+    info = decide_backbone(counts)
+    info["probe_model"] = "cpsam"
+    info["sampled_frames"] = [int(i) for i in indices]
+    if verbose:
+        print(f"[auto-select] {info['reason']}")
+    if info["choice"] == "cpsam":
+        return "cpsam", None, info
+    return "cpsam_dic", resolve_dic_model_path(), info
+
+
+def decide_backbone(counts):
+    """The auto-select decision from per-frame probe cell counts (pure).
+
+    Uses the 75th-percentile sample count rather than the median so a
+    few sparse frames (cells entering/leaving the FoV, early-time
+    recordings before cells migrate in) can't drag the decision down
+    in an otherwise dense field. The median is kept in the info dict
+    for diagnostic comparability. Returns the info dict; its "choice"
+    is "cpsam" (multi-cell) or "cpsam_dic" (single-cell).
+    """
+    import numpy as np
     counts_arr = np.asarray(counts, dtype=float)
-    median_count = float(np.median(counts_arr))
     decision_count = float(np.percentile(
         counts_arr, PROBE_AGGREGATOR_PERCENTILE))
     info = {
-        "probe_model": "cpsam",
-        "sampled_frames": [int(i) for i in indices],
-        "cell_counts_at_sample": counts,
-        "median_count": median_count,
+        "cell_counts_at_sample": list(counts),
+        "median_count": float(np.median(counts_arr)),
         "p75_count": decision_count,
         "decision_count": decision_count,
         "aggregator": f"p{PROBE_AGGREGATOR_PERCENTILE}",
         "threshold": MULTICELL_THRESHOLD,
     }
-
     if decision_count >= MULTICELL_THRESHOLD:
         info["choice"] = "cpsam"
         info["reason"] = (
             f"p{PROBE_AGGREGATOR_PERCENTILE} {decision_count:.1f} "
             f"cells/frame ≥ {MULTICELL_THRESHOLD}: multi-cell scene, "
             f"switching to raw cpsam (cpsam_dic merges touching cells)")
-        if verbose:
-            print(f"[auto-select] {info['reason']}")
-        return "cpsam", None, info
-
-    info["choice"] = "cpsam_dic"
-    info["reason"] = (
-        f"p{PROBE_AGGREGATOR_PERCENTILE} {decision_count:.1f} "
-        f"cells/frame < {MULTICELL_THRESHOLD}: single-cell scene, "
-        f"using cpsam_dic (tighter boundaries on isolated cells)")
-    if verbose:
-        print(f"[auto-select] {info['reason']}")
-    return "cpsam_dic", resolve_dic_model_path(), info
+    else:
+        info["choice"] = "cpsam_dic"
+        info["reason"] = (
+            f"p{PROBE_AGGREGATOR_PERCENTILE} {decision_count:.1f} "
+            f"cells/frame < {MULTICELL_THRESHOLD}: single-cell scene, "
+            f"using cpsam_dic (tighter boundaries on isolated cells)")
+    return info
 
 
 # ------------------------------------------------------------------

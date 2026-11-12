@@ -992,32 +992,13 @@ class FocusedMainWindow(QMainWindow):
         else:
             lab0 = labels
         n_cells = int(_np.unique(lab0[lab0 > 0]).size)
-        # Extrapolate: detection-only (precise, linear in N) and an
-        # estimated full-pipeline runtime that accounts for the
-        # multi-frame post-processing stages (tracking + gap fill +
-        # Cy5 fusion + filter). The post-processing multiplier scales
-        # with cell density — denser scenes have more gap candidates
-        # and more track-pair comparisons, both of which dominate the
-        # gap-fill cascade.
-        #   sparse (<5 cells/frame):    full ≈ 1.5 × detection
-        #   medium (5-10 cells/frame):  full ≈ 2.0 × detection
-        #   dense (≥10 cells/frame):    full ≈ 2.5 × detection
-        # Calibrated against Pos10_WT (4 cells, canonical ~1.5×
-        # extrapolated detection) and Pos68_DMSO (17 cells, canonical
-        # ~2.3× extrapolated detection).
-        if n_cells < 5:
-            mult, density = 1.5, "sparse"
-        elif n_cells < 10:
-            mult, density = 2.0, "medium"
-        else:
-            mult, density = 2.5, "dense"
-        est_detect_only = elapsed * n_total
-        est_full = est_detect_only * mult
-
-        def _fmt(secs):
-            return (f"{secs:.0f}s" if secs < 60
-                    else f"{secs / 60:.1f} min" if secs < 3600
-                    else f"{secs / 3600:.1f} h")
+        # Extrapolate to the whole recording with the density-aware
+        # post-processing multiplier (core.runtime_estimate).
+        from core.runtime_estimate import (
+            estimate_full_runtime, format_duration as _fmt)
+        est = estimate_full_runtime(elapsed, n_cells, n_total)
+        mult, density = est["multiplier"], est["density"]
+        est_detect_only, est_full = est["detect_only_s"], est["full_s"]
 
         # Update viewer with the test labels (zero-pad to full stack
         # so the viewer's indexing matches; only frame `idx` carries
