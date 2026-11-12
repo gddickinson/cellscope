@@ -150,3 +150,6 @@ ic295_single-cell-crop_analysis/*
 # out of git. Shared with the lab out-of-band, not via GitHub.
 docs/CELLSCOPE_REPORT.md
 docs/report_figures/
+
+# Ad-hoc analysis output images saved at the repo root
+/tracked_cells_*.png
