@@ -293,7 +293,7 @@ All graphs come from one tracked cell in a real 97-frame phase-contrast endothel
 ![Tracked trajectories](docs/figures/multi_trajectories.png)
 *Per-cell migration paths over a 60-frame window. Colour = cell, circle = start, square = end.*
 
-The Hungarian cost matrix combines distance, mask IoU, and area difference (weights `track_w_dist=1.0`, `track_w_iou=0.5`, `track_w_area=0.3` — all in `DEFAULTS`). Mask overlap is highly discriminative for touching cells, and area is a strong identity signal across drift. **Validated on Pos7-WT GT: ID consistency 0.88 → 0.97** vs distance-only, with no change to DET / SEG / IoU.
+The Hungarian cost matrix combines distance, mask IoU, and area difference (weights `track_w_dist=1.0`, `track_w_iou=1.0`, `track_w_area=0.5` — all in `DEFAULTS`). Mask overlap is highly discriminative for touching cells, and area is a strong identity signal across drift. **Validated on Pos7-WT GT: ID consistency 0.88 → 0.97** vs distance-only, with no change to DET / SEG / IoU.
 
 **Tracker benchmark on CTC DIC-C2DH-HeLa**:
 

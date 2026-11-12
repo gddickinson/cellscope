@@ -109,7 +109,7 @@ def _mask_iou(a, b):
 def track_all_cells(masks, min_area_px=200, max_hop_px=150,
                     seed_frame=None, spawn_new_tracks=False,
                     min_track_length=1, frames=None,
-                    w_dist=1.0, w_area=0.5, w_iou=1.0,
+                    w_dist=None, w_area=None, w_iou=None,
                     w_intensity=0.3, max_gap_frames=None):
     """Return one (N, H, W) stack per cell seen in the seed frame.
 
@@ -117,7 +117,8 @@ def track_all_cells(masks, min_area_px=200, max_hop_px=150,
     - Centroid distance (weighted by w_dist)
     - Area similarity (weighted by w_area)
     - Mask IoU with previous frame (weighted by w_iou)
-    - Mean intensity similarity (weighted by w_intensity, needs frames)
+    (`w_intensity` and `frames` are accepted for API compatibility but are
+    not used in the cost.)
 
     Args:
         masks: (N, H, W) bool or label stack.
@@ -127,7 +128,10 @@ def track_all_cells(masks, min_area_px=200, max_hop_px=150,
         spawn_new_tracks: create tracks for unmatched detections.
         min_track_length: drop tracks shorter than this.
         frames: (N, H, W) uint8 raw images (optional, for intensity).
-        w_dist, w_area, w_iou, w_intensity: cost weights.
+        w_dist, w_area, w_iou: cost weights; None -> DEFAULTS.track_w_dist /
+            track_w_area / track_w_iou (1.0 / 0.5 / 1.0).
+        max_gap_frames: frames a track may go undetected before it is
+            closed; None -> DEFAULTS.max_gap_frames.
 
     Returns:
         list of dicts: [{"stack": (N, H, W) bool,
@@ -158,9 +162,15 @@ def track_all_cells(masks, min_area_px=200, max_hop_px=150,
         })
 
     from scipy.optimize import linear_sum_assignment
+    from core.pipeline_defaults import DEFAULTS
     if max_gap_frames is None:
-        from core.pipeline_defaults import DEFAULTS
         max_gap_frames = DEFAULTS.max_gap_frames
+    if w_dist is None:
+        w_dist = DEFAULTS.track_w_dist
+    if w_iou is None:
+        w_iou = DEFAULTS.track_w_iou
+    if w_area is None:
+        w_area = DEFAULTS.track_w_area
     MAX_GAP = max_gap_frames
     LARGE = 1e9
 

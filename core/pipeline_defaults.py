@@ -16,8 +16,8 @@ CellScope has TWO config layers:
      The defaults consumed by the FOCUSED GUI (`gui_focused/`), the
      multichannel pipeline (`hybrid_dic.py`, `hybrid_cpsam_multi.py`,
      `dic_cy5_fusion.py`), and any programmatic / batch script.
-     Values like `min_area_px = 500`, `use_cy5_fusion`,
-     `cy5_filter_mode = "multi_metric"`, etc. live here.
+     Values like `min_area_px`, `use_cy5_fusion`, `cy5_filter_mode`,
+     the tracker weights, etc. live here.
 
 When the two overlap (e.g. cell-area threshold), `pipeline_defaults.py`
 wins for the active pipeline. The legacy `config.py` value remains
@@ -387,6 +387,16 @@ class PipelineDefaults:
     # at our 10-min/frame interval. Track-identity preservation
     # across these gaps prevents ID swaps like cell9→cell8.
     max_gap_frames: int = 15
+    # Hungarian cost-matrix weights (core.multi_cell.track_all_cells):
+    #   cost = w_dist * distance + w_iou * (1 - IoU) * max_hop
+    #          + w_area * |d area| / max(area) * max_hop
+    # These are the weights the tracker has used since the IoU + area
+    # terms were wired in (commit 60ea19c, Pos7-WT GT ID consistency
+    # 0.88 -> 0.97); they were literals in the function signature until
+    # 2026-11-12 and moved here so every caller reads one source.
+    track_w_dist: float = 1.0
+    track_w_iou: float = 1.0
+    track_w_area: float = 0.5
 
     # --- Quality / refinement toggles ---
     use_preprocess: bool = True       # temporal bg + spatial HP (CP3 only)

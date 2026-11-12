@@ -146,8 +146,8 @@ Annotate 30 frames × 3 cells per genotype manually. Use to:
 
 ### 3.4 ID-switch mitigation ✅ (initial pass landed 2026-05-27)
 Hungarian cost matrix now combines distance + mask IoU + area difference
-(commit `60ea19c`; weights `track_w_dist=1.0`, `track_w_iou=0.5`,
-`track_w_area=0.3` in `DEFAULTS`). Validation on Pos7-WT GT lifted ID
+(commit `60ea19c`; weights `track_w_dist=1.0`, `track_w_iou=1.0`,
+`track_w_area=0.5` in `DEFAULTS`). Validation on Pos7-WT GT lifted ID
 consistency 0.88 → 0.97 with no DET / SEG / IoU regression. If touching-
 cell ID swaps still surface in the new mini batch results, the next step
 is BTrack tuned for slow-frame DIC.
