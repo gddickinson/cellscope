@@ -413,7 +413,7 @@ Previous round (2026-05-20): auto-select probe switched to raw `cpsam` (no cell-
 
 ## Cell-state classification
 
-Each cell-frame is classified as **balled** (mitotic / rounded), **attached** (spread), or **transitional** based on circularity + solidity thresholds. The defaults (`circ≥0.80 ∧ solidity≥0.92` for balled, `circ≤0.55 ∨ solidity≤0.85` for attached) are validated on IC295 and live in `core/cell_state.py::DEFAULT_THRESHOLDS`.
+Each cell-frame is classified as **rounded** (balled-up: mitotic / pre-mitotic / detaching) or **spread** (adherent), or **unknown** when its shape cannot be measured (empty or sub-min-area mask, or a mask truncated by the image border). With the recording's pixel size known, a cell-frame is rounded when its footprint is small and it is not elongated: `area ≤ 960 µm²` and `eccentricity ≤ 0.85` (a rule fit to hand labels, 0.90 CV; `scripts/ic295_eval_state_rule.py`). Without a pixel size the legacy fallback applies: `circularity ≥ 0.8` and `solidity ≥ 0.92`. All thresholds live in `core/cell_state.py::DEFAULT_THRESHOLDS`.
 
 Per-state motility metrics are written to the export — stratifies migration speed, MSD, persistence by state to **remove the dividing-cell composition confound**. Particularly important when comparing genotypes that differ in mitotic fraction.
 
@@ -582,7 +582,7 @@ Key modules to know:
 - **`core/multichannel.py`** + `cy5_*.py` — Cy5 fusion / filter / fallback
 - **`core/multi_cell.py`** — Hungarian tracker
 - **`core/track_gap_fill.py`** — 4-phase gap-fill cascade (incl. SAM2)
-- **`core/cell_state.py`** — balled/attached classification
+- **`core/cell_state.py`** — rounded/spread state classification
 
 Full module map: see `INTERFACE.md`. Detailed status + benchmark tables: `PROJECT_STATUS.md`. Contributor / agent rules: `CLAUDE.md`. Best-results recommendations per recording type: [`docs/recording_recommendations.md`](docs/recording_recommendations.md).
 
