@@ -33,8 +33,8 @@ Recording (.tif / .mp4)              ← single- or multi-channel
 │  1. DIC↔Cy5 alignment (multichannel only)           │
 │     - cellpose centroid matching, sub-pixel offset  │
 │  2. Auto-downsample (max-dim heuristic)             │
-│     - <900 px:   no change                          │
-│     - 900-1500:  2× (3× speedup, ~3% IoU cost)      │
+│     - <1100 px:  no change                          │
+│     - 1100-1500: 2× (3× speedup, ~3% IoU cost)      │
 │     - ≥1500:     2× (5× speedup, no IoU cost)       │
 │  3. Convert µm thresholds → per-recording px        │
 │     (min_area_um2 → min_area_px from um_per_px)     │
@@ -49,7 +49,7 @@ Recording (.tif / .mp4)              ← single- or multi-channel
 │ DETECTION                                           │
 │  ★ Auto-selected backbone:                          │
 │      cpsam_dic (CP4 ViT fine-tune) OR raw cpsam     │
-│  → Mirror padding (auto when min-dim ≥ 1024 px;     │
+│  → Mirror padding (auto when min-dim ≥ 1000 px;     │
 │    +50 px reflection helps cells at FoV edges;      │
 │    per-recording override via sidecar JSON)         │
 │  → DeepSea union (fills under-segmented regions,    │

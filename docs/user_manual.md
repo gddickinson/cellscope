@@ -229,7 +229,7 @@ the single source of truth shared by the GUI, batch worker, and CLI.
   fall back to cellpose+MedSAM+DeepSea (default: **on** for the
   multi-cell path).
 - **Mirror-pad**: pad cpsam inputs by 50 px reflection (default:
-  **auto** — enabled when detection-min-dim ≥ 1024 px). Catches
+  **auto** — enabled when detection-min-dim ≥ 1000 px). Catches
   cells at FoV edges. Per-recording override: set
   `"use_mirror_pad": "off"` in the recording's JSON sidecar
   (used by Pos39_OT to preserve a dividing cell pair).

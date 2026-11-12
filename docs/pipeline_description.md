@@ -30,7 +30,7 @@ per frame, and uses the 75th-percentile count:
 
 Detection runs at default parameters (no diameter hint, no threshold
 tuning) on each frame independently. The cpsam input is mirror-padded
-by 50 px when detection-min-dim ≥ 1024 (auto-enabled) to handle cells
+by 50 px when detection-min-dim ≥ 1000 (auto-enabled) to handle cells
 at the FoV edge.
 
 ### DeepSea union refinement

@@ -50,7 +50,7 @@ SAM2 video gap  = on   (sub-toggle under gap fill)
 max gap frames  = 15   (multi-cell tracker)
 min area        = 200
 expected cells  = Auto   (or set to N if you know the cell count)
-mirror pad      = auto  (on when detection min-dim ≥ 1024)
+mirror pad      = auto  (on when detection min-dim ≥ 1000)
 
 # Multichannel DIC + Cy5 only:
 Cy5 fusion       = on   (auto-enabled when Cy5 channel present)
