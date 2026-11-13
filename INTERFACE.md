@@ -1,6 +1,7 @@
 # CellScope — Interface Map
 
 ## Entry Points
+- **run_web.py** — web interface (see `web/` below)
 - **main_suite.py** — Unified launcher (tkinter, runs from `cellpose` env)
 - **main_focused.py** — Detection & Analysis GUI
 - **main_batch.py** — Batch Processing GUI
@@ -127,6 +128,14 @@ suite 8771. See `gui_focused/remote_control.py` and `CLAUDE.md` for usage.
 ## `output/` — Result Writers
 - **results.py** — `write_recording_results()` (masks, metrics, plots)
 - **summary.py** — Batch CSV summaries
+
+## `web/` — Web interface (local FastAPI app + static GitHub Pages site)
+Start: `python run_web.py` (127.0.0.1:8181). Static build: `scripts/build_static.py` → `site/` (+ `site/demo/`), published by `.github/workflows/pages.yml`. Tests: `tests/test_web.py`, `web/static/engine.test.mjs`; fixture by `scripts/make_web_fixture.py` → `tests/fixtures/web_engine/`. Deps: `requirements-web.txt`.
+- **app.py** — FastAPI routes `/api/info`, `/api/defaults`, `/api/demo`, `/api/demo/reference`; `/demo` serves the synthetic demo files; `STATIC_ENDPOINTS` for the static export.
+- **api_data.py** — counts, `defaults()`, `demo_info()`, `demo_reference()` (Tracking-GUI path: `pixel_thresholds` → `track_all_cells` → `compute_label_metrics`), `gui_track_params()`; demo cached in `web_demo/` (gitignored, `CELLSCOPE_WEB_DEMO` overrides).
+- **defaults_doc.py** — DEFAULTS / DEFAULT_THRESHOLDS / presets with the source comment above each value (ast + inspect), planning constants.
+- **demo_data.py** — SYNTHETIC demo: 9 scripted cells (round-up, division, enter/leave, missed detections, close pass, debris), shuffled per-frame detection labels, phase-like image, ground-truth JSON; `ensure_demo(out)`.
+- **static/** — ES modules, no build step. Pages: `home.js`, `track.js`, `state.js`, `measure.js`, `planner.js`, `params.js`, `check.js`, `about.js`; shared: `data.js` (dataset + worker jobs), `view.js` (frame viewer), `loader.js` (own files), `worker.js`. Engines (JS ports, node-tested): `track_engine.js` (track_all_cells + Hungarian), `shape_engine.js` (clean_cell_mask, shape_metrics_for_mask, classify_state, compute_label_metrics), `planner_engine.js` (resolve_downsample, should_use_mirror_pad, decide_backbone, pixel_thresholds, runtime estimate, probe frames). From CellScope Analysis: `npz.js`, `tiff.js`, `render.js`, `charts.js`, `fmt.js`; `npz_write.js` writes the tracked masks. Kit: `core.js`, `style.css` (+ `style_app.css`).
 
 ## `scripts/`
 - **IC295 batch analysis** (`ic295_*.py`) — long-running detect →

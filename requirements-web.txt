@@ -1,0 +1,10 @@
+# Web interface (python run_web.py), its tests and the static build. The analysis stack is pinned to the
+# versions the web outputs were checked with.
+fastapi==0.162.2
+httpx==0.28.1
+pytest==9.2.0
+uvicorn==0.54.0
+numpy==2.5.4
+scipy==1.18.1
+scikit-image==0.26.0
+tifffile==2026.11.8

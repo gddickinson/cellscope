@@ -154,6 +154,42 @@ Recording (.tif / .mp4)              ← single- or multi-channel
 
 This entire chain lives in **`core/unified_detection.detect_recording(...)`** — one function, called by both the focused GUI worker (`mode="auto"`) and the runner script (`scripts/run_pipeline_on_gt_recording.py`). The GUI and CLI produce **identical output by construction**.
 
+## Web interface
+
+**Live site: https://gddickinson.github.io/cellscope/** (sister site for analysing CellScope output:
+[CellScope Analysis](https://gddickinson.github.io/cellscope_analysis/)).
+
+The parts of CellScope that do not need the deep-learning models run in the browser, as JS ports of the Python
+code (checked against it by `web/static/engine.test.mjs` and the site's *JS vs Python check* page), on a
+**synthetic** demo (simulated cells made by `web/demo_data.py`; no lab recordings) or on your own `masks.npz`
+(+ optional `.ome.tif` / `.json` sidecar), read locally and never uploaded:
+
+- **Track**: the Hungarian tracker (`core/multi_cell.py::track_all_cells`) with its cost weights, max hop, max gap and
+  min length, the raw-vs-tracked view, a score against the demo's ground truth, and downloads (tracks CSV, tracked
+  `masks.npz` that opens in CellScope and CellScope Analysis).
+- **Cell state**: the rounded / spread rule (`core/cell_state.py`) on every cell-frame, thresholds adjustable.
+- **Measure**: the colour-by-result metrics (`core/mask_metrics.py`) per cell, coloured overlay and per-frame plots.
+- **Run planner**: downsample factor, mirror padding, pixel thresholds, backbone choice from probe counts and the
+  Test-on-frame runtime estimate (`core/pipeline_defaults.py`, `core/runtime_estimate.py`).
+- **Defaults**: every `DEFAULTS` / `DEFAULT_THRESHOLDS` value and detection preset with its source comment.
+
+Not on the site (desktop only): detection (cellpose / cpsam / SAM2 / DeepSea), gap fill, Cy5 alignment and filtering,
+the division annotator, kymographs, VAMPIRE, state-stratified motility, batch / group statistics, the mask editor,
+training and the GT evaluation.
+
+Run it locally (http://127.0.0.1:8181):
+
+```bash
+pip install -r requirements-web.txt
+python run_web.py
+python -m pytest -q tests/test_web.py      # API, static build, JS engines vs Python fixture
+python scripts/build_static.py             # static copy in site/ (published by .github/workflows/pages.yml)
+```
+
+| Track | Cell state | Run planner |
+|:---:|:---:|:---:|
+| ![Track page](docs/img/track.png) | ![Cell state page](docs/img/state.png) | ![Run planner page](docs/img/planner.png) |
+
 ## Quick Start
 
 ### macOS / Linux

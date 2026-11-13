@@ -10,6 +10,32 @@ Format: **DATE — short title** with bullets describing what changed
 
 ---
 
+## 2026-11-12 — Web interface + static GitHub Pages site (branch `web-interface`)
+
+Added `web/` (FastAPI app on 127.0.0.1:8181 via `run_web.py`; static export by `scripts/build_static.py`,
+Pages workflow `.github/workflows/pages.yml`). Pages: Track (JS port of `track_all_cells` incl. the Hungarian
+solver; tune weights / max hop / max gap / min length; raw vs tracked view; score vs the demo's ground truth;
+download tracks CSV + tracked `masks.npz`), Cell state (rounded/spread rule, adjustable thresholds), Measure
+(`compute_label_metrics`), Run planner (downsample, mirror pad, pixel thresholds, backbone decision, runtime
+estimate), Defaults (DEFAULTS / DEFAULT_THRESHOLDS / presets with their source comments), JS vs Python check,
+About. Demo data is SYNTHETIC only (`web/demo_data.py`). JS engines match the Python on the fixture
+(`node web/static/engine.test.mjs`); readers shared with CellScope Analysis. Not ported: detection, gap fill,
+Cy5, divisions annotator, kymographs, VAMPIRE, state-stratified motility, batch/statistics, editor, training.
+
+Fixes / refactors in separate commits (regression tests in `tests/`):
+- Tracker cost weights now live in `DEFAULTS.track_w_dist/iou/area` (1.0 / 1.0 / 0.5, the values the tracker
+  always used and the Pos7-WT validation ran with); docs had said 1.0 / 0.5 / 0.3 and that the fields existed.
+  No change to tracking output. (The 2026-05-27 entry above quotes the old doc values.)
+- Docs: auto-downsample cut-off is 1100 px (not 900) and mirror pad switches on at 1000 px (not 1024).
+- README cell-state section described the retired balled/attached/transitional rule; now the rounded/spread rule.
+- Pure `decide_backbone()` (pipeline_defaults) and `core/runtime_estimate.py` factored out of the probe and
+  the focused GUI's Test-on-frame (same decisions and message); `tests/conftest.py` pins PyQt5 and closes test
+  windows.
+
+Tests: `pytest tests` (tracker defaults, docs, planning helpers + focused-GUI Test-on-frame path, web).
+`scripts/` keeps its script-style tests (`pytest scripts` aborts at collection on `test_defaults_consistency.py`'s
+module-level `sys.exit`, as before).
+
 ## 2026-10-23 — Large data moved to FANTOM (laptop disk full)
 
 - Moved the three `*_analysis/_cache/` recording folders (~62 GB) and

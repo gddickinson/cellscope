@@ -1,0 +1,55 @@
+/* CellScope: accent palette and page styles (theme in style.css, shared kit). Lime / cyan / amber, a sibling of
+   the CellScope Analysis site's cyan / magenta / amber. */
+:root { --accent:#7dff6a; --accent2:#2ee6ff; --accent3:#ffb02e; --glow:rgba(125,255,106,.12); }
+button, .btn, .seg button.on { color:#06140a; }
+button.ghost { background:transparent; color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent); }
+.two > *, .side > *, .three > * { min-width:0; }
+.mark { border-color:var(--accent); box-shadow:0 0 12px var(--accent), inset 0 0 0 4px var(--bg), inset 0 0 0 9px var(--accent2); }
+.hero .btn { margin-right:10px; margin-bottom:8px; }
+.badge { display:inline-block; font:11px var(--mono); padding:2px 8px; border-radius:3px; border:1px solid var(--line); color:var(--mute); max-width:100%; }
+.badge.syn { color:var(--warn); border-color:color-mix(in srgb, var(--warn) 50%, transparent); }
+.badge.py { color:var(--accent2); border-color:color-mix(in srgb, var(--accent2) 50%, transparent); }
+.badge.js { color:var(--accent3); border-color:color-mix(in srgb, var(--accent3) 50%, transparent); }
+.grid2 { display:grid; grid-template-columns:1fr 1fr; gap:10px 16px; }
+.small-ctl { gap:4px 14px; align-items:center; } .small-ctl > * { flex:0 0 auto; min-width:0; }
+.check { display:inline-flex; align-items:center; gap:7px; color:var(--ink); font-size:14px; margin:4px 0; }
+.check input { margin:0; }
+.loader summary { cursor:pointer; } .loader summary b { color:var(--accent); }
+
+/* viewer + controls */
+.work { display:grid; grid-template-columns:minmax(0, 1fr) 320px; gap:18px; align-items:start; }
+.stage canvas { image-rendering:pixelated; width:100%; height:auto; display:block; cursor:crosshair; }
+.timeline { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:8px 0; }
+.timeline input[type=range] { flex:1; min-width:140px; }
+.timeline button { margin:0; min-width:44px; }
+.progress { height:4px; background:var(--line); border-radius:2px; overflow:hidden; margin:8px 0; }
+.progress > div { height:100%; background:var(--accent); width:0; transition:width .1s; }
+
+/* tables + charts */
+.tbl td { font:12.5px var(--mono); white-space:nowrap; }
+.tbl tr.sel td { background:color-mix(in srgb, var(--accent) 12%, transparent); }
+.tbl tr.click:focus-visible td { background:color-mix(in srgb, var(--accent) 10%, transparent); }
+.tbl td.doc { white-space:normal; font:13px var(--sans); color:#c6d4ee; min-width:260px; }
+.kv { display:grid; grid-template-columns:auto 1fr; gap:3px 14px; font-size:14px; margin:0; }
+.kv dt { color:var(--mute); } .kv dd { margin:0; font:13px var(--mono); overflow-wrap:anywhere; }
+.cls { display:inline-flex; align-items:center; gap:6px; font:12px var(--mono); white-space:nowrap; }
+.cls::before { content:""; width:9px; height:9px; border-radius:50%; background:var(--c, var(--mute)); flex:none; }
+.legend { display:flex; flex-wrap:wrap; gap:6px 16px; margin:8px 0; }
+.good { color:var(--good); } .bad { color:var(--bad); }
+.chart { width:100%; height:auto; display:block; }
+.chart text { fill:var(--mute); font:10.5px var(--mono); }
+.chart .axis { stroke:var(--line); }
+.chart.flower { max-width:340px; margin:0 auto; }
+.charts { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:14px; }
+.charts .panel { margin:0; }
+.panel h3, .charts h3 { text-transform:none; letter-spacing:.06em; font-size:13.5px; margin-top:0; }
+.flow { display:flex; flex-wrap:wrap; gap:8px; align-items:stretch; margin:14px 0; }
+.flow > div { font-size:14px; flex:1 1 150px; border:1px solid var(--line); border-radius:6px; padding:10px 12px; background:rgba(12,16,32,.85); }
+.flow > div b { display:block; color:var(--accent); font:600 13px var(--mono); margin-bottom:4px; }
+.flow > div.off { opacity:.6; border-style:dashed; } .flow > div.off b { color:var(--mute); }
+.out { font:13px var(--mono); }
+.out b { color:var(--accent); }
+
+@media (max-width:900px) { .work { grid-template-columns:1fr; } }
+@media (max-width:760px) { .charts, .grid2 { grid-template-columns:1fr; } .kv { grid-template-columns:1fr; } .kv dd { margin-bottom:6px; } }
+.panel h3:not(:first-child) { margin-top:18px; }

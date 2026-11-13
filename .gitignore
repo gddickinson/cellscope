@@ -153,3 +153,7 @@ docs/report_figures/
 
 # Ad-hoc analysis output images saved at the repo root
 /tracked_cells_*.png
+
+# web interface: static site build and the generated synthetic demo
+site/
+web_demo/
