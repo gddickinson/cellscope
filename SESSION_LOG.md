@@ -10,6 +10,27 @@ Format: **DATE — short title** with bullets describing what changed
 
 ---
 
+## 2026-11-12 — Follow-ups: scale-aware tracker hop, CY5_FILTER_MODES, Test-on-frame worker, pipeline_defaults split
+
+- **Tracker max hop is scale-aware** (`2077f6b`). `detect_recording` used a literal 150 px when no
+  `max_hop_px` was given; `hybrid_multichannel`'s re-track used 200 / 150 / 3. New
+  `DEFAULTS.tracker_hop_mode` (`"scale_aware"` default, `"legacy_fixed_px"` = old 150 px) and
+  `DEFAULTS.tracker_max_hop_px(um_per_px_at_detection_res, interval)` = 15 µm/min × interval / µm-per-px
+  (150 px fallback without scale/interval). **Changes results**: IC295 at ds=2 now tracks with 115 px.
+  Focused GUI "Search radius" spinbox defaults to "Auto" (0); runner `--legacy-fixed-hop`; hop + source in
+  `result["auto"]` and RUN_METADATA `extra.tracker_hop`. Synthetic web demo (1.3 µm/px, 10 min):
+  detect_recording tracks identical at 115 vs 150 px; multichannel re-track 8/9 true cells whole (was 7/9,
+  min area 50 vs 200 px). Re-run detection before comparing new runs with pre-2026-11-12 ones (or pass
+  `--legacy-fixed-hop`).
+- **CY5_FILTER_MODES** (`37a8288`) now lists all 11 strategies incl. `persistence_guard`; `apply_cy5_filter`
+  validates against it; batch dropdown, tuner and script `--filter-mode` choices built from it; focused GUI
+  picks its initial Cy5 mode from `DEFAULTS.cy5_filter_mode`.
+- **Test on frame** (`a00be2a`) runs in `gui_focused/test_frame_worker.py::TestFrameWorker` (QThread), no
+  more GUI freeze; `/test_frame` RPC returns immediately.
+- **pipeline_defaults.py split** (`1e319cf`, 648 → <500 lines): `core/pipeline_policy.py` (downsample,
+  mirror pad, decide_backbone) + `core/auto_select.py` (model path, probe), re-exported from
+  `pipeline_defaults`; snapshot test proves no value or name changed.
+
 ## 2026-11-12 — Web interface + static GitHub Pages site (branch `web-interface`)
 
 Added `web/` (FastAPI app on 127.0.0.1:8181 via `run_web.py`; static export by `scripts/build_static.py`,
