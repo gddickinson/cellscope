@@ -135,7 +135,8 @@ class FocusedDetectWorker(QThread):
                     # the multi-cell tracker's max centroid hop —
                     # tighten it for slow endothelial cells to suppress
                     # ID switches across nearby cells.
-                    max_hop_px=self.params.get("search_radius"),
+                    # 0 / missing = Auto -> detect_recording decides.
+                    max_hop_px=self.params.get("search_radius") or None,
                     use_tta=self.params.get("use_tta"),
                     use_cpsam_cy5_union=self.params.get(
                         "use_cpsam_cy5_union"),
@@ -396,8 +397,8 @@ class FocusedGapFillWorker(QThread):
             min_area = self.params.get(
                 "min_area_px",
                 self.params.get("min_area", _PD.min_area_px))
-            search_radius = self.params.get(
-                "search_radius", _PD.search_radius_px)
+            search_radius = (self.params.get("search_radius")
+                             or _PD.search_radius_px)
             n_filled = fill_track_gaps(
                 self.tracks, self.frames,
                 min_area=min_area,

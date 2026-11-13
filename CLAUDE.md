@@ -294,6 +294,17 @@ Important physical defaults:
 For a hypothetical 0.4 µm/px microscope, the converter gives
 `min_area_px=531, cell_diameter_px=75` — automatically scaled.
 
+**Tracker max hop (2026-11-12).** When no `max_hop_px` is passed,
+`detect_recording` (and `hybrid_multichannel`'s re-track) use
+`DEFAULTS.tracker_max_hop_px(um_per_px_at_detection_res, interval)`:
+`DEFAULTS.tracker_hop_mode = "scale_aware"` gives
+`max_hop_um_per_min × interval / µm-per-px` (IC295 at ds=2: 115 px);
+`"legacy_fixed_px"` restores the old fixed `search_radius_px` (150 px).
+Without a pixel size or interval it falls back to 150 px. The focused
+GUI's "Search radius" spinbox shows "Auto" (0) for this; the runner
+takes `--legacy-fixed-hop`. The chosen hop + source are in
+`result["auto"]` and RUN_METADATA (`extra.tracker_hop`).
+
 ## Edge-truncated cells — excluded from shape/state, kept for counts
 
 A cell whose mask reaches the image border is only partially in view,

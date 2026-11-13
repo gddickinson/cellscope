@@ -66,6 +66,7 @@ def detect_recording(dic_frames, cy5_frames=None,
                       max_gap_frames=None,
                       min_track_length=None,
                       max_hop_px=None,
+                      tracker_hop_mode=None,
                       use_tta=None,
                       use_cpsam_cy5_union=None,
                       use_fallback=None,
@@ -84,7 +85,11 @@ def detect_recording(dic_frames, cy5_frames=None,
                       progress_fn=None):
     """Run the canonical end-to-end detection.
 
-    Args mostly self-explanatory. Returns a dict containing:
+    Args mostly self-explanatory. max_hop_px: the tracker's max centroid
+    hop at detection resolution; None -> chosen by tracker_hop_mode
+    (None -> DEFAULTS.tracker_hop_mode: "scale_aware" from
+    max_hop_um_per_min, or "legacy_fixed_px" = search_radius_px).
+    Returns a dict containing:
       masks, labels, tracks, fusion_source_stack (if Cy5 fusion ran),
       auto: {alignment, downsample_factor, downsample_reason,
              pipeline_kind, pipeline_reason, model_path, ...},
@@ -189,7 +194,17 @@ def detect_recording(dic_frames, cy5_frames=None,
 
     # ---- 6. Run detection ----
     use_cy5_fusion = has_cy5
-    eff_max_hop = max_hop_px if max_hop_px is not None else 150
+    # Tracker max hop: an explicit max_hop_px wins; otherwise
+    # DEFAULTS.tracker_hop_mode decides (scale-aware from µm/min at the
+    # detection resolution, or the legacy fixed search_radius_px).
+    if max_hop_px is not None:
+        eff_max_hop, hop_source = max_hop_px, "explicit"
+    else:
+        eff_max_hop, hop_source = DEFAULTS.tracker_max_hop_px(
+            effective_um_per_px if um_per_px else None,
+            time_interval_min, tracker_hop_mode)
+    auto["tracker_max_hop_px"] = eff_max_hop
+    auto["tracker_hop_source"] = hop_source
     if pipeline_kind == "cpsam_dic":
         from core.hybrid_dic import detect_hybrid_dic_multi
         _emit(f"Detecting with cpsam_dic", 10)

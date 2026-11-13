@@ -32,6 +32,9 @@ def detect_hybrid_multichannel(dic_frames, fluo_frames,
                                 use_cy5_recovery=False,
                                 cy5_recovery_use_tta=True,
                                 progress_fn=None,
+                                um_per_px=None,
+                                time_interval_min=None,
+                                tracker_hop_mode=None,
                                 **dic_pipeline_kwargs):
     """Multi-channel detect+track pipeline.
 
@@ -48,6 +51,11 @@ def detect_hybrid_multichannel(dic_frames, fluo_frames,
         augmentation on the small crop. Cheap on a 200×200 crop
         (~5 s vs ~75 s on the full frame).
       progress_fn: optional callback(msg, pct)
+      um_per_px, time_interval_min, tracker_hop_mode: scale used for the
+        re-track after Cy5 recovery when dic_pipeline_kwargs give no
+        min_area_px / max_hop_px (DEFAULTS.pixel_thresholds and
+        DEFAULTS.tracker_max_hop_px; "legacy_fixed_px" restores the old
+        fixed 150 px hop).
       **dic_pipeline_kwargs: passed to detect_hybrid_cpsam_multi
         (use_tta, use_gap_fill, use_deepsea, etc.)
 
@@ -108,12 +116,23 @@ def detect_hybrid_multichannel(dic_frames, fluo_frames,
                 progress_fn(
                     f"Re-tracking after Cy5 recovery "
                     f"(+{n_cy5_recovered} detections)", 90)
+            from core.pipeline_defaults import DEFAULTS
+            kw = dic_pipeline_kwargs
+            min_area = kw.get("min_area_px")
+            if min_area is None:
+                min_area = DEFAULTS.pixel_thresholds(um_per_px)["min_area_px"]
+            max_hop = kw.get("max_hop_px")
+            if max_hop is None:
+                max_hop, _ = DEFAULTS.tracker_max_hop_px(
+                    um_per_px, time_interval_min, tracker_hop_mode)
             raw_tracks = track_all_cells(
                 raw_labels,
-                min_area_px=200,
-                max_hop_px=150,
+                min_area_px=min_area,
+                max_hop_px=max_hop,
                 spawn_new_tracks=True,
-                min_track_length=3,
+                min_track_length=(kw.get("min_track_length")
+                                  or DEFAULTS.min_track_length),
+                max_gap_frames=kw.get("max_gap_frames"),
                 frames=dic_frames)
             log.info("After re-track: %d tracks total", len(raw_tracks))
 

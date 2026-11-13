@@ -53,6 +53,9 @@ from core.auto_select import (  # noqa: F401
 # ------------------------------------------------------------------
 # Detection / refinement / tracking defaults.
 # ------------------------------------------------------------------
+TRACKER_HOP_MODES = ("scale_aware", "legacy_fixed_px")
+
+
 @dataclass(frozen=True)
 class PipelineDefaults:
     # --- Detection ---
@@ -91,6 +94,12 @@ class PipelineDefaults:
     # at our 10-min/frame interval. Track-identity preservation
     # across these gaps prevents ID swaps like cell9→cell8.
     max_gap_frames: int = 15
+    # How detect_recording / hybrid_multichannel pick the tracker's max
+    # centroid hop when the caller passes none: "scale_aware" = 
+    # max_hop_um_per_min x frame interval / um_per_px at the detection
+    # resolution (tracker_max_hop_px); "legacy_fixed_px" = search_radius_px
+    # (150 px whatever the scale, the behaviour before 2026-11-12).
+    tracker_hop_mode: str = "scale_aware"
     # Hungarian cost-matrix weights (core.multi_cell.track_all_cells):
     #   cost = w_dist * distance + w_iou * (1 - IoU) * max_hop
     #          + w_area * |d area| / max(area) * max_hop
@@ -282,6 +291,26 @@ class PipelineDefaults:
             "search_radius_px": search_radius_px,
             "cell_diameter_px": cell_diameter_px,
         }
+
+    def tracker_max_hop_px(self, um_per_px: Optional[float] = None,
+                           time_interval_min: Optional[float] = None,
+                           mode: Optional[str] = None):
+        """(max hop in px, source) for the Hungarian tracker.
+
+        `um_per_px` is the scale at the resolution the tracker runs at
+        (after any downsampling). mode None -> self.tracker_hop_mode.
+        Scale-aware needs both the pixel size and the frame interval;
+        without them it falls back to the fixed search_radius_px.
+        """
+        mode = mode or self.tracker_hop_mode
+        if mode not in TRACKER_HOP_MODES:
+            raise ValueError(f"tracker hop mode {mode!r} not in {TRACKER_HOP_MODES}")
+        if mode == "legacy_fixed_px":
+            return self.search_radius_px, "legacy_fixed_px"
+        if not um_per_px or not time_interval_min:
+            return self.search_radius_px, "fixed (no pixel size or frame interval)"
+        return (self.pixel_thresholds(um_per_px, time_interval_min)["max_hop_px"],
+                "scale_aware")
 
     def with_cy5_available(self, has_cy5: bool) -> "PipelineDefaults":
         """Return a copy with Cy5-specific defaults flipped on when

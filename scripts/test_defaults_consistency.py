@@ -43,7 +43,8 @@ expect("use_gap_fill.isChecked", p.use_gap_fill.isChecked(),
        DEFAULTS.use_gap_fill)
 expect("use_tta.isChecked", p.use_tta.isChecked(), DEFAULTS.use_tta)
 expect("search_radius.value", p.search_radius.value(),
-       DEFAULTS.search_radius_px)
+       0 if DEFAULTS.tracker_hop_mode == "scale_aware"
+       else DEFAULTS.search_radius_px)
 expect("min_track_len.value", p.min_track_len.value(),
        DEFAULTS.min_track_length)
 expect("cy5_filter_threshold.value", p.cy5_filter_threshold.value(),

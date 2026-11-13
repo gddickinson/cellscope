@@ -48,7 +48,7 @@ route('planner', async () => {
     <div class="panel out"><h3>3 · Pixel thresholds at detection resolution</h3>
       <p class="small mute"><code>DEFAULTS.pixel_thresholds(${f((um || 1) * fac)} µm/px, ${dt ?? 'None'} min)</code>${um ? '' : ' (no pixel size: 1 µm/px assumed by detect_recording)'}</p>
       <dl class="kv"><dt>min_area_px</dt><dd>${px.min_area_px} (from ${D.min_area_um2} µm²; drops smaller detections)</dd>
-      <dt>max_hop_px</dt><dd>${px.max_hop_px} (from ${D.max_hop_um_per_min} µm/min; used by the Tracking GUI)</dd>
+      <dt>max_hop_px</dt><dd>${px.max_hop_px} (from ${D.max_hop_um_per_min} µm/min; the tracker's max hop when <code>tracker_hop_mode</code> is "scale_aware" (default), else ${D.search_radius_px} px)</dd>
       <dt>search_radius_px</dt><dd>${px.search_radius_px} (from ${D.search_radius_um} µm)</dd>
       <dt>cell_diameter_px</dt><dd>${px.cell_diameter_px ?? '–'} (from ${D.expected_cell_diameter_um} µm)</dd></dl></div>
     <div class="panel out"><h3>4 · Backbone (auto-select)</h3>

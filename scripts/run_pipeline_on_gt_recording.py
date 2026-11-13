@@ -105,6 +105,11 @@ def main():
                    "(4× TTA). Default runs no-augment first + augment "
                    "fallback on miss (~2× faster, GT-validated no quality "
                    "loss).")
+    p.add_argument("--legacy-fixed-hop", action="store_true",
+                   help="Track with the old fixed max hop (DEFAULTS."
+                   "search_radius_px = 150 px at detection resolution) "
+                   "instead of the scale-aware hop (max_hop_um_per_min x "
+                   "frame interval / um per px), the default since 2026-11-12.")
     p.add_argument("--fp32", action="store_true",
                    help="Run cpsam in fp32 instead of the bfloat16 default. "
                    "On Apple Silicon (MPS) fp32 is ~1.26× faster (validated "
@@ -178,6 +183,7 @@ def main():
         gap_fill_crop=(False if args.no_gap_fill_crop else None),
         gap_fill_augment=(True if args.gap_fill_always_augment else None),
         use_bfloat16=(False if args.fp32 else None),
+        tracker_hop_mode=("legacy_fixed_px" if args.legacy_fixed_hop else None),
         progress_fn=lambda m, p: log.info("  detect[%d%%]: %s", p, m))
 
     auto = detect["auto"]
@@ -266,7 +272,10 @@ def main():
                    "auto_selected_pipeline": pipeline_kind,
                    "downsample": downsample,
                    "downsample_reason": ds_reason,
-                   "downsample_spec": str(args.downsample)}
+                   "downsample_spec": str(args.downsample),
+                   "tracker_hop_mode": ("legacy_fixed_px" if args.legacy_fixed_hop
+                                        else DEFAULTS.tracker_hop_mode),
+                   "tracker_max_hop_px": auto.get("tracker_max_hop_px")}
     pipeline_fn = ("hybrid_dic_multi" if pipeline_kind == "cpsam_dic"
                    else "hybrid_cpsam_multi")
     extra = {"model_path": model_path,
@@ -275,6 +284,8 @@ def main():
              "channel_alignment": alignment_info,
              "px_thresholds": detect.get("px_thresholds"),
              "gap_fill_stats": detect.get("gap_fill_stats"),
+             "tracker_hop": {"max_hop_px": auto.get("tracker_max_hop_px"),
+                             "source": auto.get("tracker_hop_source")},
              "unified_detection_path": True}
     if has_cy5:
         extra.update({

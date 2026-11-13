@@ -154,14 +154,22 @@ class ParamsPanel(QWidget):
         form.addRow("Expected cells:", cell_row)
 
         self.search_radius = QSpinBox()
-        self.search_radius.setRange(20, 500)
-        self.search_radius.setValue(_PD.search_radius_px)
+        # 0 = "Auto": detect_recording picks the hop from
+        # DEFAULTS.tracker_hop_mode (scale-aware: max_hop_um_per_min x
+        # frame interval / µm per px at detection resolution).
+        self.search_radius.setRange(0, 500)
+        self.search_radius.setSpecialValueText("Auto (µm/min)")
+        self.search_radius.setValue(
+            0 if _PD.tracker_hop_mode == "scale_aware"
+            else _PD.search_radius_px)
         self.search_radius.setToolTip(
             "Max centroid hop (pixels) the multi-cell tracker will "
-            "allow between consecutive frames. Default 150 suits "
-            "fast-moving cells; for slow endothelial cells at long frame "
-            "intervals, tighten to 30-50 to prevent ID swaps "
-            "between nearby cells.")
+            "allow between consecutive frames. Auto = "
+            f"{_PD.max_hop_um_per_min:g} µm/min × frame interval, "
+            "converted with the recording's pixel size (falls back to "
+            f"{_PD.search_radius_px} px without a scale). Set a number "
+            "to fix it; for slow endothelial cells at long frame "
+            "intervals, 30-50 px prevents ID swaps between nearby cells.")
         form.addRow("Search radius (px):", self.search_radius)
 
         self.min_track_len = QSpinBox()
