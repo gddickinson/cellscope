@@ -309,11 +309,14 @@ def get_defaults(has_cy5: bool = False) -> PipelineDefaults:
 
 
 # ------------------------------------------------------------------
-# Cy5 filter mode IDs (used by core.cy5_filter.apply_cy5_filter and
-# params_panel's dropdown — keep in lockstep).
+# Cy5 filter mode IDs: the strategies core.cy5_filter.apply_cy5_filter
+# accepts (it validates against this tuple), in the batch GUI's dropdown
+# order (the batch dropdown is built from it; the focused GUI's labelled
+# dropdown is tested to map onto exactly this set).
 # ------------------------------------------------------------------
 CY5_FILTER_MODES = (
     "off",
+    "persistence_guard",
     "conservative",
     "conservative_strict",
     "adaptive",

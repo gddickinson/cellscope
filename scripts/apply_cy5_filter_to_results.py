@@ -29,6 +29,8 @@ setup_imports()
 
 import numpy as np
 
+from core.pipeline_defaults import CY5_FILTER_MODES
+
 CACHE_DIR = "results/ic295_full_v2"
 OUT_DIR = "results/ic295_filtered"
 PIXEL_SIZE_UM = 0.6523
@@ -203,10 +205,7 @@ def main():
     ap.add_argument("--cache-dir", default=CACHE_DIR)
     ap.add_argument("--out-dir", default=OUT_DIR)
     ap.add_argument("--filter-mode", default="multi_metric",
-                    choices=["off", "conservative", "conservative_strict",
-                             "adaptive", "adaptive_loose",
-                             "multi_metric", "composite_score",
-                             "consensus", "temporal_stability"])
+                    choices=list(CY5_FILTER_MODES))
     ap.add_argument("--no-overlay", action="store_true",
                     help="skip Fiji overlay TIFF export (faster)")
     args = ap.parse_args()

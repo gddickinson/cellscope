@@ -552,10 +552,8 @@ def apply_cy5_filter(tracks, mode="off", threshold=0.15,
                       pg_static_shape_iou=None):
     """Dispatch to the requested strategy.
 
-    mode ∈ {"off", "conservative", "conservative_strict",
-            "threshold", "adaptive", "adaptive_loose",
-            "multi_metric", "temporal_stability",
-            "persistence_guard"}.
+    mode ∈ core.pipeline_defaults.CY5_FILTER_MODES (anything else raises
+    ValueError).
     Returns (kept, dropped, info). When mode='off' returns
     (tracks, [], {"mode": "off"}).
 
@@ -563,6 +561,9 @@ def apply_cy5_filter(tracks, mode="off", threshold=0.15,
     filter's defaults (35, 3.0, 0.85) when provided. None → use the
     defaults baked into persistence_guard_filter.
     """
+    from core.pipeline_defaults import CY5_FILTER_MODES
+    if mode not in CY5_FILTER_MODES:
+        raise ValueError(f"Unknown mode {mode!r}; expected one of {CY5_FILTER_MODES}")
     if mode == "off" or not tracks:
         return tracks, [], {"mode": "off",
                              "n_kept": len(tracks), "n_dropped": 0}

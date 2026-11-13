@@ -123,7 +123,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--cache-dir", default=CACHE_DIR)
     ap.add_argument("--out-dir", default=OUT_DIR)
-    ap.add_argument("--filter-mode", default="multi_metric",
+    from core.pipeline_defaults import CY5_FILTER_MODES
+    ap.add_argument("--filter-mode", default="multi_metric", choices=list(CY5_FILTER_MODES),
                     help="Cy5 filter mode (default: multi_metric)")
     args = ap.parse_args()
     os.makedirs(args.out_dir, exist_ok=True)

@@ -88,11 +88,8 @@ class TunerWindow(QMainWindow):
         fg = QGroupBox("Filter mode")
         fgl = QFormLayout(fg)
         self.mode_combo = QComboBox()
-        self.mode_combo.addItems([
-            "off", "conservative", "conservative_strict",
-            "adaptive", "adaptive_loose",
-            "multi_metric", "composite_score", "consensus",
-            "temporal_stability"])
+        from core.pipeline_defaults import CY5_FILTER_MODES
+        self.mode_combo.addItems(list(CY5_FILTER_MODES))
         self.mode_combo.setCurrentText("multi_metric")
         self.mode_combo.currentTextChanged.connect(self._refresh)
         fgl.addRow("Mode:", self.mode_combo)

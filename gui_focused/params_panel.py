@@ -435,8 +435,7 @@ class ParamsPanel(QWidget):
         # Default to Persistence guard — recovers +70 GT cells (+7.1%)
         # across 13-recording corpus vs Multi-metric (which dropped
         # persistent cells in weak-Cy5 conditions: GOF/OT/DMSO).
-        self.cy5_filter_mode.setCurrentText(
-            "Persistence guard (mm-pass OR long+moving)")
+        self._select_cy5_mode(_PD.cy5_filter_mode)
         self.cy5_filter_mode.setEnabled(False)
         self.cy5_filter_mode.setToolTip(
             "After detection + tracking, drop tracks whose Cy5\n"
@@ -831,8 +830,8 @@ class ParamsPanel(QWidget):
             # DIC recordings where fluorescence is informative.
             self.use_cy5_fusion.setChecked(True)
             self.use_cy5_recovery.setChecked(True)
-            self.cy5_filter_mode.setCurrentText(
-                "Persistence guard (mm-pass OR long+moving)")
+            from core.pipeline_defaults import DEFAULTS as _PD
+            self._select_cy5_mode(_PD.cy5_filter_mode)
         else:
             self.use_cy5_fusion.setChecked(False)
             self.use_cy5_recovery.setChecked(False)
@@ -924,6 +923,14 @@ class ParamsPanel(QWidget):
             "sc_roughly_centered": self.sc_roughly_centered.isChecked(),
             "sc_expected_cell_area_um2": self.sc_expected_area.value(),
         }
+
+    def _select_cy5_mode(self, mode_id):
+        """Select the dropdown entry whose mode key is `mode_id`."""
+        for i in range(self.cy5_filter_mode.count()):
+            self.cy5_filter_mode.setCurrentIndex(i)
+            if self._cy5_filter_mode_value() == mode_id:
+                return
+        raise ValueError(f"no Cy5 filter entry for mode {mode_id!r}")
 
     def _cy5_filter_mode_value(self):
         """Map dropdown text to the lowercase mode key expected by

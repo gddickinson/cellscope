@@ -143,14 +143,11 @@ class BatchWindow(QMainWindow):
             "Free if no missed cells exist.")
         form.addRow("  Cy5 recovery:", self.use_cy5_recovery)
         self.cy5_filter_mode = QComboBox()
-        self.cy5_filter_mode.addItems([
-            "Off", "Persistence_guard",
-            "Conservative", "Conservative_strict",
-            "Adaptive", "Adaptive_loose",
-            "Multi_metric", "Composite_score", "Consensus",
-            "Temporal_stability", "Threshold"])
-        # Map DEFAULTS.cy5_filter_mode ("multi_metric") to its first-
-        # cap variant in this dropdown ("Multi_metric").
+        from core.pipeline_defaults import CY5_FILTER_MODES
+        self.cy5_filter_mode.addItems(
+            [m[:1].upper() + m[1:] for m in CY5_FILTER_MODES])
+        # Map DEFAULTS.cy5_filter_mode (e.g. "persistence_guard") to its
+        # first-cap variant in this dropdown ("Persistence_guard").
         self.cy5_filter_mode.setCurrentText(
             _PD.cy5_filter_mode[:1].upper() + _PD.cy5_filter_mode[1:])
         self.cy5_filter_mode.setToolTip(
