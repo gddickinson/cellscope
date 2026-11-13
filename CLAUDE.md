@@ -250,10 +250,13 @@ to full-recording runtime (sparse 1.5× / medium 2.0× / dense 2.5×
 post-proc multiplier). **Use this when validating parameter changes
 — skip the 1-3 hour full-recording detect cycle.**
 
-The handler (`gui_focused/main_window.py::_on_test_frame`) forces
+The handler (`gui_focused/main_window.py::_on_test_frame`) runs the
+detection in `gui_focused/test_frame_worker.py::TestFrameWorker` (a
+QThread, so the GUI stays responsive; the report comes back in
+`_on_test_frame_done`). The worker forces
 `min_track_length=1` and skips multi-frame stages (Cy5 filter, gap
 fill) since they're not meaningful on 1 frame. When adding new
-detection-related kwargs, remember to forward them in this handler
+detection-related kwargs, remember to forward them in this worker
 too — otherwise the preview will silently use defaults while the
 production `_on_detect` honours the GUI's value.
 

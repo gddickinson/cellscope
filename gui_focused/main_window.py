@@ -252,8 +252,8 @@ class FocusedMainWindow(QMainWindow):
         return {"ok": True, "status": "detection started"}
 
     def _remote_test_frame(self, data):
-        self._on_test_frame()
-        return {"ok": True}
+        self._on_test_frame()          # runs in a worker; poll /status or /log
+        return {"ok": True, "status": "test started"}
 
     def _remote_save_screenshot(self, data):
         path = data.get("path")
@@ -888,14 +888,16 @@ class FocusedMainWindow(QMainWindow):
 
     def _on_test_frame(self):
         """Run detection on the CURRENT displayed frame only, with
-        all current GUI params. Time the run and extrapolate a total
-        runtime estimate for the full recording. Skips multi-frame
+        all current GUI params, in a worker thread (TestFrameWorker),
+        then report the cell count and a density-aware runtime estimate
+        for the full recording (_on_test_frame_done). Skips multi-frame
         steps (tracking, gap fill, Cy5 multi-metric filter) since
         they're not meaningful on a single frame."""
         if self.recording is None:
             return
-        import time as _time
-        import numpy as _np
+        if getattr(self, "_test_worker", None) is not None and \
+                self._test_worker.isRunning():
+            return
         idx = int(self.viewer.current_frame)
         frames = self.recording["frames"]
         n_total = len(frames)
@@ -909,80 +911,43 @@ class FocusedMainWindow(QMainWindow):
         if self.roi.active and self.roi.roi_mask is not None:
             one_frame = self.roi.apply_to_frames(one_frame)
         params = self.params.get_detect_params()
-        # Honor the modality selector AND the pipeline mode (single /
-        # multi cell) so the test faithfully previews what Detect
-        # will produce. Previously test passed pipeline_kind="auto"
-        # for modality=Auto, which probes via raw cpsam (multi-cell
-        # capable). Detect, in contrast, resolves modality via
-        # detect_modality() first and — for single-cell + dic — locks
-        # to the legacy single-cell hybrid_dic path. That divergence
-        # let test report many cells while Detect produced garbage on
-        # a multi-cell scene the user had configured as single-cell.
-        modality = params.get("modality", "auto")
-        if modality == "auto":
-            from core.modality import detect_modality
-            # Match _on_detect's resolution exactly (uses full stack,
-            # not one frame, so the call is identical).
-            modality = detect_modality(frames)
-            self.logger.log(
-                "info", f"Auto-detected modality: {modality}")
-        if self.mode == "single":
-            # Single-cell paths: cpsam_dic for DIC, raw cpsam for the
-            # rest. Both branches in detect_recording match what
-            # _on_detect's hybrid_{dic,cpsam} legacy paths produce
-            # closely enough that the cell count is predictive.
-            test_pipeline_kind = ("cpsam_dic" if modality == "dic"
-                                   else "cpsam")
-        else:
-            # Multi-cell: let unified_detection's auto-probe choose
-            # between cpsam_dic and raw cpsam based on scene density.
-            # Same path _on_detect uses for multi mode.
-            test_pipeline_kind = "auto"
+        from gui_focused.test_frame_worker import TestFrameWorker
+        self._test_worker = TestFrameWorker(
+            frames, one_frame, one_cy5, idx, params, self.mode,
+            self.recording.get("um_per_px"),
+            self.recording.get("time_interval_min"))
+        self._test_worker.finished.connect(self._on_test_frame_done)
+        self._test_worker.error.connect(
+            lambda msg, i=idx: self._on_test_frame_error(i, msg))
+        self.pipeline.btn_test_frame.setEnabled(False)
         self.logger.log(
-            "info",
-            f"Test detect on frame {idx} (1/{n_total}); "
-            f"mode={self.mode} modality={modality} "
-            f"pipeline_kind={test_pipeline_kind}…")
-        self.status.showMessage(
-            f"Testing frame {idx}…", 0)
-        # Time the run
-        from core.unified_detection import detect_recording
-        from core.pipeline_defaults import DEFAULTS as _PD
-        t0 = _time.time()
-        try:
-            result = detect_recording(
-                one_frame, cy5_frames=one_cy5,
-                um_per_px=self.recording.get("um_per_px"),
-                time_interval_min=self.recording.get(
-                    "time_interval_min"),
-                downsample=params.get("downsample", "auto"),
-                # Single-frame: skip multi-frame stages
-                align_channels=False,
-                pipeline_kind=test_pipeline_kind,
-                run_cy5_filter=False,
-                use_gap_fill=False,
-                # Single-cell curation assembles the cell's track ACROSS
-                # frames (texture/continuity + SAM2 recovery), so it's
-                # meaningless on a 1-frame preview — force it off here.
-                single_cell_curation=False,
-                # Tracking needs min_track_length=1 for a 1-frame run
-                # (default 3 would drop the single-frame "track").
-                min_track_length=1,
-                use_mirror_pad=params.get("use_mirror_pad"),
-                use_deepsea=params.get("use_deepsea"),
-                use_tta=params.get("use_tta"),
-                use_cpsam_cy5_union=params.get(
-                    "use_cpsam_cy5_union"),
-                use_fallback=params.get("use_fallback"),
-                use_bfloat16=params.get("use_bfloat16"),
-                progress_fn=None,
-            )
-        except Exception as e:
-            self.status.showMessage(
-                f"Test failed on frame {idx}: {e}", 8000)
-            self.logger.log("error", f"Test detect error: {e}")
+            "info", f"Test detect on frame {idx} (1/{n_total}); "
+            f"mode={self.mode} modality={params.get('modality', 'auto')}…")
+        self.status.showMessage(f"Testing frame {idx}…", 0)
+        self._test_worker.start()
+
+    def _restore_test_button(self):
+        """Test-on-frame is available again once detection is reachable."""
+        det = self.pipeline.stages.get("detect")
+        self.pipeline.btn_test_frame.setEnabled(
+            self.recording is not None and det is not None
+            and det.isEnabled())
+
+    def _on_test_frame_error(self, idx, msg):
+        self._restore_test_button()
+        self.status.showMessage(f"Test failed on frame {idx}: {msg}", 8000)
+        self.logger.log("error", f"Test detect error: {msg}")
+
+    def _on_test_frame_done(self, out):
+        import numpy as _np
+        self._restore_test_button()
+        if self.recording is None:
             return
-        elapsed = _time.time() - t0
+        result, elapsed, idx = out["result"], out["elapsed"], out["idx"]
+        n_total = len(self.recording["frames"])
+        self.logger.log(
+            "info", f"Test detect: modality={out['modality']} "
+            f"pipeline_kind={out['pipeline_kind']}")
         labels = result.get("labels")
         if labels is None:
             labels = result["masks"]

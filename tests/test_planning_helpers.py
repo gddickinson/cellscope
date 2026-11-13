@@ -38,22 +38,69 @@ def test_format_duration():
     assert format_duration(9720) == "2.7 h"
 
 
-def test_focused_gui_test_frame_reports_estimate(monkeypatch):
+_APP = []
+
+
+def _gui_window(monkeypatch, detect):
     QtWidgets = pytest.importorskip("PyQt5.QtWidgets")
-    app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+    if not _APP:
+        _APP.append(QtWidgets.QApplication.instance() or QtWidgets.QApplication([]))
     import core.modality
     import core.unified_detection
     from gui_focused.main_window import FocusedMainWindow
-
-    lab = np.zeros((1, 64, 64), np.int32)
-    for k in range(6):                                   # 6 cells -> "medium", x2.0
-        lab[0, 4 + 10 * k:10 + 10 * k, 5:15] = k + 1
     monkeypatch.setattr(core.modality, "detect_modality", lambda frames: "dic")
-    monkeypatch.setattr(core.unified_detection, "detect_recording", lambda *a, **k: {"labels": lab})
+    monkeypatch.setattr(core.unified_detection, "detect_recording", detect)
     w = FocusedMainWindow()
     w.recording = {"frames": np.zeros((20, 64, 64), np.uint8), "um_per_px": 1.0,
                    "time_interval_min": 10.0}
+    return _APP[0], w
+
+
+def _six_cells(*a, **k):
+    lab = np.zeros((1, 64, 64), np.int32)
+    for c in range(6):                                   # 6 cells -> "medium", x2.0
+        lab[0, 4 + 10 * c:10 + 10 * c, 5:15] = c + 1
+    return {"labels": lab}
+
+
+def _finish(app, w):
+    assert w._test_worker.wait(10000)
+    app.processEvents()                                  # deliver the queued finished/error signal
+
+
+def test_focused_gui_test_frame_reports_estimate(monkeypatch):
+    app, w = _gui_window(monkeypatch, _six_cells)
     w._on_test_frame()
+    _finish(app, w)
     msg = w.status.currentMessage()
     assert "6 cell(s)" in msg and "(20 frames)" in msg and "× 2.0 medium post-proc" in msg, msg
-    app.processEvents()
+
+
+def test_focused_gui_test_frame_runs_off_the_gui_thread(monkeypatch):
+    """_on_test_frame returns while detection is still running (worker thread), and the button is
+    disabled until it finishes."""
+    import threading
+    gate, ran_on = threading.Event(), []
+
+    def slow(*a, **k):
+        ran_on.append(threading.current_thread() is threading.main_thread())
+        gate.wait(10)
+        return _six_cells()
+    app, w = _gui_window(monkeypatch, slow)
+    w.pipeline.enable_stage("detect", True)
+    w._on_test_frame()
+    assert w._test_worker.isRunning() and not w.pipeline.btn_test_frame.isEnabled()
+    assert w.status.currentMessage().startswith("Testing frame")
+    gate.set()
+    _finish(app, w)
+    assert ran_on == [False]
+    assert "6 cell(s)" in w.status.currentMessage() and w.pipeline.btn_test_frame.isEnabled()
+
+
+def test_focused_gui_test_frame_error_is_reported(monkeypatch):
+    def boom(*a, **k):
+        raise RuntimeError("no model")
+    app, w = _gui_window(monkeypatch, boom)
+    w._on_test_frame()
+    _finish(app, w)
+    assert "Test failed on frame 0: no model" in w.status.currentMessage()
